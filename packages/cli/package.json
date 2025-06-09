@@ -1,0 +1,35 @@
+{
+  "name": "@cookiebench/cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": "./dist/index.mjs",
+  "main": "./dist/index.mjs",
+  "module": "dist/index.mjs",
+  "bin": {
+    "benchmark-cli": "dist/index.mjs"
+  },
+  "scripts": {
+    "build": "rslib build",
+    "check-types": "tsc --noEmit",
+    "dev": "rslib build --watch",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "start": "node ./dist/index.mjs"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.0.0-alpha.0",
+    "@playwright/test": "^1.42.1",
+    "cli-table3": "^0.6.3",
+    "dotenv": "^16.5.0",
+    "package-manager-detector": "^1.3.0",
+    "picocolors": "^1.0.0"
+  },
+  "devDependencies": {
+    "@rsdoctor/rspack-plugin": "^1.1.3",
+    "@rslib/core": "^0.9.1",
+    "@types/node": "^22.15.30",
+    "playwright-performance-metrics": "^1.2.2",
+    "typescript": "^5.8.3"
+  }
+}

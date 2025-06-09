@@ -1,0 +1,4 @@
+packages:
+  - "benchmarks/*"
+  - "packages/*"
+  - "www"

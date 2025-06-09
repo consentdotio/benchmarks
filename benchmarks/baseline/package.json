@@ -1,0 +1,27 @@
+{
+	"name": "benchmark-baseline",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev --port 3000 --turbopack",
+		"build": "next build  --turbopack",
+		"start": "next start",
+		"lint": "next lint",
+		"fmt": "pnpm biome format --write . && pnpm biome check --formatter-enabled=false --linter-enabled=false --organize-imports-enabled=true --write",
+		"benchmark": "pnpm exec benchmark-cli benchmark"
+	},
+	"dependencies": {
+		"next": "15.3.3",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	},
+	"devDependencies": {
+		"@cookiebench/benchmark-schema": "workspace:*",
+		"@cookiebench/cli": "workspace:*",
+		"@cookiebench/ts-config": "workspace:*",
+		"@types/node": "^22.15.30",
+		"@types/react": "^19.1.6",
+		"@types/react-dom": "^19.1.6",
+		"typescript": "^5.8.3"
+	}
+}

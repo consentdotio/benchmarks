@@ -1,0 +1,43 @@
+{
+	"$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+	"name": "with-didomi",
+	"iterations": 20,
+	"cookieBanner": {
+		"selectors": [".didomi-popup-container"],
+		"serviceHosts": [
+			"api.privacy-center.org",
+			"sdk.privacy-center.org",
+			"privacy-center.org"
+		],
+		"waitForVisibility": true,
+		"measureViewportCoverage": true,
+		"expectedLayoutShift": true,
+		"serviceName": "Didomi"
+	},
+	"internationalization": {
+		"detection": "browser",
+		"stringLoading": "bundled"
+	},
+	"techStack": {
+		"bundler": "unknown",
+		"bundleType": "bundled",
+		"frameworks": ["react"],
+		"languages": ["javascript"],
+		"packageManager": "unknown",
+		"typescript": false
+	},
+	"source": {
+		"isOpenSource": false,
+		"license": "proprietary",
+		"website": "https://didomi.io"
+	},
+	"company": {
+		"name": "Didomi",
+		"website": "https://didomi.io",
+		"avatar": "https://cdn.brandfetch.io/idVPEL4NcB/w/400/h/400/theme/dark/icon.jpeg?c=1dxbfHSJFAPEGdCLU4o5B"
+	},
+	"includes": {
+		"backend": ["proprietary"],
+		"components": ["javascript", "react"]
+	}
+}

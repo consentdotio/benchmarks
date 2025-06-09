@@ -1,0 +1,30 @@
+{
+	"$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+	"name": "baseline",
+	"iterations": 1,
+	"baseline": true,
+	"cookieBanner": {
+		"selectors": [],
+		"serviceHosts": [],
+		"waitForVisibility": false,
+		"measureViewportCoverage": false,
+		"expectedLayoutShift": false,
+		"serviceName": "None (Baseline)"
+	},
+	"techStack": {
+		"bundler": "webpack",
+		"bundleType": "esm",
+		"frameworks": ["nextjs"],
+		"languages": ["javascript"],
+		"packageManager": "npm",
+		"typescript": false
+	},
+	"source": {
+		"isOpenSource": true,
+		"license": "MIT"
+	},
+	"includes": {
+		"components": ["javascript"]
+	},
+	"tags": ["baseline"]
+}

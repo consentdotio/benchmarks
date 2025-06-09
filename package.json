@@ -1,0 +1,30 @@
+{
+	"name": "cookiebench",
+	"private": true,
+	"scripts": {
+		"build": "turbo run build",
+		"dev": "turbo run dev --filter=benchmarks",
+		"lint": "turbo run lint",
+		"fmt": "turbo fmt",
+		"check-types": "turbo run check-types",
+		"benchmark": "turbo run benchmark",
+		"results": "pnpm exec benchmark-cli results",
+		"db": "pnpm exec benchmark-cli db"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
+		"@c15t/translations": "^1.0.0",
+		"@cookiebench/cli": "workspace:*",
+		"@playwright/test": "^1.42.1",
+		"cli-table3": "^0.6.5",
+		"drizzle-kit": "^0.31.1",
+		"p-limit": "^6.2.0",
+		"pretty-ms": "^9.2.0",
+		"turbo": "^2.5.3",
+		"typescript": "5.8.3"
+	},
+	"packageManager": "pnpm@9.0.0",
+	"engines": {
+		"node": ">=18"
+	}
+}

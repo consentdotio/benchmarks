@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Benchmark Configuration Schema",
+  "description": "Schema for cookie banner benchmark configurations",
+  "type": "object",
+  "required": [
+    "name",
+    "iterations",
+    "cookieBanner",
+    "techStack"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the benchmark test"
+    },
+    "iterations": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 20,
+      "description": "Number of test iterations to run"
+    },
+    "cookieBanner": {
+      "type": "object",
+      "required": [
+        "selectors",
+        "serviceHosts"
+      ],
+      "properties": {
+        "selectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "CSS selectors to identify cookie banner elements"
+        },
+        "serviceHosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of service hostnames"
+        },
+        "waitForVisibility": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to wait for banner visibility"
+        },
+        "measureViewportCoverage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to measure viewport coverage"
+        },
+        "expectedLayoutShift": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether layout shift is expected"
+        },
+        "serviceName": {
+          "type": "string",
+          "description": "Name of the cookie banner service"
+        }
+      }
+    },
+    "internationalization": {
+      "type": "object",
+      "required": [
+        "detection",
+        "stringLoading"
+      ],
+      "properties": {
+        "detection": {
+          "type": "string",
+          "enum": [
+            "browser",
+            "ip",
+            "manual",
+            "none"
+          ],
+          "description": "Method used to determine the banner language"
+        },
+        "stringLoading": {
+          "type": "string",
+          "enum": [
+            "bundled",
+            "server"
+          ],
+          "description": "How the banner loads its translation strings"
+        }
+      }
+    },
+    "techStack": {
+      "type": "object",
+      "required": [
+        "bundler",
+        "bundleType",
+        "frameworks",
+        "languages",
+        "packageManager"
+      ],
+      "properties": {
+        "bundler": {
+          "type": "string"
+        },
+        "bundleType": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "esm",
+                "cjs",
+                "iffe",
+                "bundled"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "esm",
+                  "cjs"
+                ]
+              }
+            }
+          ]
+        },
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "typescript",
+              "javascript"
+            ]
+          }
+        },
+        "packageManager": {
+          "type": "string"
+        },
+        "typescript": {
+          "type": "boolean"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "github": {
+          "type": "string"
+        },
+        "isOpenSource": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "partially"
+              ]
+            }
+          ]
+        },
+        "license": {
+          "type": "string"
+        },
+        "npm": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "includes": {
+      "type": "object",
+      "properties": {
+        "backend": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "company": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string",
+          "format": "uri"
+        },
+        "avatar": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

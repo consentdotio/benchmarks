@@ -1,0 +1,14 @@
+{
+	"name": "@cookiebench/benchmark-schema",
+	"version": "0.0.0",
+	"private": true,
+	"license": "MIT",
+	"main": "schema.json",
+	"files": [
+		"schema.json",
+		"base.json"
+	],
+	"publishConfig": {
+		"access": "public"
+	}
+}
