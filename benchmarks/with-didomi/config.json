@@ -3,9 +3,7 @@
 	"name": "with-didomi",
 	"iterations": 20,
 	"cookieBanner": {
-		"selectors": [
-			".didomi-popup-container"
-		],
+		"selectors": [".didomi-popup-container"],
 		"serviceHosts": [
 			"api.privacy-center.org",
 			"sdk.privacy-center.org",

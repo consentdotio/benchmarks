@@ -4,9 +4,7 @@
 	"id": "iubenda-cs-banner",
 	"iterations": 20,
 	"cookieBanner": {
-		"selectors": [
-			".iubenda-cs-content"
-		],
+		"selectors": [".iubenda-cs-content"],
 		"serviceHosts": [
 			"iubenda.com",
 			"cdn.iubenda.com",
