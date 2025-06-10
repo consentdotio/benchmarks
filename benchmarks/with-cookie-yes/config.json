@@ -3,29 +3,21 @@
 	"name": "with-cookie-yes",
 	"id": "cookie-yes-banner",
 	"iterations": 20,
+	"remote": {
+		"enabled": true,
+		"url": "https://benchmarks-with-cookie-yes.vercel.app"
+	},
 	"cookieBanner": {
-		"selectors": [
-			"#iubenda-cs-banner",
-			".iubenda-cs-container",
-			".iubenda-cs-content",
-			".iub-cookie-policy-widget",
-			"[data-iub-purposes]",
-			".iubenda-banner-content"
-		],
-		"serviceHosts": [
-			"iubenda.com",
-			"cdn.iubenda.com",
-			"cs.iubenda.com",
-			"cookiepolicy.iubenda.com"
-		],
+		"selectors": [".cky-consent-container"],
+		"serviceHosts": ["cdn-cookieyes.com"],
 		"waitForVisibility": true,
 		"measureViewportCoverage": true,
 		"expectedLayoutShift": true,
-		"serviceName": "Iubenda"
+		"serviceName": "CookieYes"
 	},
 	"internationalization": {
-		"detection": "manual",
-		"stringLoading": "bundled"
+		"detection": "browser",
+		"stringLoading": "server"
 	},
 	"techStack": {
 		"bundler": "unknown",
@@ -38,12 +30,12 @@
 	"source": {
 		"isOpenSource": false,
 		"license": "proprietary",
-		"website": "https://www.iubenda.com"
+		"website": "https://www.cookieyes.com"
 	},
 	"company": {
-		"name": "Iubenda",
-		"website": "https://iubenda.com",
-		"avatar": "https://pbs.twimg.com/profile_images/1022496373671903232/sE3b81SL_400x400.jpg"
+		"name": "CookieYes",
+		"website": "https://www.cookieyes.com",
+		"avatar": "https://pbs.twimg.com/profile_images/1351391912402558976/-UN3BKAG_400x400.jpg"
 	},
 	"includes": {
 		"backend": ["proprietary"],

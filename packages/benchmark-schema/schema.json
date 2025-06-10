@@ -20,6 +20,37 @@
       "default": 20,
       "description": "Number of test iterations to run"
     },
+    "remote": {
+      "type": "object",
+      "description": "Configuration for remote benchmarking",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable remote benchmarking instead of building locally"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Remote URL to benchmark (required when remote.enabled is true)"
+        },
+        "headers": {
+          "type": "object",
+          "description": "Optional HTTP headers to send with requests",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": { "const": true }
+        }
+      },
+      "then": {
+        "required": ["url"]
+      }
+    },
     "cookieBanner": {
       "type": "object",
       "required": [

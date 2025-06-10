@@ -9,6 +9,11 @@ export interface Config {
   iterations: number;
   baseline?: boolean;
   custom?: (page: Page) => Promise<void>;
+  remote?: {
+    enabled?: boolean;
+    url?: string;
+    headers?: Record<string, string>;
+  };
   cookieBanner: CookieBannerConfig;
   internationalization: {
     detection: string;

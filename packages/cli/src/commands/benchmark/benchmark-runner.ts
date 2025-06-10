@@ -4,6 +4,7 @@ import { buildAndServeNextApp, cleanupServer } from "../../lib/server";
 import { PerformanceMetricsCollector } from "playwright-performance-metrics";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ServerInfo } from "../../types";
 
 import type {
   Config,
@@ -34,6 +35,12 @@ async function runBenchmark(
     "🔍 [DEBUG] Bundle type from config:",
     config.techStack?.bundleType
   );
+
+  // Set custom headers if provided for remote benchmarking
+  if (config.remote?.enabled && config.remote.headers) {
+    console.log("🔍 [DEBUG] Setting custom headers:", config.remote.headers);
+    await page.setExtraHTTPHeaders(config.remote.headers);
+  }
 
   // Initialize components
   const collector = new PerformanceMetricsCollector();
@@ -372,11 +379,23 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
       throw new Error("Failed to read config.json");
     }
 
-    const serverInfo = await buildAndServeNextApp(appPath);
+    let serverInfo: ServerInfo | null = null;
+    let benchmarkUrl: string;
+
+    // Check if remote benchmarking is enabled
+    if (config.remote?.enabled && config.remote.url) {
+      console.log(`🌐 Running remote benchmark against: ${config.remote.url}`);
+      benchmarkUrl = config.remote.url;
+    } else {
+      console.log("🏗️ Building and serving app locally...");
+      serverInfo = await buildAndServeNextApp(appPath);
+      benchmarkUrl = serverInfo.url;
+    }
+
     const cwd = appPath || process.cwd();
 
     try {
-      const result = await runBenchmarks(serverInfo.url, config);
+      const result = await runBenchmarks(benchmarkUrl, config);
 
       // Format results for results.json
       const resultsData = {
@@ -393,6 +412,8 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
           timestamp: new Date().toISOString(),
           iterations: config.iterations,
           languages: config.techStack.languages,
+          isRemote: config.remote?.enabled || false,
+          url: config.remote?.enabled ? config.remote.url : undefined,
         },
       };
 
@@ -407,7 +428,10 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
         printScores(result.scores);
       }
     } finally {
-      await cleanupServer(serverInfo);
+      // Only cleanup server if we started one
+      if (serverInfo) {
+        await cleanupServer(serverInfo);
+      }
     }
   } catch (error: unknown) {
     if (error instanceof Error) {
