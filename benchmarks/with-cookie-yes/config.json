@@ -16,7 +16,7 @@
 		"serviceName": "CookieYes"
 	},
 	"internationalization": {
-		"detection": "browser",
+		"detection": "manual",
 		"stringLoading": "server"
 	},
 	"techStack": {
