@@ -82,6 +82,14 @@ async function runBenchmark(
     bannerSelector: null,
   };
 
+  // Enable console log capture
+  page.on('console', (msg) => {
+    const text = msg.text();
+    if (text.includes('🔍')) {
+      console.log(`[BROWSER] ${text}`);
+    }
+  });
+
   // Setup monitoring
   await networkMonitor.setupRequestMonitoring(page, cookieBannerMetrics);
   await bannerDetector.setupDetection(page, config);

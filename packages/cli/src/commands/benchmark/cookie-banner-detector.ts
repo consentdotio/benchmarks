@@ -17,6 +17,7 @@ export class CookieBannerDetector {
         const { selectors, constants } = params;
         console.log("🔍 [BROWSER] Setting up cookie banner detection...");
 
+
         // Store initial performance baseline
         (window as unknown as WindowWithCookieMetrics).__cookieBannerMetrics = {
           pageLoadStart: performance.now(),
@@ -53,16 +54,52 @@ export class CookieBannerDetector {
             window as unknown as WindowWithCookieMetrics
           ).__cookieBannerMetrics.bannerDetectionStart = performance.now();
 
+          console.log("🔍 [BANNER] Starting detection check...");
+          
           for (const selector of selectors) {
             try {
               const element = document.querySelector(selector);
+              console.log(`🔍 [BANNER] Checking selector "${selector}":`, element ? "found" : "not found");
+              
               if (element) {
+                // First check if element is immediately visible
+                let isVisible = false;
+                let recheckAttempts = 0;
+                const maxRecheckAttempts = 10; // 10 attempts * 100ms = 1 second max
+                
+                // Function to check visibility
+                const checkElementVisibility = () => {
+                  const rect = element.getBoundingClientRect();
+                  const computedStyle = window.getComputedStyle(element);
+                  const hasContent = rect.width > 100 && rect.height > 0;
+                  const hasContainer = rect.width > 200 && computedStyle.display !== "none" && computedStyle.visibility !== "hidden";
+                  return hasContent || hasContainer;
+                };
+                // Check visibility immediately
+                isVisible = checkElementVisibility();
+                
+                // If element exists but not visible, wait and recheck up to 1 second
+                while (!isVisible && recheckAttempts < maxRecheckAttempts) {
+                  const rect = element.getBoundingClientRect();
+                  console.log(`🔍 [BANNER] Element "${selector}" found but not visible yet (${rect.width}x${rect.height}), waiting 100ms (attempt ${recheckAttempts + 1}/${maxRecheckAttempts})`);
+                  
+                  // Wait 100ms synchronously (not ideal but necessary for this detection pattern)
+                  const start = performance.now();
+                  while (performance.now() - start < 100) {
+                    // Busy wait for 100ms
+                  }
+                  
+                  recheckAttempts++;
+                  isVisible = checkElementVisibility();
+                }
+
                 const rect = element.getBoundingClientRect();
-                const isVisible =
-                  rect.width > 0 &&
-                  rect.height > 0 &&
-                  window.getComputedStyle(element).visibility !== "hidden" &&
-                  window.getComputedStyle(element).display !== "none";
+                console.log(`🔍 [BANNER] Final visibility check for "${selector}":`, {
+                  width: rect.width,
+                  height: rect.height,
+                  isVisible,
+                  recheckAttempts
+                });
 
                 if (isVisible) {
                   const metrics = (window as unknown as WindowWithCookieMetrics)
@@ -108,27 +145,94 @@ export class CookieBannerDetector {
               );
             }
           }
+
+          console.log("🔍 [BANNER] No visible banner found in this check");
           return false;
         };
 
-        // Start detection after DOM is ready
+        // Enhanced detection for async-loaded banners
         const startDetection = (): void => {
+          let detectionInterval: ReturnType<typeof setInterval>;
+          let isDetected = false;
+          let attemptCount = 0;
+
+          const runDetection = () => {
+            attemptCount++;
+            console.log(`🔍 [DETECTION] Attempt ${attemptCount} - Looking for cookie banner...`);
+            
+            if (!isDetected && detectCookieBanner()) {
+              isDetected = true;
+              console.log(`🔍 [DETECTION] Banner found on attempt ${attemptCount}!`);
+              if (detectionInterval) clearInterval(detectionInterval);
+              if (mutationObserver) mutationObserver.disconnect();
+            } else if (!isDetected) {
+              console.log(`🔍 [DETECTION] Attempt ${attemptCount} - No banner found, will retry in ${constants.DETECTION_INTERVAL}ms`);
+            }
+          };
+
+          // Initial detection attempt
           setTimeout(() => {
-            if (!detectCookieBanner()) {
+            runDetection();
+            
+            if (!isDetected) {
               // Keep checking for dynamically loaded banners
-              const interval = setInterval(() => {
-                if (detectCookieBanner()) {
-                  clearInterval(interval);
-                }
-              }, constants.DETECTION_INTERVAL);
+              detectionInterval = setInterval(runDetection, constants.DETECTION_INTERVAL);
 
               // Stop checking after max detection time
-              setTimeout(
-                () => clearInterval(interval),
-                constants.MAX_DETECTION_TIME
-              );
+              setTimeout(() => {
+                if (!isDetected) {
+                  console.log(`🔍 [DETECTION] Giving up after ${constants.MAX_DETECTION_TIME}ms and ${attemptCount} attempts`);
+                }
+                if (detectionInterval) clearInterval(detectionInterval);
+                if (mutationObserver) mutationObserver.disconnect();
+              }, constants.MAX_DETECTION_TIME);
             }
           }, constants.INITIAL_DETECTION_DELAY);
+
+                    // Enhanced: Watch for DOM changes for async-loaded content
+          let mutationObserver: MutationObserver | null = null;
+          if ('MutationObserver' in window) {
+            mutationObserver = new MutationObserver((mutations) => {
+              if (isDetected) return;
+              
+              console.log("🔍 [MUTATION] DOM mutations detected:", mutations.length);
+              
+              for (const mutation of mutations) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                  console.log("🔍 [MUTATION] Nodes added:", mutation.addedNodes.length);
+                  
+                  // Check if any added nodes might be our banner
+                  for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                      const element = node as Element;
+                      console.log("🔍 [MUTATION] Added element:", element.tagName, element.className, element.id);
+                      
+                      // Check if this element or its children match our selectors
+                      for (const selector of selectors) {
+                        if (element.matches?.(selector)) {
+                          console.log("🔍 [MUTATION] Found matching element for selector:", selector);
+                          setTimeout(runDetection, 50); // Small delay to ensure rendering
+                          return;
+                        }
+                        if (element.querySelector?.(selector)) {
+                          console.log("🔍 [MUTATION] Found child matching selector:", selector);
+                          setTimeout(runDetection, 50);
+                          return;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            });
+
+            mutationObserver.observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: false
+            });
+          }
+
         };
 
         if (document.readyState === "loading") {

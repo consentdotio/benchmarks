@@ -1,7 +1,7 @@
 export const BENCHMARK_CONSTANTS = {
-  DETECTION_INTERVAL: 100,
-  MAX_DETECTION_TIME: 10000, // Back to 10 seconds
-  INITIAL_DETECTION_DELAY: 100, // Back to 100ms
+  DETECTION_INTERVAL: 1000, // Wait 1 second between detection attempts
+  MAX_DETECTION_TIME: 15000, // Increased to 15 seconds to accommodate longer waits
+  INITIAL_DETECTION_DELAY: 500, // Wait 500ms before starting
   TTI_BUFFER: 1000,
   METRICS_TIMEOUT: 10000,
   METRICS_RETRY_TIMEOUT: 5000,

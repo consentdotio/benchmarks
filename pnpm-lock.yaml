@@ -351,6 +351,40 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
 
+  benchmarks/with-osano:
+    dependencies:
+      next:
+        specifier: 15.3.3
+        version: 15.3.3(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react:
+        specifier: ^19.0.0
+        version: 19.1.0
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.1.0(react@19.1.0)
+    devDependencies:
+      '@cookiebench/benchmark-schema':
+        specifier: workspace:*
+        version: link:../../packages/benchmark-schema
+      '@cookiebench/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@cookiebench/ts-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^22.15.30
+        version: 22.15.30
+      '@types/react':
+        specifier: ^19.1.6
+        version: 19.1.6
+      '@types/react-dom':
+        specifier: ^19.1.6
+        version: 19.1.6(@types/react@19.1.6)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+
   packages/benchmark-schema: {}
 
   packages/cli:
