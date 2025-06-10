@@ -12,8 +12,8 @@
 		"serviceName": "Cookie Control"
 	},
 	"internationalization": {
-		"detection": "manual",
-		"stringLoading": "server"
+		"detection": "none",
+		"stringLoading": "none"
 	},
 	"techStack": {
 		"bundler": "unknown",

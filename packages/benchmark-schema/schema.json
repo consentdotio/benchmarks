@@ -114,7 +114,8 @@
           "type": "string",
           "enum": [
             "bundled",
-            "server"
+            "server",
+            "none"
           ],
           "description": "How the banner loads its translation strings"
         }
