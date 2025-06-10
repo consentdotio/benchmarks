@@ -1,5 +1,5 @@
 {
-	"name": "with-cookie-yes",
+	"name": "with-cookie-control",
 	"private": true,
 	"scripts": {
 		"dev": "next dev --port 3001 --turbopack",
