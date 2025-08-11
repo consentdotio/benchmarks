@@ -173,7 +173,7 @@ async function studioCommand() {
 	
 	try {
 		runDrizzleCommand('studio');
-	} catch (error) {
+	} catch {
 		// Studio command might be interrupted by Ctrl+C, which is normal
 		p.log.info('Studio closed.');
 	}

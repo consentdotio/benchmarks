@@ -19,7 +19,6 @@ import { CookieBannerDetector } from "./cookie-banner-detector";
 import { ResourceCollector } from "./resource-collector";
 import { MetricsCalculator } from "./metrics-calculator";
 import { calculateScores, printScores } from "../../utils/scoring";
-import type { RawBenchmarkDetail } from "../results";
 
 async function runBenchmark(
   page: Page,

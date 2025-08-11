@@ -266,31 +266,6 @@ export interface LayoutShiftEntry extends PerformanceEntry {
   hadRecentInput: boolean;
 }
 
-export interface ResourceTimingEntry extends PerformanceEntry {
-  initiatorType: string;
-  transferSize: number;
-}
-
-export interface LargestContentfulPaintEntry extends PerformanceEntry {
-  startTime: number;
-}
-
-export interface FirstContentfulPaintEntry extends PerformanceEntry {
-  startTime: number;
-}
-
-export interface LongTaskEntry extends PerformanceEntry {
-  duration: number;
-}
-
-export interface PerformanceMetrics {
-  fcp: number;
-  lcp: number;
-  cls: number;
-  tbt: number;
-  tti: number;
-}
-
 interface CookieBannerConfig {
   selectors: string[];
   serviceHosts: string[];
