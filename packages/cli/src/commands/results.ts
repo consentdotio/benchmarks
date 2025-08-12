@@ -238,7 +238,7 @@ export interface RawBenchmarkDetail {
   language: string;
 }
 
-export interface BenchmarkOutput {
+interface BenchmarkOutput {
   app: string;
   results: RawBenchmarkDetail[];
   scores?: {
@@ -372,23 +372,6 @@ async function loadConfigForApp(appName: string): Promise<Config> {
         stringLoading: "bundled",
       },
     };
-  }
-}
-
-// Helper function to safely access optional nested properties
-function safeGet<T>(obj: unknown, path: string, defaultValue: T): T {
-  try {
-    const result = path.split(".").reduce((current, key) => {
-      if (current && typeof current === "object" && key in current) {
-        return (current as Record<string, unknown>)[key];
-      }
-      return undefined;
-    }, obj);
-    return result !== undefined && result !== null
-      ? (result as T)
-      : defaultValue;
-  } catch {
-    return defaultValue;
   }
 }
 

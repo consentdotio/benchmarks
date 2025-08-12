@@ -1,10 +1,9 @@
 {
-	"name": "benchmark-baseline",
-	"version": "0.1.0",
+	"name": "with-ethyca",
 	"private": true,
 	"scripts": {
-		"dev": "next dev --port 3000 --turbopack",
-		"build": "next build  --turbopack",
+		"dev": "next dev --port 3006 --turbopack",
+		"build": "next build --turbopack",
 		"start": "next start",
 		"lint": "next lint",
 		"fmt": "pnpm biome format --write . && pnpm biome check --formatter-enabled=false --linter-enabled=false --organize-imports-enabled=true --write",

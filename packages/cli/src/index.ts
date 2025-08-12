@@ -64,7 +64,6 @@ async function main() {
       return onCancel();
     }
 
-    // biome-ignore lint/style/useDefaultSwitchClause: <explanation>
     switch (selectedCommand) {
       case "benchmark":
         await benchmarkCommand();

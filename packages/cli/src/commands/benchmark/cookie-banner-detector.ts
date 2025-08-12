@@ -200,13 +200,11 @@ export class CookieBannerDetector {
               for (const mutation of mutations) {
                 if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
                   console.log("🔍 [MUTATION] Nodes added:", mutation.addedNodes.length);
-                  
                   // Check if any added nodes might be our banner
-                  for (const node of mutation.addedNodes) {
+                  for (const node of Array.from(mutation.addedNodes)) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
                       const element = node as Element;
                       console.log("🔍 [MUTATION] Added element:", element.tagName, element.className, element.id);
-                      
                       // Check if this element or its children match our selectors
                       for (const selector of selectors) {
                         if (element.matches?.(selector)) {

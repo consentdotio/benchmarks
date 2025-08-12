@@ -1,8 +1,4 @@
-import type { RawBenchmarkDetail } from "../commands/results";
-import type { Config } from "../types";
 import Table from "cli-table3";
-import color from "picocolors";
-import { determineBundleStrategy } from "../commands/benchmark/bundle-strategy";
 import type { BenchmarkScores } from '../types';
 
 // Type definitions for better type safety
@@ -90,7 +86,7 @@ interface ScoreWeights {
 }
 
 // Default scoring weights
-export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
+const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
 	performance: 0.4, // 40% - Core Web Vitals and performance metrics
 	bundleStrategy: 0.25, // 25% - First-party vs third-party, bundling approach
 	networkImpact: 0.2, // 20% - Network requests, bundle size, third-party impact
@@ -409,7 +405,6 @@ function calculateBundleScore(
 // Calculate network impact score (out of 100)
 function calculateNetworkScore(
 	metrics: MetricsData,
-	resourceData: ResourceData[]
 ): {
 	score: number;
 	maxScore: number;
@@ -984,7 +979,7 @@ export function calculateScores(
 	// Calculate individual category scores
 	const performanceScore = calculatePerformanceScore(metricsData);
 	const bundleScore = calculateBundleScore(metricsData, techStack, resourceData);
-	const networkScore = calculateNetworkScore(metricsData, resourceData);
+	const networkScore = calculateNetworkScore(metricsData);
 	const transparencyScore = calculateTransparencyScore(
 		isOpenSource,
 		company,
