@@ -227,8 +227,8 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0
       react-cookie-manager:
-        specifier: 3.8.1
-        version: 3.8.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        specifier: 4.0.3
+        version: 4.0.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react-dom:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
@@ -3011,8 +3011,8 @@ packages:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
     hasBin: true
 
-  react-cookie-manager@3.8.1:
-    resolution: {integrity: sha512-/dbLVV8PiP5tsTvMi7Kgv1lVMh+iCDPyF2irjjT84tCJZB8cxdljHROJ6BSVhXlM4AZweSgu9d3f7a9vvJo/VQ==}
+  react-cookie-manager@4.0.3:
+    resolution: {integrity: sha512-JlNeeiBAIiofzm2+vUzFAhOUrZq+nzbAV9o+WcDGr3+/tBKbpJvQn94Mk6tiB6wJ8mbYWNNkWmxQaJXCiVxY3w==}
     peerDependencies:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
@@ -6006,7 +6006,7 @@ snapshots:
       strip-json-comments: 2.0.1
     optional: true
 
-  react-cookie-manager@3.8.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+  react-cookie-manager@4.0.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
