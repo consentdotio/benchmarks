@@ -1,0 +1,48 @@
+{
+	"$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+	"name": "with-cookiekit",
+	"iterations": 20,
+	"cookieBanner": {
+		"selectors": [
+			".cookie-manager",
+			".react-cookie-manager",
+			"[data-react-cookie-manager]"
+		],
+		"serviceHosts": [],
+		"waitForVisibility": true,
+		"measureViewportCoverage": true,
+		"expectedLayoutShift": false,
+		"serviceName": "Cookiekit"
+	},
+	"internationalization": {
+		"detection": "none",
+		"stringLoading": "none"
+	},
+	"techStack": {
+		"bundler": "vite",
+		"bundleType": ["esm", "cjs"],
+		"frameworks": ["react"],
+		"languages": ["typescript", "javascript"],
+		"packageManager": "pnpm",
+		"typescript": true
+	},
+	"source": {
+		"license": "MIT",
+		"github": "github.com/hypershiphq/react-cookie-manager",
+		"npm": "react-cookie-manager",
+		"website": "https://github.com/hypershiphq/react-cookie-manager",
+		"openSource": true,
+		"type": "open-source"
+	},
+	"company": {
+		"name": "Hypership",
+		"website": "https://github.com/hypershiphq",
+		"avatar": "https://github.com/hypershiphq.png"
+	},
+	"includes": {
+		"backend": [],
+		"components": ["react", "javascript"]
+	},
+	"tags": ["cookiekit", "react", "open source", "oss", "community"]
+}
+
