@@ -197,25 +197,84 @@ export class PerfumeMetricsCollector {
 
 					fidObserver.observe({ entryTypes: ['first-input'] });
 
-					// Monitor Regulatory Friction Delay (RFD) - the delay between page start and cookie banner stability
-					// This measures the actual regulatory friction users experience waiting for banner stabilization
+					// Monitor Regulatory Friction Delay (RFD) - time from HTML rendering start to cookie banner appearance
+					// This measures the actual regulatory friction users experience waiting for the mandatory consent element
+					let htmlRenderStartTime = 0;
+					let cookieBannerAppearTime = 0;
+					
+					// Track when HTML starts rendering (DOMContentLoaded or first paint)
+					const trackHtmlRenderStart = () => {
+						if (htmlRenderStartTime === 0) {
+							htmlRenderStartTime = performance.now();
+							console.log(`🔍 [PERFUME] HTML rendering started:`, htmlRenderStartTime);
+							calculateRFD();
+						}
+					};
+					
+					// Track when cookie banner becomes visible and actionable
+					const trackCookieBannerAppearance = () => {
+						if (cookieBannerAppearTime === 0) {
+							cookieBannerAppearTime = performance.now();
+							console.log(`🔍 [PERFUME] Cookie banner appeared:`, cookieBannerAppearTime);
+							calculateRFD();
+						}
+					};
+					
 					const calculateRFD = () => {
-						const ttfb = window.__perfumeMetrics?.timeToFirstByte?.value || 0;
-						const cookieBannerStableTime = window.__perfumeMetrics?.cookieBannerStableTime?.value || 0;
+						// RFD = Time from HTML rendering start to cookie banner appearance
+						// This captures the regulatory friction delay users experience waiting for mandatory consent
+						const rfd = htmlRenderStartTime > 0 && cookieBannerAppearTime > 0 ? 
+							cookieBannerAppearTime - htmlRenderStartTime : 0;
 						
-						// RFD = Time between TTFB and when cookie banner becomes stable
-						// This captures the regulatory friction delay users experience
-						const rfd = cookieBannerStableTime - ttfb;
-						
-						if (cookieBannerStableTime > 0) {
+						if (rfd > 0) {
 							window.__perfumeMetrics!['regulatoryFrictionDelay'] = {
 								value: rfd,
 								timestamp: Date.now(),
 							};
-							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(TTFB: ${ttfb}ms, Banner Stable: ${cookieBannerStableTime}ms)`);
+							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(HTML Start: ${htmlRenderStartTime}ms, Banner Appear: ${cookieBannerAppearTime}ms)`);
 						}
 					};
 
+					// Track HTML rendering start - use DOMContentLoaded as the start point
+					if (document.readyState === 'loading') {
+						document.addEventListener('DOMContentLoaded', trackHtmlRenderStart, { once: true });
+					} else {
+						// DOM is already loaded, use current time
+						trackHtmlRenderStart();
+					}
+					
+					// Also track on first paint as fallback
+					if (fpValue > 0) {
+						htmlRenderStartTime = fpValue;
+						console.log(`🔍 [PERFUME] HTML rendering started (via FP):`, htmlRenderStartTime);
+						calculateRFD();
+					}
+					
+					// Monitor cookie banner appearance using the benchmark config selectors
+					const monitorCookieBannerAppearance = () => {
+						const bannerSelectors = window.__benchmarkConfig?.cookieBanner?.selectors || [];
+						
+						for (const selector of bannerSelectors) {
+							const banner = document.querySelector(selector) as HTMLElement;
+							if (banner && banner.offsetHeight > 0 && banner.offsetWidth > 0) {
+								// Banner is visible and has dimensions
+								if (cookieBannerAppearTime === 0) {
+									trackCookieBannerAppearance();
+								}
+								return;
+							}
+						}
+					};
+					
+					// Check for cookie banner appearance periodically
+					const bannerCheckInterval = setInterval(() => {
+						if (!window.__perfumeMetrics?.regulatoryFrictionDelay) {
+							monitorCookieBannerAppearance();
+						} else {
+							clearInterval(bannerCheckInterval);
+						}
+					}, 50);
+					
 					// Check for RFD calculation periodically
 					const rfdInterval = setInterval(() => {
 						if (!window.__perfumeMetrics?.regulatoryFrictionDelay) {
@@ -244,46 +303,8 @@ export class PerfumeMetricsCollector {
 						console.log(`🔍 [PERFUME] navigationTiming:`, navigationTiming.loadEventEnd - navigationTiming.fetchStart);
 					}
 
-					// Monitor cookie banner stability for RFD calculation
-					// This tracks when the cookie banner becomes stable (no more layout shifts)
-					const monitorCookieBannerStability = () => {
-						// Get cookie banner selectors from the benchmark config
-						// This ensures we're using the same selectors as the rest of the system
-						const bannerSelectors = window.__benchmarkConfig?.cookieBanner?.selectors || [];
-
-						let bannerFound = false;
-						let bannerStableTime = 0;
-
-						for (const selector of bannerSelectors) {
-							const banner = document.querySelector(selector) as HTMLElement;
-							if (banner && banner.offsetHeight > 0) {
-								bannerFound = true;
-								// Consider banner stable after it's been visible for 100ms without changes
-								bannerStableTime = performance.now() + 100;
-								console.log(`🔍 [PERFUME] Cookie banner found with selector: ${selector}`);
-								break;
-							}
-						}
-
-						if (bannerFound && bannerStableTime > 0) {
-							window.__perfumeMetrics!['cookieBannerStableTime'] = {
-								value: bannerStableTime,
-								timestamp: Date.now(),
-							};
-							console.log(`🔍 [PERFUME] cookieBannerStableTime:`, bannerStableTime);
-						} else if (bannerSelectors.length > 0) {
-							console.log(`🔍 [PERFUME] Cookie banner not found with selectors:`, bannerSelectors);
-						}
-					};
-
-					// Check for cookie banner stability periodically
-					const bannerCheckInterval = setInterval(() => {
-						if (!window.__perfumeMetrics?.cookieBannerStableTime) {
-							monitorCookieBannerStability();
-						} else {
-							clearInterval(bannerCheckInterval);
-						}
-					}, 50);
+					// Note: Cookie banner stability monitoring removed as RFD now measures
+					// learned anticipatory delay (user interaction - FCP) instead of technical timing
 
 					// Final check for any missed metrics after a longer delay
 					setTimeout(() => {
