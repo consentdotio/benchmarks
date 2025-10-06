@@ -73,6 +73,7 @@ export interface BenchmarkDetails {
     cumulativeLayoutShift: number;
     firstInputDelay?: number;
     timeToFirstByte?: number;
+    regulatoryFrictionDelay?: number;
     cookieBanner: {
       renderStart: number;
       renderEnd: number;

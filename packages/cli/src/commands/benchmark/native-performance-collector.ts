@@ -142,6 +142,8 @@ export class NativePerformanceCollector {
 					firstInputDelay: nativeMetrics.firstInputDelay?.value || 0,
 					cumulativeLayoutShift: nativeMetrics.cumulativeLayoutShift?.value || 0,
 					totalBlockingTime: nativeMetrics.totalBlockingTime?.value || 0,
+					timeToFirstByte: nativeMetrics.timeToFirstByte?.value || 0,
+					regulatoryFrictionDelay: nativeMetrics.regulatoryFrictionDelay?.value || 0,
 					navigationTiming: nativeMetrics.navigationTiming?.value || null,
 					// Store raw data for debugging
 					rawMetrics: nativeMetrics,
@@ -165,6 +167,8 @@ export class NativePerformanceCollector {
 				firstInputDelay: 0,
 				cumulativeLayoutShift: 0,
 				totalBlockingTime: 0,
+				timeToFirstByte: 0,
+				regulatoryFrictionDelay: 0,
 				navigationTiming: null,
 				rawMetrics: {},
 				collectionTime: Date.now(),
@@ -179,6 +183,8 @@ export class NativePerformanceCollector {
 			fid: metrics.firstInputDelay,
 			cls: metrics.cumulativeLayoutShift,
 			tbt: metrics.totalBlockingTime,
+			ttfb: metrics.timeToFirstByte,
+			rfd: metrics.regulatoryFrictionDelay,
 		});
 
 		return metrics;

@@ -70,6 +70,7 @@ export class MetricsCalculator {
         cumulativeLayoutShift: perfumeMetrics.cumulativeLayoutShift || 0,
         firstInputDelay: perfumeMetrics.firstInputDelay || 0,
         timeToFirstByte: perfumeMetrics.timeToFirstByte || 0,
+        regulatoryFrictionDelay: perfumeMetrics.regulatoryFrictionDelay || 0,
         cookieBanner: {
           renderStart: cookieBannerData?.bannerRenderTime || 0,
           renderEnd: cookieBannerData?.bannerInteractiveTime || 0,
@@ -244,6 +245,7 @@ export class MetricsCalculator {
       lcp: finalMetrics.timing.largestContentfulPaint,
       fid: finalMetrics.timing.firstInputDelay || 0,
       ttfb: finalMetrics.timing.timeToFirstByte || 0,
+      rfd: finalMetrics.timing.regulatoryFrictionDelay || 0,
       cls: finalMetrics.timing.cumulativeLayoutShift,
       tti: finalMetrics.timing.timeToInteractive,
       tbt: finalMetrics.timing.mainThreadBlocking.total,

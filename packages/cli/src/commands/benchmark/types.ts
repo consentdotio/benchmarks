@@ -66,6 +66,7 @@ export interface PerfumeMetrics {
   cumulativeLayoutShift: number;
   totalBlockingTime: number;
   timeToFirstByte: number;
+  regulatoryFrictionDelay: number;
   navigationTiming: number | null;
   rawMetrics: Record<string, unknown>;
   collectionTime: number;

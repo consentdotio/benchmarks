@@ -154,6 +154,29 @@ export class PerfumeMetricsCollector {
 
 					fidObserver.observe({ entryTypes: ['first-input'] });
 
+					// Monitor Regulatory Friction Delay (RFD) - the learned anticipatory latency
+					// This measures the delay between FCP and when users feel safe to interact
+					// due to cookie banner stabilization concerns
+					const rfdObserver = new PerformanceObserver((list) => {
+						for (const entry of list.getEntries()) {
+							if (entry.entryType === 'first-input') {
+								// RFD is the delay between FCP and first meaningful user interaction
+								// This captures the learned hesitation behavior
+								const fcp = window.__perfumeMetrics?.firstContentfulPaint?.value || 0;
+								const fid = (entry as any).processingStart - entry.startTime;
+								const rfd = entry.startTime - fcp;
+								
+								window.__perfumeMetrics!['regulatoryFrictionDelay'] = {
+									value: rfd,
+									timestamp: Date.now(),
+								};
+								console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd);
+							}
+						}
+					});
+
+					rfdObserver.observe({ entryTypes: ['first-input'] });
+
 					// Store navigation timing and TTFB
 					const navigationTiming = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
 					if (navigationTiming) {
@@ -253,6 +276,7 @@ export class PerfumeMetricsCollector {
 					cumulativeLayoutShift: perfumeMetrics.cumulativeLayoutShift?.value || 0,
 					totalBlockingTime: perfumeMetrics.totalBlockingTime?.value || 0,
 					timeToFirstByte: perfumeMetrics.timeToFirstByte?.value || 0,
+					regulatoryFrictionDelay: perfumeMetrics.regulatoryFrictionDelay?.value || 0,
 					navigationTiming: perfumeMetrics.navigationTiming?.value || null,
 					// Store raw data for debugging
 					rawMetrics: perfumeMetrics,
@@ -284,6 +308,7 @@ export class PerfumeMetricsCollector {
 					cumulativeLayoutShift: perfumeMetrics.cumulativeLayoutShift?.value || 0,
 					totalBlockingTime: perfumeMetrics.totalBlockingTime?.value || 0,
 					timeToFirstByte: perfumeMetrics.timeToFirstByte?.value || 0,
+					regulatoryFrictionDelay: perfumeMetrics.regulatoryFrictionDelay?.value || 0,
 					navigationTiming: perfumeMetrics.navigationTiming?.value || null,
 					// Store raw data for debugging
 					rawMetrics: perfumeMetrics,
@@ -304,6 +329,7 @@ export class PerfumeMetricsCollector {
 				cumulativeLayoutShift: 0,
 				totalBlockingTime: 0,
 				timeToFirstByte: 0,
+				regulatoryFrictionDelay: 0,
 				navigationTiming: null,
 				rawMetrics: {},
 				collectionTime: Date.now(),
@@ -319,6 +345,7 @@ export class PerfumeMetricsCollector {
 			cls: metrics.cumulativeLayoutShift,
 			tbt: metrics.totalBlockingTime,
 			ttfb: metrics.timeToFirstByte,
+			rfd: metrics.regulatoryFrictionDelay,
 		});
 
 		return metrics;
