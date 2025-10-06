@@ -49,21 +49,26 @@ export class PerfumeMetricsCollector {
 				initPerfume: (config: any) => {
 					console.log("🔍 [PERFUME] Initializing performance monitoring...");
 					
-					// Monitor First Paint and First Contentful Paint
+					// Monitor First Paint and First Contentful Paint with enhanced detection
+					let fpValue = 0;
+					let fcpValue = 0;
+					
 					const observer = new PerformanceObserver((list) => {
 						for (const entry of list.getEntries()) {
 							if (entry.name === 'first-paint') {
+								fpValue = entry.startTime;
 								window.__perfumeMetrics!['firstPaint'] = {
-									value: entry.startTime,
+									value: fpValue,
 									timestamp: Date.now(),
 								};
-								console.log(`🔍 [PERFUME] firstPaint:`, entry.startTime);
+								console.log(`🔍 [PERFUME] firstPaint:`, fpValue);
 							} else if (entry.name === 'first-contentful-paint') {
+								fcpValue = entry.startTime;
 								window.__perfumeMetrics!['firstContentfulPaint'] = {
-									value: entry.startTime,
+									value: fcpValue,
 									timestamp: Date.now(),
 								};
-								console.log(`🔍 [PERFUME] firstContentfulPaint:`, entry.startTime);
+								console.log(`🔍 [PERFUME] firstContentfulPaint:`, fcpValue);
 							}
 						}
 					});
@@ -72,51 +77,75 @@ export class PerfumeMetricsCollector {
 						observer.observe({ entryTypes: ['paint'] });
 					} catch (error) {
 						console.warn('🔍 [PERFUME] Paint observer not supported, using fallback');
-						// Fallback: try to get paint metrics from existing entries
-						const paintEntries = performance.getEntriesByType('paint');
-						for (const entry of paintEntries) {
-							if (entry.name === 'first-paint') {
-								window.__perfumeMetrics!['firstPaint'] = {
-									value: entry.startTime,
-									timestamp: Date.now(),
-								};
-								console.log(`🔍 [PERFUME] firstPaint (fallback):`, entry.startTime);
-							} else if (entry.name === 'first-contentful-paint') {
-								window.__perfumeMetrics!['firstContentfulPaint'] = {
-									value: entry.startTime,
-									timestamp: Date.now(),
-								};
-								console.log(`🔍 [PERFUME] firstContentfulPaint (fallback):`, entry.startTime);
-							}
-						}
 					}
 
-					// Monitor Largest Contentful Paint
+					// Enhanced paint metrics fallback with multiple attempts
+					const checkPaintMetrics = () => {
+						const paintEntries = performance.getEntriesByType('paint');
+						for (const entry of paintEntries) {
+							if (entry.name === 'first-paint' && !fpValue) {
+								fpValue = entry.startTime;
+								window.__perfumeMetrics!['firstPaint'] = {
+									value: fpValue,
+									timestamp: Date.now(),
+								};
+								console.log(`🔍 [PERFUME] firstPaint (fallback):`, fpValue);
+							} else if (entry.name === 'first-contentful-paint' && !fcpValue) {
+								fcpValue = entry.startTime;
+								window.__perfumeMetrics!['firstContentfulPaint'] = {
+									value: fcpValue,
+									timestamp: Date.now(),
+								};
+								console.log(`🔍 [PERFUME] firstContentfulPaint (fallback):`, fcpValue);
+							}
+						}
+					};
+
+					// Check paint metrics multiple times
+					setTimeout(() => checkPaintMetrics(), 50);
+					setTimeout(() => checkPaintMetrics(), 200);
+					setTimeout(() => checkPaintMetrics(), 500);
+
+					// Monitor Largest Contentful Paint with more robust detection
+					let lcpValue = 0;
 					const lcpObserver = new PerformanceObserver((list) => {
 						const entries = list.getEntries();
 						const lastEntry = entries[entries.length - 1];
+						lcpValue = lastEntry.startTime;
 						window.__perfumeMetrics!['largestContentfulPaint'] = {
-							value: lastEntry.startTime,
+							value: lcpValue,
 							timestamp: Date.now(),
 						};
-						console.log(`🔍 [PERFUME] largestContentfulPaint:`, lastEntry.startTime);
+						console.log(`🔍 [PERFUME] largestContentfulPaint:`, lcpValue);
 					});
 
 					try {
 						lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
 					} catch (error) {
 						console.warn('🔍 [PERFUME] LCP observer not supported, using fallback');
-						// Fallback: try to get LCP from existing entries
+					}
+
+					// Enhanced LCP fallback with multiple attempts
+					const checkLCP = () => {
 						const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
 						if (lcpEntries.length > 0) {
 							const lastEntry = lcpEntries[lcpEntries.length - 1];
+							lcpValue = lastEntry.startTime;
 							window.__perfumeMetrics!['largestContentfulPaint'] = {
-								value: lastEntry.startTime,
+								value: lcpValue,
 								timestamp: Date.now(),
 							};
-							console.log(`🔍 [PERFUME] largestContentfulPaint (fallback):`, lastEntry.startTime);
+							console.log(`🔍 [PERFUME] largestContentfulPaint (fallback):`, lcpValue);
+							return true;
 						}
-					}
+						return false;
+					};
+
+					// Check LCP multiple times with increasing delays
+					setTimeout(() => checkLCP(), 100);
+					setTimeout(() => checkLCP(), 500);
+					setTimeout(() => checkLCP(), 1000);
+					setTimeout(() => checkLCP(), 2000);
 
 					// Monitor Cumulative Layout Shift
 					let clsValue = 0;
@@ -256,35 +285,42 @@ export class PerfumeMetricsCollector {
 						}
 					}, 50);
 
-					// Check for any existing paint metrics that might have been missed
+					// Final check for any missed metrics after a longer delay
 					setTimeout(() => {
+						// Final paint metrics check
 						const paintEntries = performance.getEntriesByType('paint');
 						for (const entry of paintEntries) {
-							if (entry.name === 'first-paint' && !window.__perfumeMetrics!['firstPaint']) {
+							if (entry.name === 'first-paint' && !fpValue) {
+								fpValue = entry.startTime;
 								window.__perfumeMetrics!['firstPaint'] = {
-									value: entry.startTime,
+									value: fpValue,
 									timestamp: Date.now(),
 								};
-								console.log(`🔍 [PERFUME] firstPaint (delayed):`, entry.startTime);
-							} else if (entry.name === 'first-contentful-paint' && !window.__perfumeMetrics!['firstContentfulPaint']) {
+								console.log(`🔍 [PERFUME] firstPaint (final):`, fpValue);
+							} else if (entry.name === 'first-contentful-paint' && !fcpValue) {
+								fcpValue = entry.startTime;
 								window.__perfumeMetrics!['firstContentfulPaint'] = {
-									value: entry.startTime,
+									value: fcpValue,
 									timestamp: Date.now(),
 								};
-								console.log(`🔍 [PERFUME] firstContentfulPaint (delayed):`, entry.startTime);
+								console.log(`🔍 [PERFUME] firstContentfulPaint (final):`, fcpValue);
 							}
 						}
 
-						const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
-						if (lcpEntries.length > 0 && !window.__perfumeMetrics!['largestContentfulPaint']) {
-							const lastEntry = lcpEntries[lcpEntries.length - 1];
-							window.__perfumeMetrics!['largestContentfulPaint'] = {
-								value: lastEntry.startTime,
-								timestamp: Date.now(),
-							};
-							console.log(`🔍 [PERFUME] largestContentfulPaint (delayed):`, lastEntry.startTime);
+						// Final LCP check
+						if (!lcpValue) {
+							const lcpEntries = performance.getEntriesByType('largest-contentful-paint');
+							if (lcpEntries.length > 0) {
+								const lastEntry = lcpEntries[lcpEntries.length - 1];
+								lcpValue = lastEntry.startTime;
+								window.__perfumeMetrics!['largestContentfulPaint'] = {
+									value: lcpValue,
+									timestamp: Date.now(),
+								};
+								console.log(`🔍 [PERFUME] largestContentfulPaint (final):`, lcpValue);
+							}
 						}
-					}, 100);
+					}, 3000);
 				}
 			};
 
@@ -325,6 +361,12 @@ export class PerfumeMetricsCollector {
 
 				if (!hasEssentialMetrics) {
 					return null;
+				}
+
+				// Fallback: if LCP is 0 but we have FCP, use FCP as LCP
+				if (!perfumeMetrics.largestContentfulPaint && perfumeMetrics.firstContentfulPaint) {
+					perfumeMetrics.largestContentfulPaint = perfumeMetrics.firstContentfulPaint;
+					console.log(`🔍 [PERFUME] Using FCP as LCP fallback:`, perfumeMetrics.firstContentfulPaint.value);
 				}
 
 				// Extract metrics with fallbacks
