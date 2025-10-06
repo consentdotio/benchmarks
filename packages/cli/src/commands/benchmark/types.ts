@@ -58,6 +58,19 @@ export interface BundleStrategy {
   bundleType: string | string[] | undefined;
 }
 
+export interface PerfumeMetrics {
+  firstPaint: number;
+  firstContentfulPaint: number;
+  largestContentfulPaint: number;
+  firstInputDelay: number;
+  cumulativeLayoutShift: number;
+  totalBlockingTime: number;
+  timeToFirstByte: number;
+  navigationTiming: number | null;
+  rawMetrics: Record<string, unknown>;
+  collectionTime: number;
+}
+
 export interface ResourceTimingData {
   timing: {
     navigationStart: number;

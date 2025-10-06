@@ -8,7 +8,7 @@ export const BENCHMARK_CONSTANTS = {
 } as const;
 
 export const BUNDLE_TYPES = {
-  IIFE: "iffe",
+  IIFE: "iife",
   ESM: "esm",
   CJS: "cjs",
   BUNDLED: "bundled",

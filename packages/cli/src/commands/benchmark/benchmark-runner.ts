@@ -18,6 +18,7 @@ import { NetworkMonitor } from "./network-monitor";
 import { CookieBannerDetector } from "./cookie-banner-detector";
 import { ResourceCollector } from "./resource-collector";
 import { MetricsCalculator } from "./metrics-calculator";
+import { PerfumeMetricsCollector } from "./perfume-metrics-collector";
 import { calculateScores, printScores } from "../../utils/scoring";
 
 async function runBenchmark(
@@ -43,6 +44,7 @@ async function runBenchmark(
 
   // Initialize components
   const collector = new PerformanceMetricsCollector();
+  const perfumeCollector = new PerfumeMetricsCollector();
   const networkMonitor = new NetworkMonitor();
   const bannerDetector = new CookieBannerDetector();
   const resourceCollector = new ResourceCollector();
@@ -96,21 +98,27 @@ async function runBenchmark(
   console.log(`🔍 [DEBUG] Navigating to: ${url}`);
   await page.goto(url, { waitUntil: "networkidle" });
 
-  // Collect core web vitals
-  console.log("🔍 [DEBUG] Collecting core web vitals...");
-  const coreWebVitals = await collector.collectMetrics(page, {
-    timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
-    retryTimeout: BENCHMARK_CONSTANTS.METRICS_RETRY_TIMEOUT,
-  });
+  // Collect core web vitals using Perfume.js
+  console.log("🔍 [DEBUG] Collecting core web vitals with Perfume.js...");
+  const perfumeMetrics = await perfumeCollector.collectMetrics(page, BENCHMARK_CONSTANTS.METRICS_TIMEOUT);
+
+  // Fallback to playwright-performance-metrics if Perfume.js fails
+  if (!perfumeCollector.hasMetrics()) {
+    console.log("🔍 [DEBUG] Perfume.js metrics not available, falling back to playwright-performance-metrics...");
+    await collector.collectMetrics(page, {
+      timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
+      retryTimeout: BENCHMARK_CONSTANTS.METRICS_RETRY_TIMEOUT,
+    });
+  }
 
   console.log("🔍 [DEBUG] Core web vitals collected:", {
-    fcp: coreWebVitals.paint?.firstContentfulPaint,
-    lcp: coreWebVitals.largestContentfulPaint,
-    cls: coreWebVitals.cumulativeLayoutShift,
-    tbt: coreWebVitals.totalBlockingTime,
-    domComplete: coreWebVitals.domCompleteTiming,
-    pageLoad: coreWebVitals.pageloadTiming,
-    totalBytes: coreWebVitals.totalBytes,
+    fcp: perfumeMetrics.firstContentfulPaint,
+    lcp: perfumeMetrics.largestContentfulPaint,
+    fid: perfumeMetrics.firstInputDelay,
+    cls: perfumeMetrics.cumulativeLayoutShift,
+    tbt: perfumeMetrics.totalBlockingTime,
+    fp: perfumeMetrics.firstPaint,
+    collectionTime: perfumeMetrics.collectionTime,
   });
 
   // Collect cookie banner data
@@ -121,16 +129,16 @@ async function runBenchmark(
   console.log("🔍 [DEBUG] Collecting resource timing data...");
   const resourceMetrics = await resourceCollector.collectResourceTiming(page);
 
-  // Calculate TTI
-  const tti = metricsCalculator.calculateTTI(coreWebVitals, cookieBannerData);
+  // Calculate TTI using Perfume.js metrics
+  const tti = metricsCalculator.calculateTTIFromPerfume(perfumeMetrics, cookieBannerData);
 
   // Get network impact data
   const networkRequests = networkMonitor.getNetworkRequests();
 
-  // Merge all metrics
-  const finalMetrics = metricsCalculator.mergeBenchmarkMetrics(
+  // Merge all metrics using Perfume.js data
+  const finalMetrics = metricsCalculator.mergeBenchmarkMetricsFromPerfume(
     resourceMetrics,
-    coreWebVitals,
+    perfumeMetrics,
     cookieBannerData,
     cookieBannerMetrics,
     networkRequests,
@@ -147,6 +155,7 @@ async function runBenchmark(
 
   // Cleanup
   await collector.cleanup();
+  await perfumeCollector.cleanup();
   networkMonitor.reset();
 
   return finalMetrics;
@@ -293,7 +302,7 @@ async function runBenchmarks(
         ) / results.length,
       speedIndex: 0, // Default value
       timeToFirstByte: 0, // Default value
-      firstInputDelay: 0, // Default value
+      firstInputDelay: results.reduce((acc, curr) => acc + (curr.timing.firstInputDelay || 0), 0) / results.length,
       cumulativeLayoutShift:
         results.reduce(
           (acc, curr) => acc + curr.timing.cumulativeLayoutShift,

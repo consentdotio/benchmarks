@@ -71,6 +71,8 @@ export interface BenchmarkDetails {
     largestContentfulPaint: number;
     timeToInteractive: number;
     cumulativeLayoutShift: number;
+    firstInputDelay?: number;
+    timeToFirstByte?: number;
     cookieBanner: {
       renderStart: number;
       renderEnd: number;

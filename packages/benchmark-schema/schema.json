@@ -141,7 +141,7 @@
               "enum": [
                 "esm",
                 "cjs",
-                "iffe",
+                "iife",
                 "bundled"
               ]
             },

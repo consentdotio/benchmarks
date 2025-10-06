@@ -93,7 +93,7 @@ Each benchmark implementation requires a `config.json` file with the following s
   - `frameworks`: Array of frameworks used
   - `bundler`: Build tool used (e.g., webpack, vite)
   - `packageManager`: Package manager used (e.g., npm, pnpm)
-  - `bundleType`: Output format (esm, iffe, cjs)
+  - `bundleType`: Output format (esm, iife, cjs)
   - `typescript`: Whether TypeScript is used
 
 - **source**: Project source information

@@ -1,0 +1,288 @@
+{
+  "app": "baseline",
+  "techStack": {
+    "bundler": "webpack",
+    "bundleType": "esm",
+    "frameworks": [
+      "nextjs"
+    ],
+    "languages": [
+      "javascript"
+    ],
+    "packageManager": "npm",
+    "typescript": false
+  },
+  "source": {
+    "isOpenSource": true,
+    "license": "MIT"
+  },
+  "includes": {
+    "components": [
+      "javascript"
+    ]
+  },
+  "tags": [
+    "baseline"
+  ],
+  "results": [
+    {
+      "duration": 75.40000000596046,
+      "size": {
+        "total": 378.34765625,
+        "bundled": 372.1669921875,
+        "thirdParty": 0,
+        "cookieServices": 0,
+        "scripts": {
+          "total": 372.1669921875,
+          "initial": 372.1669921875,
+          "dynamic": 0,
+          "thirdParty": 0,
+          "cookieServices": 0
+        },
+        "styles": 0,
+        "images": 0,
+        "fonts": 0,
+        "other": 0
+      },
+      "timing": {
+        "navigationStart": 0,
+        "domContentLoaded": 32.5,
+        "load": 75.40000000596046,
+        "firstPaint": 48,
+        "firstContentfulPaint": 48,
+        "largestContentfulPaint": 48,
+        "timeToInteractive": 1075.4000000059605,
+        "cumulativeLayoutShift": 0,
+        "cookieBanner": {
+          "renderStart": -27.80000001192093,
+          "renderEnd": -27.80000001192093,
+          "interactionStart": -27.80000001192093,
+          "interactionEnd": -27.80000001192093,
+          "layoutShift": 0,
+          "detected": false,
+          "selector": null,
+          "serviceName": "None (Baseline)",
+          "visibilityTime": -27.80000001192093,
+          "viewportCoverage": 0
+        },
+        "thirdParty": {
+          "dnsLookupTime": 0,
+          "connectionTime": 0,
+          "downloadTime": 0,
+          "totalImpact": 0,
+          "cookieServices": {
+            "hosts": [],
+            "totalSize": 0,
+            "resourceCount": 0,
+            "dnsLookupTime": 0,
+            "connectionTime": 0,
+            "downloadTime": 0
+          }
+        },
+        "mainThreadBlocking": {
+          "total": 0,
+          "cookieBannerEstimate": 0,
+          "percentageFromCookies": 0
+        },
+        "scripts": {
+          "bundled": {
+            "loadStart": 0,
+            "loadEnd": 87.69999998807907,
+            "executeStart": 0,
+            "executeEnd": 0
+          },
+          "thirdParty": {
+            "loadStart": 0,
+            "loadEnd": 87.69999998807907,
+            "executeStart": 0,
+            "executeEnd": 0
+          }
+        }
+      },
+      "resources": {
+        "scripts": [
+          {
+            "name": "http://localhost:8392/_next/static/chunks/25848fb6a816076a.js",
+            "size": 246.60546875,
+            "duration": 26.400000005960464,
+            "startTime": 21,
+            "isThirdParty": false,
+            "isDynamic": false,
+            "isCookieService": false,
+            "dnsTime": 0,
+            "connectionTime": 0
+          },
+          {
+            "name": "http://localhost:8392/_next/static/chunks/2f14845155aebbae.js",
+            "size": 85.4462890625,
+            "duration": 23.399999976158142,
+            "startTime": 21.30000001192093,
+            "isThirdParty": false,
+            "isDynamic": false,
+            "isCookieService": false,
+            "dnsTime": 0,
+            "connectionTime": 0
+          },
+          {
+            "name": "http://localhost:8392/_next/static/chunks/f472288c40817521.js",
+            "size": 9.7060546875,
+            "duration": 18.30000001192093,
+            "startTime": 21.5,
+            "isThirdParty": false,
+            "isDynamic": false,
+            "isCookieService": false,
+            "dnsTime": 0,
+            "connectionTime": 0
+          },
+          {
+            "name": "http://localhost:8392/_next/static/chunks/c4c5be875edc0936.js",
+            "size": 30.4091796875,
+            "duration": 19.599999994039536,
+            "startTime": 21.5,
+            "isThirdParty": false,
+            "isDynamic": false,
+            "isCookieService": false,
+            "dnsTime": 0,
+            "connectionTime": 0
+          }
+        ],
+        "styles": [],
+        "images": [],
+        "fonts": [],
+        "other": []
+      },
+      "language": "en",
+      "cookieBanner": {
+        "detected": false,
+        "selector": null,
+        "serviceName": "None (Baseline)",
+        "visibilityTime": -27.80000001192093,
+        "viewportCoverage": 0
+      },
+      "thirdParty": {
+        "cookieServices": {
+          "hosts": [],
+          "totalSize": 0,
+          "resourceCount": 0,
+          "dnsLookupTime": 0,
+          "connectionTime": 0,
+          "downloadTime": 0
+        },
+        "totalImpact": 0
+      }
+    }
+  ],
+  "scores": {
+    "totalScore": 100,
+    "grade": "Excellent",
+    "categoryScores": {
+      "performance": 100,
+      "bundleStrategy": 100,
+      "networkImpact": 100,
+      "transparency": 100,
+      "userExperience": 100
+    },
+    "categories": [
+      {
+        "name": "Performance",
+        "score": 100,
+        "maxScore": 100,
+        "weight": 1,
+        "details": [
+          {
+            "name": "Core Web Vitals",
+            "score": 100,
+            "maxScore": 100,
+            "weight": 1,
+            "status": "good",
+            "reason": "Baseline measurement"
+          }
+        ],
+        "status": "good",
+        "reason": "Baseline measurement"
+      },
+      {
+        "name": "Bundle Strategy",
+        "score": 100,
+        "maxScore": 100,
+        "weight": 1,
+        "details": [
+          {
+            "name": "Bundle Size",
+            "score": 100,
+            "maxScore": 100,
+            "weight": 1,
+            "status": "good",
+            "reason": "Baseline measurement"
+          }
+        ],
+        "status": "good",
+        "reason": "Baseline measurement"
+      },
+      {
+        "name": "Network Impact",
+        "score": 100,
+        "maxScore": 100,
+        "weight": 1,
+        "details": [
+          {
+            "name": "Network Requests",
+            "score": 100,
+            "maxScore": 100,
+            "weight": 1,
+            "status": "good",
+            "reason": "Baseline measurement"
+          }
+        ],
+        "status": "good",
+        "reason": "Baseline measurement"
+      },
+      {
+        "name": "Transparency",
+        "score": 100,
+        "maxScore": 100,
+        "weight": 1,
+        "details": [
+          {
+            "name": "Cookie Banner",
+            "score": 100,
+            "maxScore": 100,
+            "weight": 1,
+            "status": "good",
+            "reason": "Baseline measurement"
+          }
+        ],
+        "status": "good",
+        "reason": "Baseline measurement"
+      },
+      {
+        "name": "User Experience",
+        "score": 100,
+        "maxScore": 100,
+        "weight": 1,
+        "details": [
+          {
+            "name": "User Experience",
+            "score": 100,
+            "maxScore": 100,
+            "weight": 1,
+            "status": "good",
+            "reason": "Baseline measurement"
+          }
+        ],
+        "status": "good",
+        "reason": "Baseline measurement"
+      }
+    ],
+    "insights": [],
+    "recommendations": []
+  },
+  "metadata": {
+    "timestamp": "2025-08-11T12:07:24.909Z",
+    "iterations": 1,
+    "languages": [
+      "javascript"
+    ],
+    "isRemote": false
+  }
+}
