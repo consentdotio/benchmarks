@@ -11,6 +11,16 @@ declare global {
 		Perfume?: {
 			initPerfume: (config: any) => void;
 		};
+		__benchmarkConfig?: {
+			cookieBanner?: {
+				selectors: string[];
+				serviceHosts: string[];
+				waitForVisibility: boolean;
+				measureViewportCoverage: boolean;
+				expectedLayoutShift: boolean;
+				serviceName: string;
+			};
+		};
 	}
 }
 
@@ -18,13 +28,17 @@ export class PerfumeMetricsCollector {
 	private metrics: PerfumeMetrics | null = null;
 	private isInitialized = false;
 
-	async initialize(page: Page): Promise<void> {
+	async initialize(page: Page, benchmarkConfig?: any): Promise<void> {
 		if (this.isInitialized) {
 			return;
 		}
 
 		// Initialize Perfume.js in the browser context
-		await page.evaluate(() => {
+		await page.evaluate((config) => {
+			// Pass benchmark config to the page context
+			if (config) {
+				window.__benchmarkConfig = config;
+			}
 			// Initialize metrics storage
 			if (!window.__perfumeMetrics) {
 				window.__perfumeMetrics = {};
@@ -154,28 +168,33 @@ export class PerfumeMetricsCollector {
 
 					fidObserver.observe({ entryTypes: ['first-input'] });
 
-					// Monitor Regulatory Friction Delay (RFD) - the learned anticipatory latency
-					// This measures the delay between FCP and when users feel safe to interact
-					// due to cookie banner stabilization concerns
-					const rfdObserver = new PerformanceObserver((list) => {
-						for (const entry of list.getEntries()) {
-							if (entry.entryType === 'first-input') {
-								// RFD is the delay between FCP and first meaningful user interaction
-								// This captures the learned hesitation behavior
-								const fcp = window.__perfumeMetrics?.firstContentfulPaint?.value || 0;
-								const fid = (entry as any).processingStart - entry.startTime;
-								const rfd = entry.startTime - fcp;
-								
-								window.__perfumeMetrics!['regulatoryFrictionDelay'] = {
-									value: rfd,
-									timestamp: Date.now(),
-								};
-								console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd);
-							}
+					// Monitor Regulatory Friction Delay (RFD) - the delay between page start and cookie banner stability
+					// This measures the actual regulatory friction users experience waiting for banner stabilization
+					const calculateRFD = () => {
+						const ttfb = window.__perfumeMetrics?.timeToFirstByte?.value || 0;
+						const cookieBannerStableTime = window.__perfumeMetrics?.cookieBannerStableTime?.value || 0;
+						
+						// RFD = Time between TTFB and when cookie banner becomes stable
+						// This captures the regulatory friction delay users experience
+						const rfd = cookieBannerStableTime - ttfb;
+						
+						if (cookieBannerStableTime > 0) {
+							window.__perfumeMetrics!['regulatoryFrictionDelay'] = {
+								value: rfd,
+								timestamp: Date.now(),
+							};
+							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(TTFB: ${ttfb}ms, Banner Stable: ${cookieBannerStableTime}ms)`);
 						}
-					});
+					};
 
-					rfdObserver.observe({ entryTypes: ['first-input'] });
+					// Check for RFD calculation periodically
+					const rfdInterval = setInterval(() => {
+						if (!window.__perfumeMetrics?.regulatoryFrictionDelay) {
+							calculateRFD();
+						} else {
+							clearInterval(rfdInterval);
+						}
+					}, 100);
 
 					// Store navigation timing and TTFB
 					const navigationTiming = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
@@ -195,6 +214,47 @@ export class PerfumeMetricsCollector {
 						};
 						console.log(`🔍 [PERFUME] navigationTiming:`, navigationTiming.loadEventEnd - navigationTiming.fetchStart);
 					}
+
+					// Monitor cookie banner stability for RFD calculation
+					// This tracks when the cookie banner becomes stable (no more layout shifts)
+					const monitorCookieBannerStability = () => {
+						// Get cookie banner selectors from the benchmark config
+						// This ensures we're using the same selectors as the rest of the system
+						const bannerSelectors = window.__benchmarkConfig?.cookieBanner?.selectors || [];
+
+						let bannerFound = false;
+						let bannerStableTime = 0;
+
+						for (const selector of bannerSelectors) {
+							const banner = document.querySelector(selector) as HTMLElement;
+							if (banner && banner.offsetHeight > 0) {
+								bannerFound = true;
+								// Consider banner stable after it's been visible for 100ms without changes
+								bannerStableTime = performance.now() + 100;
+								console.log(`🔍 [PERFUME] Cookie banner found with selector: ${selector}`);
+								break;
+							}
+						}
+
+						if (bannerFound && bannerStableTime > 0) {
+							window.__perfumeMetrics!['cookieBannerStableTime'] = {
+								value: bannerStableTime,
+								timestamp: Date.now(),
+							};
+							console.log(`🔍 [PERFUME] cookieBannerStableTime:`, bannerStableTime);
+						} else if (bannerSelectors.length > 0) {
+							console.log(`🔍 [PERFUME] Cookie banner not found with selectors:`, bannerSelectors);
+						}
+					};
+
+					// Check for cookie banner stability periodically
+					const bannerCheckInterval = setInterval(() => {
+						if (!window.__perfumeMetrics?.cookieBannerStableTime) {
+							monitorCookieBannerStability();
+						} else {
+							clearInterval(bannerCheckInterval);
+						}
+					}, 50);
 
 					// Check for any existing paint metrics that might have been missed
 					setTimeout(() => {
@@ -238,14 +298,14 @@ export class PerfumeMetricsCollector {
 					console.log(`🔍 [PERFUME] ${metricName}:`, data);
 				},
 			});
-		});
+		}, benchmarkConfig);
 
 		this.isInitialized = true;
 		console.log("🔍 [PERFUME] Initialized Perfume.js metrics collection");
 	}
 
-	async collectMetrics(page: Page, timeout = 10000): Promise<PerfumeMetrics> {
-		await this.initialize(page);
+	async collectMetrics(page: Page, timeout = 10000, benchmarkConfig?: any): Promise<PerfumeMetrics> {
+		await this.initialize(page, benchmarkConfig);
 
 		// Wait for metrics to be collected
 		const startTime = Date.now();

@@ -100,7 +100,7 @@ async function runBenchmark(
 
   // Collect core web vitals using Perfume.js
   console.log("🔍 [DEBUG] Collecting core web vitals with Perfume.js...");
-  const perfumeMetrics = await perfumeCollector.collectMetrics(page, BENCHMARK_CONSTANTS.METRICS_TIMEOUT);
+  const perfumeMetrics = await perfumeCollector.collectMetrics(page, BENCHMARK_CONSTANTS.METRICS_TIMEOUT, config);
 
   // Fallback to playwright-performance-metrics if Perfume.js fails
   if (!perfumeCollector.hasMetrics()) {
