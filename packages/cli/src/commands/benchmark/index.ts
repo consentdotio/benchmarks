@@ -1,6 +1,7 @@
 export { benchmarkCommand } from "./benchmark-runner";
 export { PerfumeMetricsCollector } from "./perfume-metrics-collector";
 export { MetricsCalculator } from "./metrics-calculator";
+export { MetricsCoordinator } from "./metrics-coordinator";
 export { NetworkMonitor } from "./network-monitor";
 export { CookieBannerDetector } from "./cookie-banner-detector";
 export { ResourceCollector } from "./resource-collector";

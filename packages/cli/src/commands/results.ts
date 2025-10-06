@@ -115,7 +115,7 @@ interface BenchmarkResult {
 }
 
 // Raw benchmark data structure from JSON files
-export interface RawBenchmarkDetail {
+interface RawBenchmarkDetail {
   duration: number;
   size: {
     total: number;

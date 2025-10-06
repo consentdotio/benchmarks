@@ -54,7 +54,8 @@ export class MetricsCalculator {
     cookieBannerMetrics: CookieBannerMetrics,
     networkRequests: NetworkRequest[],
     config: Config,
-    tti: number
+    tti: number,
+    regulatoryFrictionDelay?: number
   ): BenchmarkDetails {
     return {
       duration: resourceMetrics.duration,
@@ -70,7 +71,7 @@ export class MetricsCalculator {
         cumulativeLayoutShift: perfumeMetrics.cumulativeLayoutShift || 0,
         firstInputDelay: perfumeMetrics.firstInputDelay || 0,
         timeToFirstByte: perfumeMetrics.timeToFirstByte || 0,
-        regulatoryFrictionDelay: perfumeMetrics.regulatoryFrictionDelay || 0,
+        regulatoryFrictionDelay: regulatoryFrictionDelay ?? (perfumeMetrics.regulatoryFrictionDelay || 0),
         cookieBanner: {
           renderStart: cookieBannerData?.bannerRenderTime || 0,
           renderEnd: cookieBannerData?.bannerInteractiveTime || 0,

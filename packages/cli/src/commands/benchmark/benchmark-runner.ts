@@ -14,11 +14,8 @@ import type {
 } from "./types";
 import { BENCHMARK_CONSTANTS } from "./constants";
 import { determineBundleStrategy } from "./bundle-strategy";
-import { NetworkMonitor } from "./network-monitor";
-import { CookieBannerDetector } from "./cookie-banner-detector";
-import { ResourceCollector } from "./resource-collector";
 import { MetricsCalculator } from "./metrics-calculator";
-import { PerfumeMetricsCollector } from "./perfume-metrics-collector";
+import { MetricsCoordinator } from "./metrics-coordinator";
 import { calculateScores, printScores } from "../../utils/scoring";
 
 async function runBenchmark(
@@ -44,10 +41,7 @@ async function runBenchmark(
 
   // Initialize components
   const collector = new PerformanceMetricsCollector();
-  const perfumeCollector = new PerfumeMetricsCollector();
-  const networkMonitor = new NetworkMonitor();
-  const bannerDetector = new CookieBannerDetector();
-  const resourceCollector = new ResourceCollector();
+  const metricsCoordinator = new MetricsCoordinator();
   const metricsCalculator = new MetricsCalculator();
 
   // Determine bundle strategy
@@ -67,22 +61,6 @@ async function runBenchmark(
     }
   );
 
-  // Initialize cookie banner metrics
-  const cookieBannerMetrics: CookieBannerMetrics = {
-    detectionStartTime: 0,
-    bannerRenderTime: 0,
-    bannerInteractiveTime: 0,
-    bannerScriptLoadTime: 0,
-    bannerLayoutShiftImpact: 0,
-    bannerNetworkRequests: 0,
-    bannerBundleSize: 0,
-    bannerMainThreadBlockingTime: 0,
-    isBundled: bundleStrategy.isBundled,
-    isIIFE: bundleStrategy.isIIFE,
-    bannerDetected: false,
-    bannerSelector: null,
-  };
-
   // Enable console log capture
   page.on('console', (msg) => {
     const text = msg.text();
@@ -91,19 +69,15 @@ async function runBenchmark(
     }
   });
 
-  // Setup monitoring
-  await networkMonitor.setupRequestMonitoring(page, cookieBannerMetrics);
-  await bannerDetector.setupDetection(page, config);
-
   console.log(`🔍 [DEBUG] Navigating to: ${url}`);
   await page.goto(url, { waitUntil: "networkidle" });
 
-  // Collect core web vitals using Perfume.js
-  console.log("🔍 [DEBUG] Collecting core web vitals with Perfume.js...");
-  const perfumeMetrics = await perfumeCollector.collectMetrics(page, BENCHMARK_CONSTANTS.METRICS_TIMEOUT, config);
+  // Collect all metrics using the unified coordinator
+  console.log("🔍 [DEBUG] Collecting unified metrics with MetricsCoordinator...");
+  const unifiedMetrics = await metricsCoordinator.collectAllMetrics(page, config);
 
   // Fallback to playwright-performance-metrics if Perfume.js fails
-  if (!perfumeCollector.hasMetrics()) {
+  if (!unifiedMetrics.coreWebVitals.firstContentfulPaint && !unifiedMetrics.coreWebVitals.firstPaint) {
     console.log("🔍 [DEBUG] Perfume.js metrics not available, falling back to playwright-performance-metrics...");
     await collector.collectMetrics(page, {
       timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
@@ -111,52 +85,30 @@ async function runBenchmark(
     });
   }
 
-  console.log("🔍 [DEBUG] Core web vitals collected:", {
-    fcp: perfumeMetrics.firstContentfulPaint,
-    lcp: perfumeMetrics.largestContentfulPaint,
-    fid: perfumeMetrics.firstInputDelay,
-    cls: perfumeMetrics.cumulativeLayoutShift,
-    tbt: perfumeMetrics.totalBlockingTime,
-    fp: perfumeMetrics.firstPaint,
-    collectionTime: perfumeMetrics.collectionTime,
+  console.log("🔍 [DEBUG] Unified metrics collected:", {
+    fcp: unifiedMetrics.coreWebVitals.firstContentfulPaint,
+    lcp: unifiedMetrics.coreWebVitals.largestContentfulPaint,
+    fid: unifiedMetrics.coreWebVitals.firstInputDelay,
+    cls: unifiedMetrics.coreWebVitals.cumulativeLayoutShift,
+    tbt: unifiedMetrics.coreWebVitals.totalBlockingTime,
+    fp: unifiedMetrics.coreWebVitals.firstPaint,
+    rfd: unifiedMetrics.regulatoryFrictionDelay,
+    collectionTime: unifiedMetrics.coreWebVitals.collectionTime,
   });
 
-  // Collect cookie banner data
-  const cookieBannerData = await bannerDetector.collectBannerData(page);
-  console.log("🔍 [DEBUG] Cookie banner metrics:", cookieBannerData);
-
-  // Collect resource timing
-  console.log("🔍 [DEBUG] Collecting resource timing data...");
-  const resourceMetrics = await resourceCollector.collectResourceTiming(page);
-
-  // Calculate TTI using Perfume.js metrics
-  const tti = metricsCalculator.calculateTTIFromPerfume(perfumeMetrics, cookieBannerData);
-
-  // Get network impact data
-  const networkRequests = networkMonitor.getNetworkRequests();
-
-  // Merge all metrics using Perfume.js data
-  const finalMetrics = metricsCalculator.mergeBenchmarkMetricsFromPerfume(
-    resourceMetrics,
-    perfumeMetrics,
-    cookieBannerData,
-    cookieBannerMetrics,
-    networkRequests,
-    config,
-    tti
-  );
+  // Merge all metrics using the coordinator
+  const finalMetrics = metricsCoordinator.mergeMetrics(unifiedMetrics, config);
 
   // Log final results
   metricsCalculator.logFinalResults(
     finalMetrics,
-    cookieBannerMetrics,
+    unifiedMetrics.cookieBannerMetrics,
     bundleStrategy.bundleType
   );
 
   // Cleanup
   await collector.cleanup();
-  await perfumeCollector.cleanup();
-  networkMonitor.reset();
+  await metricsCoordinator.cleanup();
 
   return finalMetrics;
 }

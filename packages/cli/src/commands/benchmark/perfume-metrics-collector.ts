@@ -197,83 +197,54 @@ export class PerfumeMetricsCollector {
 
 					fidObserver.observe({ entryTypes: ['first-input'] });
 
-					// Monitor Regulatory Friction Delay (RFD) - time from HTML rendering start to cookie banner appearance
+					// Monitor Regulatory Friction Delay (RFD) - time from TTFB to cookie banner appearance
 					// This measures the actual regulatory friction users experience waiting for the mandatory consent element
-					let htmlRenderStartTime = 0;
-					let cookieBannerAppearTime = 0;
-					
-					// Track when HTML starts rendering (DOMContentLoaded or first paint)
-					const trackHtmlRenderStart = () => {
-						if (htmlRenderStartTime === 0) {
-							htmlRenderStartTime = performance.now();
-							console.log(`🔍 [PERFUME] HTML rendering started:`, htmlRenderStartTime);
-							calculateRFD();
-						}
-					};
-					
-					// Track when cookie banner becomes visible and actionable
-					const trackCookieBannerAppearance = () => {
-						if (cookieBannerAppearTime === 0) {
-							cookieBannerAppearTime = performance.now();
-							console.log(`🔍 [PERFUME] Cookie banner appeared:`, cookieBannerAppearTime);
-							calculateRFD();
-						}
-					};
-					
-					const calculateRFD = () => {
-						// RFD = Time from HTML rendering start to cookie banner appearance
-						// This captures the regulatory friction delay users experience waiting for mandatory consent
-						const rfd = htmlRenderStartTime > 0 && cookieBannerAppearTime > 0 ? 
-							cookieBannerAppearTime - htmlRenderStartTime : 0;
-						
-						if (rfd > 0) {
-							window.__perfumeMetrics!['regulatoryFrictionDelay'] = {
-								value: rfd,
-								timestamp: Date.now(),
-							};
-							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(HTML Start: ${htmlRenderStartTime}ms, Banner Appear: ${cookieBannerAppearTime}ms)`);
-						}
-					};
+					let actualTTFB = 0;
+					let actualBannerRenderTime = 0;
+					let bannerActuallyDetected = false;
 
-					// Track HTML rendering start - use DOMContentLoaded as the start point
-					if (document.readyState === 'loading') {
-						document.addEventListener('DOMContentLoaded', trackHtmlRenderStart, { once: true });
-					} else {
-						// DOM is already loaded, use current time
-						trackHtmlRenderStart();
-					}
-					
-					// Also track on first paint as fallback
-					if (fpValue > 0) {
-						htmlRenderStartTime = fpValue;
-						console.log(`🔍 [PERFUME] HTML rendering started (via FP):`, htmlRenderStartTime);
-						calculateRFD();
-					}
-					
-					// Monitor cookie banner appearance using the benchmark config selectors
-					const monitorCookieBannerAppearance = () => {
+					// Calculate RFD using actual performance timing data
+					const calculateRFD = () => {
+						// Get actual TTFB from navigation timing
+						const navigationTiming = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+						if (navigationTiming) {
+							actualTTFB = navigationTiming.responseStart - navigationTiming.fetchStart;
+						}
+
+						// Get actual banner render time from cookie banner detection
 						const bannerSelectors = window.__benchmarkConfig?.cookieBanner?.selectors || [];
-						
 						for (const selector of bannerSelectors) {
 							const banner = document.querySelector(selector) as HTMLElement;
 							if (banner && banner.offsetHeight > 0 && banner.offsetWidth > 0) {
-								// Banner is visible and has dimensions
-								if (cookieBannerAppearTime === 0) {
-									trackCookieBannerAppearance();
-								}
-								return;
+								bannerActuallyDetected = true;
+								// Use performance timing to get banner render time relative to navigation start
+								actualBannerRenderTime = performance.now() - performance.timing.navigationStart;
+								break;
 							}
+						}
+
+						// Calculate RFD: Banner render time - TTFB
+						const rfd = (actualTTFB > 0 && actualBannerRenderTime > 0 && bannerActuallyDetected) ? 
+							actualBannerRenderTime - actualTTFB : 0;
+						
+						// Always store RFD value (0 if no banner detected)
+						window.__perfumeMetrics!['regulatoryFrictionDelay'] = {
+							value: rfd,
+							timestamp: Date.now(),
+						};
+						
+						if (rfd > 0) {
+							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(TTFB: ${actualTTFB}ms, Banner Render: ${actualBannerRenderTime}ms)`);
+						} else if (bannerActuallyDetected) {
+							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(Banner detected but timing unavailable)`);
+						} else {
+							console.log(`🔍 [PERFUME] regulatoryFrictionDelay (RFD):`, rfd, `(No banner detected)`);
 						}
 					};
 					
-					// Check for cookie banner appearance periodically
-					const bannerCheckInterval = setInterval(() => {
-						if (!window.__perfumeMetrics?.regulatoryFrictionDelay) {
-							monitorCookieBannerAppearance();
-						} else {
-							clearInterval(bannerCheckInterval);
-						}
-					}, 50);
+
+					// TTFB will be tracked later in the navigation timing section
+					
 					
 					// Check for RFD calculation periodically
 					const rfdInterval = setInterval(() => {
@@ -283,6 +254,14 @@ export class PerfumeMetricsCollector {
 							clearInterval(rfdInterval);
 						}
 					}, 100);
+					
+					// Final RFD calculation after timeout - ensures we get 0 if no banner detected
+					setTimeout(() => {
+						if (!window.__perfumeMetrics?.regulatoryFrictionDelay) {
+							console.log(`🔍 [PERFUME] Final RFD calculation - no banner detected within timeout`);
+							calculateRFD(); // This will calculate 0 since bannerActuallyDetected is false
+						}
+					}, 5000); // 5 second timeout
 
 					// Store navigation timing and TTFB
 					const navigationTiming = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
@@ -294,6 +273,11 @@ export class PerfumeMetricsCollector {
 							timestamp: Date.now(),
 						};
 						console.log(`🔍 [PERFUME] timeToFirstByte:`, ttfb);
+						
+						// Store TTFB for RFD calculation
+						actualTTFB = ttfb;
+						console.log(`🔍 [PERFUME] TTFB stored for RFD calculation:`, actualTTFB);
+						calculateRFD();
 
 						// Store overall navigation timing
 						window.__perfumeMetrics!['navigationTiming'] = {
