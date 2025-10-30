@@ -1,14 +1,16 @@
-import { setTimeout } from 'node:timers/promises';
-import * as p from '@clack/prompts';
-import color from 'picocolors';
-import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { calculateScores, printScores, type CliLogger } from '../utils';
-import type { BenchmarkScores } from '../types';
-import type { Config } from '@consentio/runner';
-import type { RawBenchmarkDetail } from './results';
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { setTimeout } from "node:timers/promises";
+import { intro, isCancel, select } from "@clack/prompts";
+import type { Config } from "@consentio/runner";
+import color from "picocolors";
+import type { BenchmarkScores } from "../types";
+import { HALF_SECOND, PERCENTAGE_DIVISOR } from "../utils";
+import type { CliLogger } from "../utils/logger";
+import { calculateScores, printScores } from "../utils/scoring";
+import type { RawBenchmarkDetail } from "./results";
 
-interface BenchmarkOutput {
+type BenchmarkOutput = {
 	app: string;
 	results: RawBenchmarkDetail[];
 	scores?: BenchmarkScores;
@@ -17,7 +19,7 @@ interface BenchmarkOutput {
 		iterations: number;
 		languages?: string[];
 	};
-}
+};
 
 async function findResultsFiles(dir: string): Promise<string[]> {
 	const files: string[] = [];
@@ -28,11 +30,11 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 			const fullPath = join(dir, entry.name);
 			if (entry.isDirectory()) {
 				files.push(...(await findResultsFiles(fullPath)));
-			} else if (entry.name === 'results.json') {
+			} else if (entry.name === "results.json") {
 				files.push(fullPath);
 			}
 		}
-	} catch (error) {
+	} catch {
 		// Directory doesn't exist or can't be read
 	}
 
@@ -43,10 +45,10 @@ async function loadConfigForApp(
 	logger: CliLogger,
 	appName: string
 ): Promise<Config | null> {
-	const configPath = join('benchmarks', appName, 'config.json');
+	const configPath = join("benchmarks", appName, "config.json");
 
 	try {
-		const configContent = await readFile(configPath, 'utf-8');
+		const configContent = await readFile(configPath, "utf-8");
 		const config = JSON.parse(configContent);
 
 		return {
@@ -55,13 +57,13 @@ async function loadConfigForApp(
 			techStack: config.techStack || {
 				languages: [],
 				frameworks: [],
-				bundler: 'unknown',
-				bundleType: 'unknown',
-				packageManager: 'unknown',
+				bundler: "unknown",
+				bundleType: "unknown",
+				packageManager: "unknown",
 				typescript: false,
 			},
 			source: config.source || {
-				license: 'unknown',
+				license: "unknown",
 				isOpenSource: false,
 				github: false,
 				npm: false,
@@ -70,7 +72,7 @@ async function loadConfigForApp(
 			company: config.company || undefined,
 			tags: config.tags || [],
 			cookieBanner: config.cookieBanner || {
-				serviceName: 'Unknown',
+				serviceName: "Unknown",
 				selectors: [],
 				serviceHosts: [],
 				waitForVisibility: false,
@@ -78,8 +80,8 @@ async function loadConfigForApp(
 				expectedLayoutShift: false,
 			},
 			internationalization: config.internationalization || {
-				detection: 'none',
-				stringLoading: 'bundled',
+				detection: "none",
+				stringLoading: "bundled",
 			},
 		};
 	} catch (error) {
@@ -90,17 +92,17 @@ async function loadConfigForApp(
 
 export async function scoresCommand(logger: CliLogger, appName?: string) {
 	logger.clear();
-	await setTimeout(500);
+	await setTimeout(HALF_SECOND);
 
-	p.intro(`${color.bgCyan(color.black(' scores '))}`);
+	intro(`${color.bgCyan(color.black(" scores "))}`);
 
-	const resultsDir = 'benchmarks';
+	const resultsDir = "benchmarks";
 	const resultsFiles = await findResultsFiles(resultsDir);
 
 	if (resultsFiles.length === 0) {
-		logger.error('No benchmark results found!');
+		logger.error("No benchmark results found!");
 		logger.info(
-			`Run ${color.cyan('cookiebench benchmark')} first to generate results.`
+			`Run ${color.cyan("cookiebench benchmark")} first to generate results.`
 		);
 		return;
 	}
@@ -111,7 +113,7 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 	const allResults: Record<string, BenchmarkOutput> = {};
 	for (const file of resultsFiles) {
 		try {
-			const content = await readFile(file, 'utf-8');
+			const content = await readFile(file, "utf-8");
 			const data: BenchmarkOutput = JSON.parse(content);
 
 			if (data.app && data.results) {
@@ -123,7 +125,7 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 	}
 
 	if (Object.keys(allResults).length === 0) {
-		logger.error('No valid benchmark results found!');
+		logger.error("No valid benchmark results found!");
 		return;
 	}
 
@@ -132,9 +134,7 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 		const result = allResults[appName];
 		if (!result) {
 			logger.error(`No results found for app: ${appName}`);
-			logger.info(
-				`Available apps: ${Object.keys(allResults).join(', ')}`
-			);
+			logger.info(`Available apps: ${Object.keys(allResults).join(", ")}`);
 			return;
 		}
 
@@ -150,32 +150,36 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 	}));
 
 	appOptions.push({
-		value: '__all__',
-		label: 'Show all apps',
-		hint: 'Display scores for all benchmarks',
+		value: "__all__",
+		label: "Show all apps",
+		hint: "Display scores for all benchmarks",
 	});
 
-	const selectedApp = await p.select({
-		message: 'Which benchmark scores would you like to view?',
+	const selectedApp = await select({
+		message: "Which benchmark scores would you like to view?",
 		options: appOptions,
 	});
 
-	if (p.isCancel(selectedApp)) {
-		logger.info('Operation cancelled');
+	if (isCancel(selectedApp)) {
+		logger.info("Operation cancelled");
 		return;
 	}
 
-	if (selectedApp === '__all__') {
+	if (selectedApp === "__all__") {
 		// Show all apps
 		for (const [name, result] of Object.entries(allResults)) {
 			await displayAppScores(logger, name, result);
-			logger.message(''); // Add spacing between apps
+			logger.message(""); // Add spacing between apps
 		}
 	} else {
-		await displayAppScores(logger, selectedApp as string, allResults[selectedApp as string]);
+		await displayAppScores(
+			logger,
+			selectedApp as string,
+			allResults[selectedApp as string]
+		);
 	}
 
-	logger.outro('Done!');
+	logger.outro("Done!");
 }
 
 async function displayAppScores(
@@ -193,13 +197,13 @@ async function displayAppScores(
 
 	// If scores are already calculated and stored, use them
 	if (result.scores) {
-		logger.debug('Using pre-calculated scores from results file');
+		logger.debug("Using pre-calculated scores from results file");
 		printScores(result.scores);
 		return;
 	}
 
 	// Otherwise, calculate scores from raw results
-	logger.debug('Calculating scores from raw benchmark data');
+	logger.debug("Calculating scores from raw benchmark data");
 
 	const appResults = result.results;
 	const config = await loadConfigForApp(logger, appName);
@@ -211,9 +215,9 @@ async function displayAppScores(
 	// Create app data for transparency scoring
 	const appData = {
 		name: appName,
-		baseline: appName === 'baseline',
+		baseline: appName === "baseline",
 		company: config?.company ? JSON.stringify(config.company) : null,
-		techStack: config?.techStack ? JSON.stringify(config.techStack) : '{}',
+		techStack: config?.techStack ? JSON.stringify(config.techStack) : "{}",
 		source: config?.source ? JSON.stringify(config.source) : null,
 		tags: config?.tags ? JSON.stringify(config.tags) : null,
 	};
@@ -224,18 +228,14 @@ async function displayAppScores(
 				appResults.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
 				appResults.length,
 			lcp:
-				appResults.reduce(
-					(a, b) => a + b.timing.largestContentfulPaint,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
+				appResults.length,
 			cls:
 				appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
 				appResults.length,
 			tbt:
-				appResults.reduce(
-					(a, b) => a + b.timing.mainThreadBlocking.total,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
+				appResults.length,
 			tti:
 				appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
 				appResults.length,
@@ -298,24 +298,21 @@ async function displayAppScores(
 					0
 				) /
 				appResults.length /
-				100,
+				PERCENTAGE_DIVISOR,
 		},
 		{
 			domSize: 1500, // Default value
 			mainThreadBlocking:
-				appResults.reduce(
-					(a, b) => a + b.timing.mainThreadBlocking.total,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
+				appResults.length,
 			layoutShifts:
 				appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
 				appResults.length,
 		},
-		appName === 'baseline',
+		appName === "baseline",
 		appData,
 		appResults[0]?.timing.networkInformation
 	);
 
 	printScores(scores);
 }
-

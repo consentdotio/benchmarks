@@ -1,29 +1,27 @@
-import type { Page } from '@playwright/test';
-import type { ChildProcess } from 'node:child_process';
-import type { PerfumeMetrics } from '@consentio/benchmark';
+import type { ChildProcess } from "node:child_process";
 
 // Re-export common types from benchmark package
 export type {
+	BundleStrategy,
 	Config,
 	CookieBannerConfig,
-	CookieBannerMetrics,
 	CookieBannerData,
-	NetworkRequest,
-	NetworkMetrics,
-	BundleStrategy,
-	ResourceTimingData,
+	CookieBannerMetrics,
 	CoreWebVitals,
+	NetworkMetrics,
+	NetworkRequest,
 	PerfumeMetrics,
-} from '@consentio/benchmark';
+	ResourceTimingData,
+} from "@consentio/benchmark";
 
 // Server types
-export interface ServerInfo {
+export type ServerInfo = {
 	serverProcess: ChildProcess;
 	url: string;
-}
+};
 
 // Benchmark result types
-export interface BenchmarkDetails {
+export type BenchmarkDetails = {
 	duration: number;
 	size: {
 		total: number;
@@ -155,9 +153,9 @@ export interface BenchmarkDetails {
 	};
 	cookieBanner: EnhancedCookieBannerTiming;
 	thirdParty: ThirdPartyMetrics;
-}
+};
 
-export interface BenchmarkResult {
+export type BenchmarkResult = {
 	name: string;
 	baseline: boolean;
 	techStack: {
@@ -243,7 +241,7 @@ export interface BenchmarkResult {
 	};
 	scores?: {
 		totalScore: number;
-		grade: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Critical';
+		grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
 		categoryScores: {
 			performance: number;
 			bundleStrategy: number;
@@ -261,26 +259,26 @@ export interface BenchmarkResult {
 				score: number;
 				maxScore: number;
 				weight: number;
-				status: 'excellent' | 'good' | 'fair' | 'poor';
+				status: "excellent" | "good" | "fair" | "poor";
 				reason: string;
 			}>;
-			status: 'excellent' | 'good' | 'fair' | 'poor';
+			status: "excellent" | "good" | "fair" | "poor";
 			reason: string;
 		}>;
 		insights: string[];
 		recommendations: string[];
 	};
-}
+};
 
-interface EnhancedCookieBannerTiming {
+type EnhancedCookieBannerTiming = {
 	detected: boolean;
 	selector: string | null;
 	serviceName: string;
 	visibilityTime: number | null;
 	viewportCoverage: number;
-}
+};
 
-interface ThirdPartyMetrics {
+type ThirdPartyMetrics = {
 	cookieServices: {
 		hosts: string[];
 		totalSize: number;
@@ -290,5 +288,4 @@ interface ThirdPartyMetrics {
 		downloadTime: number;
 	};
 	totalImpact: number;
-}
-
+};

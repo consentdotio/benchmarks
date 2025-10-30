@@ -1,26 +1,25 @@
 {
-	"name": "with-iubenda",
-	"private": true,
-	"scripts": {
-		"benchmark": "pnpm exec cookiebench benchmark",
-		"build": "next build --turbopack",
-		"dev": "next dev --port 3001 --turbopack",
-		"fmt": "pnpm biome format --write . && pnpm biome check --formatter-enabled=false --linter-enabled=false --organize-imports-enabled=true --write",
-		"lint": "next lint",
-		"start": "next start"
-	},
-	"dependencies": {
-		"next": "15.3.3",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
-	},
-	"devDependencies": {
-		"@cookiebench/benchmark-schema": "workspace:*",
-		"@cookiebench/ts-config": "workspace:*",
-		"@types/node": "^22.15.30",
-		"@types/react": "^19.1.6",
-		"@types/react-dom": "^19.1.6",
-		"cookiebench": "workspace:*",
-		"typescript": "^5.8.3"
-	}
+  "name": "with-iubenda",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3001",
+    "fmt": "biome format . --write",
+    "lint": "biome lint .",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "16.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@cookiebench/benchmark-schema": "workspace:*",
+    "@cookiebench/ts-config": "workspace:*",
+    "@types/node": "^24.9.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "cookiebench": "workspace:*",
+    "typescript": "^5.9.3"
+  }
 }

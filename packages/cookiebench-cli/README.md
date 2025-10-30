@@ -73,7 +73,7 @@ When run without arguments, the command will:
 5. Ask if you want to show the results panel after completion
 6. Run selected benchmarks sequentially
 7. Show a summary of completed benchmarks
-8. Display the full results panel with all metrics (if enabled)
+8. Automatically display results for the benchmarks you just ran (if enabled, skips selection menu)
 
 **Single Benchmark Mode:**
 
@@ -90,7 +90,7 @@ When a specific path is provided:
 - ✅ View default iterations from config files
 - ✅ Override iterations for all benchmarks or use individual config values
 - ✅ Sequential execution with progress indicators
-- ✅ Automatic results panel display after completion (toggle on/off)
+- ✅ Automatic results panel for completed benchmarks (no extra selection needed)
 - ✅ Comprehensive metrics: scores, insights, Core Web Vitals, resource breakdown, network waterfall
 - ✅ Error handling - continues to next benchmark on failure
 - ✅ Summary report at the end

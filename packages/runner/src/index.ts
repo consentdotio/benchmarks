@@ -1,28 +1,24 @@
 // Main runner
-export { BenchmarkRunner } from './benchmark-runner';
-
-// Server management
-export { buildAndServeNextApp, cleanupServer } from './server';
-
-// Utilities
-export { readConfig, formatTime, getPackageManager } from './utils';
-
+// biome-ignore lint/performance/noBarrelFile: this is a barrel file
+export { BenchmarkRunner } from "./benchmark-runner";
 // Performance aggregation
-export { PerformanceAggregator } from './performance-aggregator';
-
+export { PerformanceAggregator } from "./performance-aggregator";
+// Server management
+export { buildAndServeNextApp, cleanupServer } from "./server";
 // Types
 export type {
-	BenchmarkResult,
 	BenchmarkDetails,
-	ServerInfo,
+	BenchmarkResult,
+	BundleStrategy,
 	Config,
 	CookieBannerConfig,
-	CookieBannerMetrics,
 	CookieBannerData,
-	NetworkRequest,
-	NetworkMetrics,
-	BundleStrategy,
-	ResourceTimingData,
+	CookieBannerMetrics,
 	CoreWebVitals,
-} from './types';
-
+	NetworkMetrics,
+	NetworkRequest,
+	ResourceTimingData,
+	ServerInfo,
+} from "./types";
+// Utilities
+export { formatTime, getPackageManager, readConfig } from "./utils";

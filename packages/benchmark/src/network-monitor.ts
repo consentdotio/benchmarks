@@ -1,18 +1,17 @@
-import type { Page, Route } from '@playwright/test';
-import type { Config, NetworkRequest, NetworkMetrics } from './types';
-import type { Logger } from '@c15t/logger';
+import type { Logger } from "@c15t/logger";
+import type { Page, Route } from "@playwright/test";
+import { BENCHMARK_CONSTANTS } from "./constants";
+import type { Config, NetworkMetrics, NetworkRequest } from "./types";
 
 export class NetworkMonitor {
-	private config: Config;
-	private logger: Logger;
+	private readonly logger: Logger;
 	private networkRequests: NetworkRequest[] = [];
 	private metrics: NetworkMetrics = {
 		bannerNetworkRequests: 0,
 		bannerBundleSize: 0,
 	};
 
-	constructor(config: Config, logger: Logger) {
-		this.config = config;
+	constructor(_config: Config, logger: Logger) {
 		this.logger = logger;
 	}
 
@@ -20,7 +19,7 @@ export class NetworkMonitor {
 	 * Set up network request monitoring
 	 */
 	async setupMonitoring(page: Page): Promise<void> {
-		await page.route('**/*', async (route: Route) => {
+		await page.route("**/*", async (route: Route) => {
 			const request = route.request();
 			const url = request.url();
 
@@ -29,31 +28,32 @@ export class NetworkMonitor {
 				const headers = response.headers();
 
 				// Add timing-allow-origin header for all responses
-				headers['timing-allow-origin'] = '*';
+				headers["timing-allow-origin"] = "*";
 
-				const isScript = request.resourceType() === 'script';
+				const isScript = request.resourceType() === "script";
 				const isThirdParty = !url.includes(new URL(url).hostname);
 
 				if (isScript) {
-					const contentLength = response.headers()['content-length'];
+					const contentLength = response.headers()["content-length"];
 					const size = contentLength ? +contentLength || 0 : 0;
 
 					this.networkRequests.push({
 						url,
-						size: size / 1024, // Convert to KB
+						size: size / BENCHMARK_CONSTANTS.BYTES_TO_KB, // Convert to KB
 						duration: 0, // Will be calculated later
 						startTime: Date.now(),
 						isScript,
 						isThirdParty,
 					});
 
-				if (isThirdParty) {
-					this.metrics.bannerNetworkRequests++;
-					this.metrics.bannerBundleSize += size / 1024;
-					this.logger.debug(
-						`Third-party script detected: ${url} (${(size / 1024).toFixed(2)}KB)`
-					);
-				}
+					if (isThirdParty) {
+						this.metrics.bannerNetworkRequests += 1;
+						this.metrics.bannerBundleSize +=
+							size / BENCHMARK_CONSTANTS.BYTES_TO_KB;
+						this.logger.debug(
+							`Third-party script detected: ${url} (${(size / BENCHMARK_CONSTANTS.BYTES_TO_KB).toFixed(2)}KB)`
+						);
+					}
 				}
 
 				await route.fulfill({ response, headers });
@@ -121,4 +121,3 @@ export class NetworkMonitor {
 		};
 	}
 }
-

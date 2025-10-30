@@ -1,15 +1,15 @@
 // Re-export types from runner package
 export type {
-	Config,
-	BenchmarkResult,
 	BenchmarkDetails,
+	BenchmarkResult,
+	Config,
 	ServerInfo,
-} from '@consentio/runner';
+} from "@consentio/runner";
 
 // CLI-specific scoring types
-export interface BenchmarkScores {
+export type BenchmarkScores = {
 	totalScore: number;
-	grade: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Critical';
+	grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
 	categoryScores: {
 		performance: number;
 		bundleStrategy: number;
@@ -27,13 +27,12 @@ export interface BenchmarkScores {
 			score: number;
 			maxScore: number;
 			weight: number;
-			status: 'excellent' | 'good' | 'fair' | 'poor';
+			status: "excellent" | "good" | "fair" | "poor";
 			reason: string;
 		}>;
-		status: 'excellent' | 'good' | 'fair' | 'poor';
+		status: "excellent" | "good" | "fair" | "poor";
 		reason: string;
 	}>;
 	insights: string[];
 	recommendations: string[];
-}
-
+};

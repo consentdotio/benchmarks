@@ -1,16 +1,16 @@
-import type { Page } from '@playwright/test';
+import type { Page } from "@playwright/test";
 
 // Config types
-export interface CookieBannerConfig {
+export type CookieBannerConfig = {
 	selectors: string[];
 	serviceHosts: string[];
 	waitForVisibility: boolean;
 	measureViewportCoverage: boolean;
 	expectedLayoutShift: boolean;
 	serviceName: string;
-}
+};
 
-export interface Config {
+export type Config = {
 	name: string;
 	url?: string;
 	testId?: string;
@@ -53,7 +53,7 @@ export interface Config {
 		avatar: string;
 	};
 	tags?: string[];
-}
+};
 
 // Performance API type definitions
 export interface LayoutShiftEntry extends PerformanceEntry {
@@ -75,7 +75,7 @@ export interface WindowWithCookieMetrics extends Window {
 	};
 }
 
-export interface CookieBannerMetrics {
+export type CookieBannerMetrics = {
 	detectionStartTime: number;
 	bannerRenderTime: number;
 	bannerInteractiveTime: number;
@@ -88,9 +88,9 @@ export interface CookieBannerMetrics {
 	isIIFE: boolean;
 	bannerDetected: boolean;
 	bannerSelector: string | null;
-}
+};
 
-export interface CookieBannerData {
+export type CookieBannerData = {
 	detected: boolean;
 	selector: string | null;
 	bannerRenderTime: number;
@@ -98,32 +98,32 @@ export interface CookieBannerData {
 	bannerHydrationTime: number;
 	layoutShiftImpact: number;
 	viewportCoverage: number;
-}
+};
 
 // Network types
-export interface NetworkRequest {
+export type NetworkRequest = {
 	url: string;
 	size: number;
 	duration: number;
 	startTime: number;
 	isScript: boolean;
 	isThirdParty: boolean;
-}
+};
 
-export interface NetworkMetrics {
+export type NetworkMetrics = {
 	bannerNetworkRequests: number;
 	bannerBundleSize: number;
-}
+};
 
 // Bundle strategy types
-export interface BundleStrategy {
+export type BundleStrategy = {
 	isBundled: boolean;
 	isIIFE: boolean;
 	bundleType: string | string[] | undefined;
-}
+};
 
 // Resource timing types
-export interface ResourceTimingData {
+export type ResourceTimingData = {
 	timing: {
 		navigationStart: number;
 		domContentLoaded: number;
@@ -208,10 +208,10 @@ export interface ResourceTimingData {
 	};
 	language: string;
 	duration: number;
-}
+};
 
 // Core web vitals types
-export interface CoreWebVitals {
+export type CoreWebVitals = {
 	paint?: {
 		firstPaint?: number;
 		firstContentfulPaint?: number;
@@ -222,10 +222,10 @@ export interface CoreWebVitals {
 	domCompleteTiming?: number;
 	pageloadTiming?: number;
 	totalBytes?: number;
-}
+};
 
 // Perfume.js metrics types
-export interface PerfumeMetrics {
+export type PerfumeMetrics = {
 	// Core Web Vitals (replacing playwright-performance-metrics)
 	firstPaint: number;
 	firstContentfulPaint: number;
@@ -256,7 +256,7 @@ export interface PerfumeMetrics {
 		rtt: number;
 		saveData: boolean;
 	};
-}
+};
 
 export interface WindowWithPerfumeMetrics extends Window {
 	__perfumeMetrics?: Record<
@@ -275,4 +275,3 @@ export interface WindowWithPerfumeMetrics extends Window {
 		}
 	>;
 }
-

@@ -1,30 +1,189 @@
-import { writeFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { setTimeout } from 'node:timers/promises';
-import * as p from '@clack/prompts';
-import color from 'picocolors';
+import { readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { setTimeout } from "node:timers/promises";
 import {
+	cancel,
+	confirm,
+	intro,
+	isCancel,
+	multiselect,
+	outro,
+	text,
+} from "@clack/prompts";
+import {
+	type BenchmarkResult,
 	BenchmarkRunner,
 	buildAndServeNextApp,
 	cleanupServer,
 	readConfig,
 	type ServerInfo,
-} from '@consentio/runner';
-import { calculateScores, printScores, type CliLogger } from '../utils';
+} from "@consentio/runner";
+import color from "picocolors";
+import {
+	DEFAULT_DOM_SIZE,
+	DEFAULT_ITERATIONS,
+	DEFAULT_THIRD_PARTY_DOMAINS,
+	HALF_SECOND,
+	PERCENTAGE_DIVISOR,
+	SEPARATOR_WIDTH,
+} from "../utils/constants";
+import type { CliLogger } from "../utils/logger";
+import { calculateScores, printScores } from "../utils/scoring";
+
+/**
+ * Calculate average from array
+ */
+function calculateAverage(values: number[]): number {
+	return values.reduce((acc, curr) => acc + curr, 0) / values.length;
+}
+
+/**
+ * Calculate timing metrics from benchmark results
+ */
+function calculateTimingMetrics(details: BenchmarkResult["details"]) {
+	return {
+		fcp: calculateAverage(details.map((d) => d.timing.firstContentfulPaint)),
+		lcp: calculateAverage(details.map((d) => d.timing.largestContentfulPaint)),
+		cls: calculateAverage(details.map((d) => d.timing.cumulativeLayoutShift)),
+		tbt: calculateAverage(
+			details.map((d) => d.timing.mainThreadBlocking.total)
+		),
+		tti: calculateAverage(details.map((d) => d.timing.timeToInteractive)),
+	};
+}
+
+/**
+ * Calculate size metrics from benchmark results
+ */
+function calculateSizeMetrics(details: BenchmarkResult["details"]) {
+	return {
+		totalSize: calculateAverage(details.map((d) => d.size.total)),
+		jsSize: calculateAverage(details.map((d) => d.size.scripts.total)),
+		cssSize: calculateAverage(details.map((d) => d.size.styles)),
+		imageSize: calculateAverage(details.map((d) => d.size.images)),
+		fontSize: calculateAverage(details.map((d) => d.size.fonts)),
+		otherSize: calculateAverage(details.map((d) => d.size.other)),
+	};
+}
+
+/**
+ * Calculate network metrics from benchmark results
+ */
+function calculateNetworkMetrics(details: BenchmarkResult["details"]) {
+	const totalRequests = calculateAverage(
+		details.map(
+			(d) =>
+				d.resources.scripts.length +
+				d.resources.styles.length +
+				d.resources.images.length +
+				d.resources.fonts.length +
+				d.resources.other.length
+		)
+	);
+
+	const thirdPartyRequests = calculateAverage(
+		details.map((d) => d.resources.scripts.filter((s) => s.isThirdParty).length)
+	);
+
+	const thirdPartySize = calculateAverage(
+		details.map((d) => d.size.thirdParty)
+	);
+
+	return {
+		totalRequests,
+		thirdPartyRequests,
+		thirdPartySize,
+		thirdPartyDomains: DEFAULT_THIRD_PARTY_DOMAINS,
+	};
+}
+
+/**
+ * Calculate cookie banner metrics from benchmark results
+ */
+function calculateCookieBannerMetrics(
+	details: BenchmarkResult["details"],
+	logger: CliLogger
+) {
+	// Require consistent detection across ALL iterations for true positive
+	const allDetected = details.every((r) => r.cookieBanner.detected);
+	if (!allDetected) {
+		logger.warn(
+			"⚠️ [SCORING] Banner detection inconsistent or failed - marking as not detected"
+		);
+	}
+
+	// Calculate timing
+	const detectionSuccess = details.some((r) => r.cookieBanner.detected);
+	let cookieBannerTiming: number | null = null;
+
+	if (detectionSuccess) {
+		const timingValues = details.map((r) => r.cookieBanner.visibilityTime);
+		const hasNullValues = timingValues.some((t) => t === null || t === 0);
+
+		if (hasNullValues) {
+			logger.warn(
+				"⚠️ [SCORING] Inconsistent banner detection - applying penalty"
+			);
+		} else {
+			const validTimings = timingValues.filter(
+				(t): t is number => t !== null && t > 0
+			);
+			if (validTimings.length === details.length && validTimings.length > 0) {
+				cookieBannerTiming = calculateAverage(validTimings);
+			}
+		}
+	} else {
+		logger.warn(
+			"⚠️ [SCORING] No banner detected in any iteration - applying penalty"
+		);
+	}
+
+	// Calculate coverage
+	let cookieBannerCoverage = 0;
+	const detectionConsistent = details.every((r) => r.cookieBanner.detected);
+	if (detectionConsistent) {
+		cookieBannerCoverage =
+			calculateAverage(details.map((d) => d.cookieBanner.viewportCoverage)) /
+			PERCENTAGE_DIVISOR;
+	} else {
+		logger.warn("⚠️ [SCORING] Inconsistent detection - setting coverage to 0");
+	}
+
+	return {
+		cookieBannerDetected: allDetected,
+		cookieBannerTiming,
+		cookieBannerCoverage,
+	};
+}
+
+/**
+ * Calculate performance metrics from benchmark results
+ */
+function calculatePerformanceMetrics(details: BenchmarkResult["details"]) {
+	return {
+		domSize: DEFAULT_DOM_SIZE,
+		mainThreadBlocking: calculateAverage(
+			details.map((d) => d.timing.mainThreadBlocking.total)
+		),
+		layoutShifts: calculateAverage(
+			details.map((d) => d.timing.cumulativeLayoutShift)
+		),
+	};
+}
 
 /**
  * Find all benchmark directories
  */
 async function findBenchmarkDirs(logger: CliLogger): Promise<string[]> {
-	const benchmarksDir = 'benchmarks';
+	const benchmarksDir = "benchmarks";
 	try {
 		const entries = await readdir(benchmarksDir, { withFileTypes: true });
 		const dirs = entries
-			.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+			.filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
 			.map((entry) => entry.name);
 		return dirs;
 	} catch (error) {
-		logger.debug('Failed to read benchmarks directory:', error);
+		logger.debug("Failed to read benchmarks directory:", error);
 		return [];
 	}
 }
@@ -38,10 +197,12 @@ async function runSingleBenchmark(
 	showScores = true,
 	iterationsOverride?: number
 ): Promise<boolean> {
-	const configPath = appPath ? join(appPath, 'config.json') : undefined;
+	const configPath = appPath ? join(appPath, "config.json") : undefined;
 	const config = readConfig(configPath);
 	if (!config) {
-		logger.error(`Failed to read config.json for ${appPath || 'current directory'}`);
+		logger.error(
+			`Failed to read config.json for ${appPath || "current directory"}`
+		);
 		return false;
 	}
 
@@ -51,7 +212,6 @@ async function runSingleBenchmark(
 	}
 
 	try {
-
 		let serverInfo: ServerInfo | null = null;
 		let benchmarkUrl: string;
 
@@ -60,7 +220,7 @@ async function runSingleBenchmark(
 			logger.info(`🌐 Running remote benchmark against: ${config.remote.url}`);
 			benchmarkUrl = config.remote.url;
 		} else {
-			logger.info('🏗️ Building and serving app locally...');
+			logger.info("🏗️ Building and serving app locally...");
 			serverInfo = await buildAndServeNextApp(logger, appPath);
 			benchmarkUrl = serverInfo.url;
 		}
@@ -75,172 +235,31 @@ async function runSingleBenchmark(
 			// Create app data for transparency scoring
 			const appData = {
 				name: config.name,
-				baseline: config.baseline || false,
+				baseline: config.baseline ?? false,
 				company: config.company ? JSON.stringify(config.company) : null,
 				techStack: JSON.stringify(config.techStack),
 				source: config.source ? JSON.stringify(config.source) : null,
 				tags: config.tags ? JSON.stringify(config.tags) : null,
 			};
 
+			// Calculate all metrics using helper functions
+			const timingMetrics = calculateTimingMetrics(result.details);
+			const sizeMetrics = calculateSizeMetrics(result.details);
+			const networkMetrics = calculateNetworkMetrics(result.details);
+			const cookieBannerMetrics = calculateCookieBannerMetrics(
+				result.details,
+				logger
+			);
+			const performanceMetrics = calculatePerformanceMetrics(result.details);
+
 			// Calculate scores
 			const scores = calculateScores(
-				{
-					fcp:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.firstContentfulPaint,
-							0
-						) / result.details.length,
-					lcp:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.largestContentfulPaint,
-							0
-						) / result.details.length,
-					cls:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.cumulativeLayoutShift,
-							0
-						) / result.details.length,
-					tbt:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.mainThreadBlocking.total,
-							0
-						) / result.details.length,
-					tti:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.timeToInteractive,
-							0
-						) / result.details.length,
-				},
-				{
-					totalSize:
-						result.details.reduce((acc, curr) => acc + curr.size.total, 0) /
-						result.details.length,
-					jsSize:
-						result.details.reduce(
-							(acc, curr) => acc + curr.size.scripts.total,
-							0
-						) / result.details.length,
-					cssSize:
-						result.details.reduce((acc, curr) => acc + curr.size.styles, 0) /
-						result.details.length,
-					imageSize:
-						result.details.reduce((acc, curr) => acc + curr.size.images, 0) /
-						result.details.length,
-					fontSize:
-						result.details.reduce((acc, curr) => acc + curr.size.fonts, 0) /
-						result.details.length,
-					otherSize:
-						result.details.reduce((acc, curr) => acc + curr.size.other, 0) /
-						result.details.length,
-				},
-				{
-					totalRequests:
-						result.details.reduce(
-							(acc, curr) =>
-								acc +
-								(curr.resources.scripts.length +
-									curr.resources.styles.length +
-									curr.resources.images.length +
-									curr.resources.fonts.length +
-									curr.resources.other.length),
-							0
-						) / result.details.length,
-					thirdPartyRequests:
-						result.details.reduce(
-							(acc, curr) =>
-								acc +
-								curr.resources.scripts.filter((s) => s.isThirdParty).length,
-							0
-						) / result.details.length,
-					thirdPartySize:
-						result.details.reduce((acc, curr) => acc + curr.size.thirdParty, 0) /
-						result.details.length,
-					thirdPartyDomains: 5, // Default value
-				},
-				{
-					cookieBannerDetected: (() => {
-						// Require consistent detection across ALL iterations for true positive
-						const allDetected = result.details.every(
-							(r) => r.cookieBanner.detected
-						);
-						if (!allDetected) {
-							logger.warn(
-								'⚠️ [SCORING] Banner detection inconsistent or failed - marking as not detected'
-							);
-						}
-						return allDetected;
-					})(),
-					cookieBannerTiming: (() => {
-						// If no banners detected across any iteration, heavily penalize
-						const detectionSuccess = result.details.some(
-							(r) => r.cookieBanner.detected
-						);
-						if (!detectionSuccess) {
-							logger.warn(
-								'⚠️ [SCORING] No banner detected in any iteration - applying penalty'
-							);
-							return null; // This signals failed detection for scoring
-						}
-
-						// Check if any results have null timing (undetected banners)
-						const timingValues = result.details.map(
-							(r) => r.cookieBanner.visibilityTime
-						);
-						const hasNullValues = timingValues.some((t) => t === null || t === 0);
-
-						// If we have mixed results (some detected, some not), still penalize
-						if (hasNullValues) {
-							logger.warn(
-								'⚠️ [SCORING] Inconsistent banner detection - applying penalty'
-							);
-							return null;
-						}
-
-						// Only return actual timing if all iterations successfully detected banner
-						const validTimings = timingValues.filter(
-							(t): t is number => t !== null && t > 0
-						);
-						return validTimings.length === result.details.length &&
-							validTimings.length > 0
-							? validTimings.reduce((acc, curr) => acc + curr, 0) /
-									validTimings.length
-							: null;
-					})(),
-					cookieBannerCoverage: (() => {
-						// Only calculate coverage if banner was consistently detected
-						const detectionSuccess = result.details.every(
-							(r) => r.cookieBanner.detected
-						);
-						if (!detectionSuccess) {
-							logger.warn(
-								'⚠️ [SCORING] Inconsistent detection - setting coverage to 0'
-							);
-							return 0; // No coverage score if detection failed
-						}
-						return (
-							result.details.reduce(
-								(acc, curr) => acc + curr.cookieBanner.viewportCoverage,
-								0
-							) /
-							result.details.length /
-							100
-						);
-					})(),
-				},
-				{
-					domSize: 1500, // Default value
-					mainThreadBlocking:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.mainThreadBlocking.total,
-							0
-						) / result.details.length,
-					layoutShifts:
-						result.details.reduce(
-							(acc, curr) => acc + curr.timing.cumulativeLayoutShift,
-							0
-						) / result.details.length,
-				},
-				config.baseline || false,
+				timingMetrics,
+				sizeMetrics,
+				networkMetrics,
+				cookieBannerMetrics,
+				performanceMetrics,
+				config.baseline ?? false,
 				appData
 			);
 
@@ -259,19 +278,19 @@ async function runSingleBenchmark(
 					timestamp: new Date().toISOString(),
 					iterations: config.iterations,
 					languages: config.techStack.languages,
-					isRemote: config.remote?.enabled || false,
+					isRemote: config.remote?.enabled ?? false,
 					url: config.remote?.enabled ? config.remote.url : undefined,
 				},
 			};
 
 			// Write results to file
-			const outputPath = join(cwd, 'results.json');
+			const outputPath = join(cwd, "results.json");
 			await writeFile(outputPath, JSON.stringify(resultsData, null, 2));
 			logger.success(`Benchmark results saved to ${outputPath}`);
 
 			// Print scores if requested
 			if (showScores && scores) {
-				logger.info('📊 Benchmark Scores:');
+				logger.info("📊 Benchmark Scores:");
 				printScores(scores);
 			}
 
@@ -286,7 +305,7 @@ async function runSingleBenchmark(
 		if (error instanceof Error) {
 			logger.error(`Error running benchmark: ${error.message}`);
 		} else {
-			logger.error('An unknown error occurred during benchmark');
+			logger.error("An unknown error occurred during benchmark");
 		}
 		return false;
 	}
@@ -310,51 +329,51 @@ export async function benchmarkCommand(
 
 	// Otherwise, show multi-select for available benchmarks
 	logger.clear();
-	await setTimeout(500);
+	await setTimeout(HALF_SECOND);
 
-	p.intro(`${color.bgMagenta(color.white(' benchmark '))}`);
+	intro(`${color.bgMagenta(color.white(" benchmark "))}`);
 
 	// Find available benchmarks
 	const availableBenchmarks = await findBenchmarkDirs(logger);
 
 	if (availableBenchmarks.length === 0) {
-		logger.error('No benchmarks found in the benchmarks/ directory');
+		logger.error("No benchmarks found in the benchmarks/ directory");
 		logger.info(
-			'Create benchmark directories with config.json files to get started'
+			"Create benchmark directories with config.json files to get started"
 		);
 		process.exit(1);
 	}
 
 	logger.info(
-		`Found ${availableBenchmarks.length} benchmark(s): ${color.cyan(availableBenchmarks.join(', '))}`
+		`Found ${availableBenchmarks.length} benchmark(s): ${color.cyan(availableBenchmarks.join(", "))}`
 	);
 
 	// Ask user to select benchmarks
-	const selectedBenchmarks = await p.multiselect({
-		message: 'Select benchmarks to run (use space to toggle):',
+	const selectedBenchmarks = await multiselect({
+		message: "Select benchmarks to run (use space to toggle):",
 		options: availableBenchmarks.map((name) => ({
 			value: name,
 			label: name,
-			hint: join('benchmarks', name),
+			hint: join("benchmarks", name),
 		})),
 		required: true,
 	});
 
-	if (p.isCancel(selectedBenchmarks)) {
-		p.cancel('Operation cancelled');
+	if (isCancel(selectedBenchmarks)) {
+		cancel("Operation cancelled");
 		return;
 	}
 
 	if (!Array.isArray(selectedBenchmarks) || selectedBenchmarks.length === 0) {
-		logger.warn('No benchmarks selected');
+		logger.warn("No benchmarks selected");
 		return;
 	}
 
 	// Load configs to get default iterations
 	const benchmarkConfigs = new Map<string, number>();
 	for (const benchmarkName of selectedBenchmarks) {
-		const benchmarkPath = join('benchmarks', benchmarkName);
-		const configPath = join(benchmarkPath, 'config.json');
+		const benchmarkPath = join("benchmarks", benchmarkName);
+		const configPath = join(benchmarkPath, "config.json");
 		const config = readConfig(configPath);
 		if (config) {
 			benchmarkConfigs.set(benchmarkName, config.iterations);
@@ -365,66 +384,68 @@ export async function benchmarkCommand(
 	const defaultIterations =
 		benchmarkConfigs.size > 0
 			? Array.from(benchmarkConfigs.values())[0]
-			: 5;
+			: DEFAULT_ITERATIONS;
 
 	// Show iteration counts for selected benchmarks
 	const iterationsList = Array.from(selectedBenchmarks)
 		.map((name) => {
-			const iterations = benchmarkConfigs.get(name) || '?';
+			const iterations = benchmarkConfigs.get(name) ?? "?";
 			return `${name}: ${iterations}`;
 		})
-		.join(', ');
+		.join(", ");
 
 	logger.info(`Config iterations: ${color.dim(iterationsList)}`);
 
 	// Ask for iterations override
-	const iterationsInput = await p.text({
-		message: 'Number of iterations (press Enter to use config values):',
+	const iterationsInput = await text({
+		message: "Number of iterations (press Enter to use config values):",
 		placeholder: `Default: ${defaultIterations}`,
-		defaultValue: '',
+		defaultValue: "",
 		validate: (value) => {
-			if (value === '') return; // Empty is valid (use defaults)
+			if (value === "") {
+				return; // Empty is valid (use defaults)
+			}
 			const num = Number.parseInt(value, 10);
 			if (Number.isNaN(num) || num < 1) {
-				return 'Please enter a valid number greater than 0';
+				return "Please enter a valid number greater than 0";
 			}
 		},
 	});
 
-	if (p.isCancel(iterationsInput)) {
-		p.cancel('Operation cancelled');
+	if (isCancel(iterationsInput)) {
+		cancel("Operation cancelled");
 		return;
 	}
 
 	// Parse iterations - if empty string, use undefined to let each benchmark use its config
 	const iterationsOverride =
-		iterationsInput === '' ? undefined : Number.parseInt(iterationsInput, 10);
+		iterationsInput === "" ? undefined : Number.parseInt(iterationsInput, 10);
 
 	if (iterationsOverride !== undefined) {
 		logger.info(
 			`Using ${color.bold(color.cyan(String(iterationsOverride)))} iterations for all benchmarks`
 		);
 	} else {
-		logger.info('Using iteration counts from each benchmark config');
+		logger.info("Using iteration counts from each benchmark config");
 	}
 
 	// Ask if user wants to see results panel after completion
-	const showResults = await p.confirm({
-		message: 'Show results panel after completion?',
+	const showResults = await confirm({
+		message: "Show results panel after completion?",
 		initialValue: true,
 	});
 
-	if (p.isCancel(showResults)) {
-		p.cancel('Operation cancelled');
+	if (isCancel(showResults)) {
+		cancel("Operation cancelled");
 		return;
 	}
 
 	// Run selected benchmarks sequentially
 	const results: Array<{ name: string; success: boolean }> = [];
 
-	for (let i = 0; i < selectedBenchmarks.length; i++) {
+	for (let i = 0; i < selectedBenchmarks.length; i += 1) {
 		const benchmarkName = selectedBenchmarks[i];
-		const benchmarkPath = join('benchmarks', benchmarkName);
+		const benchmarkPath = join("benchmarks", benchmarkName);
 
 		logger.info(
 			`\n${color.bold(color.cyan(`[${i + 1}/${selectedBenchmarks.length}]`))} Running benchmark: ${color.bold(benchmarkName)}`
@@ -447,32 +468,34 @@ export async function benchmarkCommand(
 
 		// Add spacing between benchmarks
 		if (i < selectedBenchmarks.length - 1) {
-			logger.message('\n' + '─'.repeat(80) + '\n');
+			logger.message(`\n${"─".repeat(SEPARATOR_WIDTH)}\n`);
 		}
 	}
 
 	// Summary
-	logger.message('\n');
-	p.outro(
-		`${color.bold('Summary:')} ${results.filter((r) => r.success).length}/${results.length} benchmarks completed successfully`
+	logger.message("\n");
+	outro(
+		`${color.bold("Summary:")} ${results.filter((r) => r.success).length}/${results.length} benchmarks completed successfully`
 	);
 
 	// Show failed benchmarks if any
 	const failed = results.filter((r) => !r.success);
 	if (failed.length > 0) {
-		logger.warn(
-			`Failed benchmarks: ${failed.map((r) => r.name).join(', ')}`
-		);
+		logger.warn(`Failed benchmarks: ${failed.map((r) => r.name).join(", ")}`);
 	}
 
 	// Show results panel if requested
 	if (showResults === true && results.some((r) => r.success)) {
-		logger.message('\n' + '═'.repeat(80) + '\n');
-		logger.info('Loading results panel...\n');
-		
-		// Dynamically import and run the results command
-		const { resultsCommand } = await import('./results.js');
-		await resultsCommand(logger);
+		logger.message(`\n${"═".repeat(SEPARATOR_WIDTH)}\n`);
+		logger.info("Loading results panel...\n");
+
+		// Get successful benchmark names
+		const successfulBenchmarks = results
+			.filter((r) => r.success)
+			.map((r) => r.name);
+
+		// Dynamically import and run the results command with specific benchmarks
+		const { resultsCommand } = await import("./results.js");
+		await resultsCommand(logger, successfulBenchmarks);
 	}
 }
-

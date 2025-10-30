@@ -1,9 +1,10 @@
-import type { Page } from '@playwright/test';
-import type { PerfumeMetrics, WindowWithPerfumeMetrics } from './types';
-import type { Logger } from '@c15t/logger';
+import type { Logger } from "@c15t/logger";
+import type { Page } from "@playwright/test";
+import { BENCHMARK_CONSTANTS } from "./constants";
+import type { PerfumeMetrics, WindowWithPerfumeMetrics } from "./types";
 
 export class PerfumeCollector {
-	private logger: Logger;
+	private readonly logger: Logger;
 
 	constructor(logger: Logger) {
 		this.logger = logger;
@@ -18,13 +19,11 @@ export class PerfumeCollector {
 			win.__perfumeMetrics = {};
 
 			// Load Perfume.js from CDN
-			const script = document.createElement('script');
-			script.src = 'https://unpkg.com/perfume.js@9.4.0/dist/perfume.umd.min.js';
+			const script = document.createElement("script");
+			script.src = "https://unpkg.com/perfume.js@9.4.0/dist/perfume.umd.min.js";
 			script.onload = () => {
-				console.log('🔍 [PERFUME] Perfume.js loaded from CDN');
-
 				// Initialize Perfume with analytics tracker
-				// @ts-ignore - Perfume is loaded from CDN
+				// @ts-expect-error - Perfume is loaded from CDN
 				new window.Perfume({
 					analyticsTracker: ({
 						metricName,
@@ -45,8 +44,8 @@ export class PerfumeCollector {
 							serviceWorkerStatus?: string;
 						};
 					}) => {
-						const win = window as WindowWithPerfumeMetrics;
-						const metrics = win.__perfumeMetrics;
+						const metricsWin = window as WindowWithPerfumeMetrics;
+						const metrics = metricsWin.__perfumeMetrics;
 
 						// Store metric with all available data
 						if (metrics) {
@@ -57,20 +56,13 @@ export class PerfumeCollector {
 								navigatorInformation,
 							};
 						}
-
-						console.log(
-							`🔍 [PERFUME] ${metricName}:`,
-							data,
-							`(${rating})`,
-							attribution
-						);
 					},
 				});
 			};
 
-			// Handle script load errors
+			// Handle script load errors - silently fail if Perfume.js doesn't load
 			script.onerror = () => {
-				console.error('🔍 [PERFUME] Failed to load Perfume.js from CDN');
+				// Perfume.js is optional, continue without it
 			};
 
 			document.head.appendChild(script);
@@ -83,7 +75,7 @@ export class PerfumeCollector {
 	async collectMetrics(page: Page): Promise<PerfumeMetrics | null> {
 		try {
 			// Wait a bit for metrics to be collected
-			await page.waitForTimeout(1000);
+			await page.waitForTimeout(BENCHMARK_CONSTANTS.PERFUME_METRICS_WAIT);
 
 			const rawMetrics = await page.evaluate(() => {
 				const win = window as WindowWithPerfumeMetrics;
@@ -91,7 +83,7 @@ export class PerfumeCollector {
 				return perfumeData || {};
 			});
 
-			this.logger.debug('Raw Perfume metrics:', rawMetrics);
+			this.logger.debug("Raw Perfume metrics:", rawMetrics);
 
 			// Get navigation timing separately
 			const navigationTiming = await page.evaluate(() => {
@@ -113,17 +105,17 @@ export class PerfumeCollector {
 
 			// Get network information
 			const networkInformation = await page.evaluate(() => {
-				// @ts-ignore - navigator.connection is experimental
+				// @ts-expect-error - navigator.connection is experimental
 				const connection = navigator.connection || navigator.mozConnection;
 				if (connection) {
 					return {
-						effectiveType: connection.effectiveType || 'unknown',
+						effectiveType: connection.effectiveType || "unknown",
 						downlink: connection.downlink || 0,
 						rtt: connection.rtt || 0,
-						saveData: connection.saveData || false,
+						saveData: connection.saveData,
 					};
 				}
-				return undefined;
+				return;
 			});
 
 			// Convert raw metrics to PerfumeMetrics format
@@ -135,16 +127,16 @@ export class PerfumeCollector {
 				totalBlockingTime: rawMetrics.TBT?.value || 0,
 				firstInputDelay: rawMetrics.FID?.value || null,
 				interactionToNextPaint: rawMetrics.INP?.value || null,
-				timeToFirstByte: rawMetrics.TTFB?.value || navigationTiming.timeToFirstByte,
+				timeToFirstByte:
+					rawMetrics.TTFB?.value || navigationTiming.timeToFirstByte,
 				navigationTiming,
 				networkInformation,
 			};
 
 			return metrics;
 		} catch (error) {
-			this.logger.error('Failed to collect Perfume metrics:', error);
+			this.logger.error("Failed to collect Perfume metrics:", error);
 			return null;
 		}
 	}
 }
-

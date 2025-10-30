@@ -1,5 +1,5 @@
-import type { Config, BundleStrategy } from './types';
-import { BUNDLE_TYPES } from './constants';
+import { BUNDLE_TYPES } from "./constants";
+import type { BundleStrategy, Config } from "./types";
 
 export function determineBundleStrategy(config: Config): BundleStrategy {
 	const bundleType = config.techStack?.bundleType;
@@ -19,4 +19,3 @@ export function determineBundleStrategy(config: Config): BundleStrategy {
 
 	return { isBundled, isIIFE, bundleType };
 }
-

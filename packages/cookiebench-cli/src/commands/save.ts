@@ -1,20 +1,24 @@
-import { setTimeout } from 'node:timers/promises';
-import * as p from '@clack/prompts';
-import color from 'picocolors';
-import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { config } from 'dotenv';
-import { calculateScores, type CliLogger, isAdminUser } from '../utils';
-import type { BenchmarkScores } from '../types';
-import type { Config } from '@consentio/runner';
-import type { RawBenchmarkDetail } from './results';
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { setTimeout } from "node:timers/promises";
+
+import { cancel, confirm, intro, isCancel, multiselect } from "@clack/prompts";
+import type { Config } from "@consentio/runner";
+import { config as loadDotenv } from "dotenv";
+import color from "picocolors";
+import type { BenchmarkScores } from "../types";
+import { HALF_SECOND, PERCENTAGE_DIVISOR } from "../utils";
+import { isAdminUser } from "../utils/auth";
+import type { CliLogger } from "../utils/logger";
+import { calculateScores } from "../utils/scoring";
+import type { RawBenchmarkDetail } from "./results";
 
 // Load environment variables from .env files
-config({ path: '.env' });
-config({ path: '.env.local' });
-config({ path: 'www/.env.local' });
+loadDotenv({ path: ".env" });
+loadDotenv({ path: ".env.local" });
+loadDotenv({ path: "www/.env.local" });
 
-interface BenchmarkOutput {
+type BenchmarkOutput = {
 	app: string;
 	results: RawBenchmarkDetail[];
 	scores?: BenchmarkScores;
@@ -23,10 +27,10 @@ interface BenchmarkOutput {
 		iterations: number;
 		languages?: string[];
 	};
-}
+};
 
 // Benchmark result type (matching the oRPC contract)
-interface BenchmarkResult {
+type BenchmarkResult = {
 	name: string;
 	baseline: boolean;
 	cookieBannerConfig: unknown;
@@ -34,9 +38,9 @@ interface BenchmarkResult {
 	internationalization: unknown;
 	source: unknown;
 	includes: string[];
-	company?: unknown;
+	company?: string;
 	tags: string[];
-	details: unknown[];
+	details: RawBenchmarkDetail[];
 	average: {
 		fcp: number;
 		lcp: number;
@@ -59,7 +63,7 @@ interface BenchmarkResult {
 	};
 	scores?: {
 		totalScore: number;
-		grade: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Critical';
+		grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
 		categoryScores: {
 			performance: number;
 			bundleStrategy: number;
@@ -79,27 +83,27 @@ interface BenchmarkResult {
 				maxScore: number;
 				reason: string;
 			}>;
-			status: 'excellent' | 'good' | 'fair' | 'poor';
+			status: "excellent" | "good" | "fair" | "poor";
 		}>;
 		insights: string[];
 		recommendations: string[];
 	};
-}
+};
 
 async function saveBenchmarkResult(
 	logger: CliLogger,
 	result: BenchmarkResult
 ): Promise<void> {
-	const apiUrl = process.env.API_URL || 'http://localhost:3000';
+	const apiUrl = process.env.API_URL || "http://localhost:3000";
 	const endpoint = `${apiUrl}/api/orpc/benchmarks/save`;
 
 	try {
 		logger.debug(`Attempting to save ${result.name} to ${endpoint}`);
 
 		const response = await fetch(endpoint, {
-			method: 'POST',
+			method: "POST",
 			headers: {
-				'Content-Type': 'application/json',
+				"Content-Type": "application/json",
 			},
 			body: JSON.stringify(result),
 		});
@@ -112,23 +116,15 @@ async function saveBenchmarkResult(
 		}
 
 		const responseData = await response.json();
-		logger.success(
-			`Saved ${result.name} (App ID: ${responseData.appId})`
-		);
+		logger.success(`Saved ${result.name} (App ID: ${responseData.appId})`);
 	} catch (error) {
 		if (error instanceof Error) {
-			logger.error(
-				`Failed to save ${result.name}: ${error.message}`
-			);
-			if (error.message.includes('fetch failed')) {
-				logger.error(
-					`Connection failed. Is the server running on ${apiUrl}?`
-				);
+			logger.error(`Failed to save ${result.name}: ${error.message}`);
+			if (error.message.includes("fetch failed")) {
+				logger.error(`Connection failed. Is the server running on ${apiUrl}?`);
 			}
 		} else {
-			logger.error(
-				`Failed to save ${result.name}: Unknown error`
-			);
+			logger.error(`Failed to save ${result.name}: Unknown error`);
 		}
 		throw error;
 	}
@@ -143,11 +139,11 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 			const fullPath = join(dir, entry.name);
 			if (entry.isDirectory()) {
 				files.push(...(await findResultsFiles(fullPath)));
-			} else if (entry.name === 'results.json') {
+			} else if (entry.name === "results.json") {
 				files.push(fullPath);
 			}
 		}
-	} catch (error) {
+	} catch {
 		// Silently fail if directory doesn't exist
 	}
 
@@ -158,10 +154,10 @@ async function loadConfigForApp(
 	logger: CliLogger,
 	appName: string
 ): Promise<Config | null> {
-	const configPath = join('benchmarks', appName, 'config.json');
+	const configPath = join("benchmarks", appName, "config.json");
 
 	try {
-		const configContent = await readFile(configPath, 'utf-8');
+		const configContent = await readFile(configPath, "utf-8");
 		const config = JSON.parse(configContent);
 
 		return {
@@ -170,13 +166,13 @@ async function loadConfigForApp(
 			techStack: config.techStack || {
 				languages: [],
 				frameworks: [],
-				bundler: 'unknown',
-				bundleType: 'unknown',
-				packageManager: 'unknown',
+				bundler: "unknown",
+				bundleType: "unknown",
+				packageManager: "unknown",
 				typescript: false,
 			},
 			source: config.source || {
-				license: 'unknown',
+				license: "unknown",
 				isOpenSource: false,
 				github: false,
 				npm: false,
@@ -185,7 +181,7 @@ async function loadConfigForApp(
 			company: config.company || undefined,
 			tags: config.tags || [],
 			cookieBanner: config.cookieBanner || {
-				serviceName: 'Unknown',
+				serviceName: "Unknown",
 				selectors: [],
 				serviceHosts: [],
 				waitForVisibility: false,
@@ -193,8 +189,8 @@ async function loadConfigForApp(
 				expectedLayoutShift: false,
 			},
 			internationalization: config.internationalization || {
-				detection: 'none',
-				stringLoading: 'bundled',
+				detection: "none",
+				stringLoading: "bundled",
 			},
 		};
 	} catch (error) {
@@ -205,7 +201,7 @@ async function loadConfigForApp(
 
 function transformScoresToContract(
 	scores: BenchmarkScores
-): BenchmarkResult['scores'] {
+): BenchmarkResult["scores"] {
 	return {
 		totalScore: scores.totalScore,
 		grade: scores.grade,
@@ -235,47 +231,49 @@ export async function saveCommand(
 ): Promise<void> {
 	// Double-check admin access (safeguard)
 	if (!isAdminUser()) {
-		logger.error('This command requires admin access');
+		logger.error("This command requires admin access");
 		process.exit(1);
 	}
 
 	logger.clear();
-	await setTimeout(500);
+	await setTimeout(HALF_SECOND);
 
-	p.intro(`${color.bgBlue(color.white(' save '))} ${color.dim('Sync results to database')}`);
+	intro(
+		`${color.bgBlue(color.white(" save "))} ${color.dim("Sync results to database")}`
+	);
 
 	// Check database configuration
 	const databaseUrl =
 		process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
 	const authToken =
 		process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN;
-	const apiUrl = process.env.API_URL || 'http://localhost:3000';
+	const apiUrl = process.env.API_URL || "http://localhost:3000";
 
 	logger.info(`API endpoint: ${color.cyan(apiUrl)}`);
 
 	if (
-		databaseUrl?.startsWith('libsql://') ||
-		databaseUrl?.startsWith('wss://')
+		databaseUrl?.startsWith("libsql://") ||
+		databaseUrl?.startsWith("wss://")
 	) {
 		logger.info(
-			`Database: ${color.cyan(`Turso (${databaseUrl.split('@')[0]}@***)`)}`
+			`Database: ${color.cyan(`Turso (${databaseUrl.split("@")[0]}@***)`)}`
 		);
 		if (!authToken) {
-			logger.warn('⚠️  No auth token found. Database operations may fail.');
+			logger.warn("⚠️  No auth token found. Database operations may fail.");
 		}
-	} else if (databaseUrl?.startsWith('file:')) {
+	} else if (databaseUrl?.startsWith("file:")) {
 		logger.info(`Database: ${color.cyan(`Local (${databaseUrl})`)}`);
 	} else {
-		logger.info(`Database: ${color.cyan('Local SQLite (benchmarks.db)')}`);
+		logger.info(`Database: ${color.cyan("Local SQLite (benchmarks.db)")}`);
 	}
 
-	const resultsDir = 'benchmarks';
+	const resultsDir = "benchmarks";
 	const resultsFiles = await findResultsFiles(resultsDir);
 
 	if (resultsFiles.length === 0) {
-		logger.error('No benchmark results found!');
+		logger.error("No benchmark results found!");
 		logger.info(
-			`Run ${color.cyan('cookiebench benchmark')} first to generate results.`
+			`Run ${color.cyan("cookiebench benchmark")} first to generate results.`
 		);
 		return;
 	}
@@ -286,7 +284,7 @@ export async function saveCommand(
 	const allResults: Record<string, BenchmarkOutput> = {};
 	for (const file of resultsFiles) {
 		try {
-			const content = await readFile(file, 'utf-8');
+			const content = await readFile(file, "utf-8");
 			const data: BenchmarkOutput = JSON.parse(content);
 
 			if (data.app && data.results) {
@@ -298,7 +296,7 @@ export async function saveCommand(
 	}
 
 	if (Object.keys(allResults).length === 0) {
-		logger.error('No valid benchmark results found!');
+		logger.error("No valid benchmark results found!");
 		return;
 	}
 
@@ -307,14 +305,12 @@ export async function saveCommand(
 		const result = allResults[appName];
 		if (!result) {
 			logger.error(`No results found for app: ${appName}`);
-			logger.info(
-				`Available apps: ${Object.keys(allResults).join(', ')}`
-			);
+			logger.info(`Available apps: ${Object.keys(allResults).join(", ")}`);
 			return;
 		}
 
 		await saveAppToDatabase(logger, appName, result);
-		logger.outro('Done!');
+		logger.outro("Done!");
 		return;
 	}
 
@@ -326,40 +322,39 @@ export async function saveCommand(
 	}));
 
 	appOptions.push({
-		value: '__all__',
-		label: 'Save all apps',
-		hint: 'Sync all benchmark results to database',
+		value: "__all__",
+		label: "Save all apps",
+		hint: "Sync all benchmark results to database",
 	});
 
-	const selectedApps = await p.multiselect({
-		message: 'Select benchmarks to save to database:',
+	const selectedApps = await multiselect({
+		message: "Select benchmarks to save to database:",
 		options: appOptions,
 		required: true,
 	});
 
-	if (p.isCancel(selectedApps)) {
-		p.cancel('Operation cancelled');
+	if (isCancel(selectedApps)) {
+		cancel("Operation cancelled");
 		return;
 	}
 
 	if (!Array.isArray(selectedApps) || selectedApps.length === 0) {
-		logger.warn('No benchmarks selected');
+		logger.warn("No benchmarks selected");
 		return;
 	}
 
 	// Confirm before saving
-	const appsToSave =
-		selectedApps.includes('__all__')
-			? Object.keys(allResults)
-			: (selectedApps as string[]);
+	const appsToSave = selectedApps.includes("__all__")
+		? Object.keys(allResults)
+		: (selectedApps as string[]);
 
-	const confirm = await p.confirm({
+	const confirmBeforeSave = await confirm({
 		message: `Save ${appsToSave.length} benchmark(s) to ${apiUrl}?`,
 		initialValue: true,
 	});
 
-	if (p.isCancel(confirm) || !confirm) {
-		p.cancel('Operation cancelled');
+	if (isCancel(confirmBeforeSave) || !confirmBeforeSave) {
+		cancel("Operation cancelled");
 		return;
 	}
 
@@ -370,14 +365,19 @@ export async function saveCommand(
 	for (const name of appsToSave) {
 		try {
 			await saveAppToDatabase(logger, name, allResults[name]);
-			savedCount++;
+			savedCount += 1;
 		} catch (error) {
-			errorCount++;
+			if (error instanceof Error) {
+				logger.error(`Failed to save ${name}: ${error.message}`);
+			} else {
+				logger.error(`Failed to save ${name}: Unknown error`);
+			}
+			errorCount += 1;
 		}
 	}
 
 	// Summary
-	logger.message('');
+	logger.message("");
 	if (savedCount > 0) {
 		logger.success(`Successfully saved ${savedCount} app(s)`);
 	}
@@ -395,7 +395,7 @@ async function saveAppToDatabase(
 	appName: string,
 	result: BenchmarkOutput
 ): Promise<void> {
-	const config = await loadConfigForApp(logger, appName);
+	const appConfig = await loadConfigForApp(logger, appName);
 	const appResults = result.results;
 
 	// Calculate scores if not already in results
@@ -403,32 +403,26 @@ async function saveAppToDatabase(
 	if (!scores) {
 		const appData = {
 			name: appName,
-			baseline: appName === 'baseline',
-			company: config?.company ? JSON.stringify(config.company) : null,
-			techStack: config?.techStack
-				? JSON.stringify(config.techStack)
-				: '{}',
-			source: config?.source ? JSON.stringify(config.source) : null,
-			tags: config?.tags ? JSON.stringify(config.tags) : null,
+			baseline: appName === "baseline",
+			company: appConfig?.company ? JSON.stringify(appConfig.company) : null,
+			techStack: appConfig?.techStack
+				? JSON.stringify(appConfig.techStack)
+				: "{}",
+			source: appConfig?.source ? JSON.stringify(appConfig.source) : null,
+			tags: appConfig?.tags ? JSON.stringify(appConfig.tags) : null,
 		};
 
 		scores = calculateScores(
 			{
 				fcp:
-					appResults.reduce(
-						(a, b) => a + b.timing.firstContentfulPaint,
-						0
-					) / appResults.length,
+					appResults.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
+					appResults.length,
 				lcp:
-					appResults.reduce(
-						(a, b) => a + b.timing.largestContentfulPaint,
-						0
-					) / appResults.length,
+					appResults.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
+					appResults.length,
 				cls:
-					appResults.reduce(
-						(a, b) => a + b.timing.cumulativeLayoutShift,
-						0
-					) / appResults.length,
+					appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
+					appResults.length,
 				tbt:
 					appResults.reduce(
 						(a, b) => a + b.timing.mainThreadBlocking.total,
@@ -438,32 +432,25 @@ async function saveAppToDatabase(
 					appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
 					appResults.length,
 				timeToFirstByte:
-					appResults.reduce(
-						(a, b) => a + (b.timing.timeToFirstByte || 0),
-						0
-					) / appResults.length,
+					appResults.reduce((a, b) => a + (b.timing.timeToFirstByte || 0), 0) /
+					appResults.length,
 				interactionToNextPaint:
 					appResults[0]?.timing.interactionToNextPaint || null,
 			},
 			{
 				totalSize:
-					appResults.reduce((a, b) => a + b.size.total, 0) /
-					appResults.length,
+					appResults.reduce((a, b) => a + b.size.total, 0) / appResults.length,
 				jsSize:
 					appResults.reduce((a, b) => a + b.size.scripts.total, 0) /
 					appResults.length,
 				cssSize:
-					appResults.reduce((a, b) => a + b.size.styles, 0) /
-					appResults.length,
+					appResults.reduce((a, b) => a + b.size.styles, 0) / appResults.length,
 				imageSize:
-					appResults.reduce((a, b) => a + b.size.images, 0) /
-					appResults.length,
+					appResults.reduce((a, b) => a + b.size.images, 0) / appResults.length,
 				fontSize:
-					appResults.reduce((a, b) => a + b.size.fonts, 0) /
-					appResults.length,
+					appResults.reduce((a, b) => a + b.size.fonts, 0) / appResults.length,
 				otherSize:
-					appResults.reduce((a, b) => a + b.size.other, 0) /
-					appResults.length,
+					appResults.reduce((a, b) => a + b.size.other, 0) / appResults.length,
 			},
 			{
 				totalRequests:
@@ -480,8 +467,7 @@ async function saveAppToDatabase(
 				thirdPartyRequests:
 					appResults.reduce(
 						(a, b) =>
-							a +
-							b.resources.scripts.filter((s) => s.isThirdParty).length,
+							a + b.resources.scripts.filter((s) => s.isThirdParty).length,
 						0
 					) / appResults.length,
 				thirdPartySize:
@@ -504,7 +490,7 @@ async function saveAppToDatabase(
 						0
 					) /
 					appResults.length /
-					100,
+					PERCENTAGE_DIVISOR,
 			},
 			{
 				domSize: 1500,
@@ -514,12 +500,10 @@ async function saveAppToDatabase(
 						0
 					) / appResults.length,
 				layoutShifts:
-					appResults.reduce(
-						(a, b) => a + b.timing.cumulativeLayoutShift,
-						0
-					) / appResults.length,
+					appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
+					appResults.length,
 			},
-			appName === 'baseline',
+			appName === "baseline",
 			appData,
 			appResults[0]?.timing.networkInformation
 		);
@@ -528,47 +512,38 @@ async function saveAppToDatabase(
 	// Convert to API format
 	const benchmarkResult: BenchmarkResult = {
 		name: appName,
-		baseline: appName === 'baseline',
-		cookieBannerConfig: config?.cookieBanner || {},
-		techStack: config?.techStack || {},
-		internationalization: config?.internationalization || {},
-		source: config?.source || {},
-		includes: config?.includes
-			? Object.values(config.includes)
+		baseline: appName === "baseline",
+		cookieBannerConfig: appConfig?.cookieBanner || {},
+		techStack: appConfig?.techStack || {},
+		internationalization: appConfig?.internationalization || {},
+		source: appConfig?.source || {},
+		includes: appConfig?.includes
+			? Object.values(appConfig.includes)
 					.flat()
-					.filter((v): v is string => typeof v === 'string')
+					.filter((v): v is string => typeof v === "string")
 			: [],
-		company: config?.company,
-		tags: config?.tags || [],
+		company: appConfig?.company ? JSON.stringify(appConfig.company) : undefined,
+		tags: appConfig?.tags || [],
 		details: appResults,
 		average: {
 			fcp:
-				appResults.reduce(
-					(a, b) => a + b.timing.firstContentfulPaint,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
+				appResults.length,
 			lcp:
-				appResults.reduce(
-					(a, b) => a + b.timing.largestContentfulPaint,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
+				appResults.length,
 			cls:
-				appResults.reduce(
-					(a, b) => a + b.timing.cumulativeLayoutShift,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
+				appResults.length,
 			tbt:
-				appResults.reduce(
-					(a, b) => a + b.timing.mainThreadBlocking.total,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
+				appResults.length,
 			tti:
 				appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
 				appResults.length,
 			scriptLoadTime: 0,
 			totalSize:
-				appResults.reduce((a, b) => a + b.size.total, 0) /
-				appResults.length,
+				appResults.reduce((a, b) => a + b.size.total, 0) / appResults.length,
 			scriptSize: 0,
 			resourceCount:
 				appResults.reduce((a, b) => a + b.resources.scripts.length, 0) /
@@ -576,8 +551,7 @@ async function saveAppToDatabase(
 			scriptCount:
 				appResults.reduce((a, b) => a + b.resources.scripts.length, 0) /
 				appResults.length,
-			time:
-				appResults.reduce((a, b) => a + b.duration, 0) / appResults.length,
+			time: appResults.reduce((a, b) => a + b.duration, 0) / appResults.length,
 			thirdPartySize:
 				appResults.reduce((a, b) => a + b.size.thirdParty, 0) /
 				appResults.length,
@@ -595,15 +569,11 @@ async function saveAppToDatabase(
 					0
 				) / appResults.length,
 			thirdPartyImpact:
-				appResults.reduce(
-					(a, b) => a + b.timing.thirdParty.totalImpact,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.thirdParty.totalImpact, 0) /
+				appResults.length,
 			mainThreadBlocking:
-				appResults.reduce(
-					(a, b) => a + b.timing.mainThreadBlocking.total,
-					0
-				) / appResults.length,
+				appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
+				appResults.length,
 			cookieBannerBlocking:
 				appResults.reduce(
 					(a, b) => a + b.timing.mainThreadBlocking.cookieBannerEstimate,
@@ -615,4 +585,3 @@ async function saveAppToDatabase(
 
 	await saveBenchmarkResult(logger, benchmarkResult);
 }
-

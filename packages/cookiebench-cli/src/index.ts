@@ -1,29 +1,31 @@
-import { setTimeout } from 'node:timers/promises';
-import * as p from '@clack/prompts';
-import color from 'picocolors';
-import { benchmarkCommand } from './commands/benchmark';
-import { resultsCommand } from './commands/results';
-import { scoresCommand } from './commands/scores';
-import { saveCommand } from './commands/save';
-import { dbCommand } from './commands/db';
-import { createCliLogger, type CliLogger, isAdminUser } from './utils';
-import { displayIntro } from './components/intro';
+import { setTimeout } from "node:timers/promises";
+import { cancel, isCancel, select } from "@clack/prompts";
+import { benchmarkCommand } from "./commands/benchmark";
+import { dbCommand } from "./commands/db";
+import { resultsCommand } from "./commands/results";
+import { saveCommand } from "./commands/save";
+import { scoresCommand } from "./commands/scores";
+import { displayIntro } from "./components/intro";
+import { HALF_SECOND } from "./utils";
+import { isAdminUser } from "./utils/auth";
+import { type CliLogger, createCliLogger } from "./utils/logger";
 
 // Get log level from env or default to info
-const logLevel = (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'info';
+const logLevel =
+	(process.env.LOG_LEVEL as "error" | "warn" | "info" | "debug") || "info";
 const logger: CliLogger = createCliLogger(logLevel);
 
 // Check admin access for restricted commands
 const isAdmin = isAdminUser();
 
 function onCancel() {
-	p.cancel('Operation cancelled.');
+	cancel("Operation cancelled.");
 	process.exit(0);
 }
 
 async function main() {
 	logger.clear();
-	await setTimeout(500);
+	await setTimeout(HALF_SECOND);
 
 	// Check for command line arguments
 	const args = process.argv.slice(2);
@@ -38,88 +40,89 @@ async function main() {
 	if (command) {
 		// Direct command execution
 		switch (command) {
-			case 'benchmark':
+			case "benchmark":
 				await benchmarkCommand(logger);
 				break;
-			case 'results':
+			case "results":
 				await resultsCommand(logger, args[1]);
 				break;
-			case 'scores':
+			case "scores":
 				await scoresCommand(logger, args[1]);
 				break;
-			case 'save':
+			case "save":
 				if (!isAdmin) {
-					logger.error('This command requires admin access');
+					logger.error("This command requires admin access");
 					process.exit(1);
 				}
 				await saveCommand(logger, args[1]);
 				break;
-			case 'db':
+			case "db":
 				if (!isAdmin) {
-					logger.error('This command requires admin access');
+					logger.error("This command requires admin access");
 					process.exit(1);
 				}
 				await dbCommand(logger, args[1]);
 				break;
-			default:
+			default: {
 				logger.error(`Unknown command: ${command}`);
-				const availableCommands = ['benchmark', 'results', 'scores'];
+				const availableCommands = ["benchmark", "results", "scores"];
 				if (isAdmin) {
-					availableCommands.push('save', 'db');
+					availableCommands.push("save", "db");
 				}
-				logger.info(`Available commands: ${availableCommands.join(', ')}`);
+				logger.info(`Available commands: ${availableCommands.join(", ")}`);
 				process.exit(1);
+			}
 		}
 	} else {
 		// Build options based on admin access
 		const options = [
 			{
-				value: 'benchmark',
-				label: 'Run a benchmark',
-				hint: 'Run a performance benchmark on a URL',
+				value: "benchmark",
+				label: "Run a benchmark",
+				hint: "Run a performance benchmark on a URL",
 			},
 			{
-				value: 'results',
-				label: 'Results',
-				hint: 'View detailed benchmark results',
+				value: "results",
+				label: "Results",
+				hint: "View detailed benchmark results",
 			},
 		];
 
 		// Add admin-only commands
 		if (isAdmin) {
 			options.push({
-				value: 'save',
-				label: 'Save to database',
-				hint: '🔒 Admin: Sync benchmark results to database',
+				value: "save",
+				label: "Save to database",
+				hint: "🔒 Admin: Sync benchmark results to database",
 			});
 			options.push({
-				value: 'db',
-				label: 'Database',
-				hint: '🔒 Admin: Manage database schema and migrations',
+				value: "db",
+				label: "Database",
+				hint: "🔒 Admin: Manage database schema and migrations",
 			});
 		}
 
-		const selectedCommand = await p.select({
-			message: 'What would you like to do?',
+		const selectedCommand = await select({
+			message: "What would you like to do?",
 			options,
 		});
 
-		if (p.isCancel(selectedCommand)) {
+		if (isCancel(selectedCommand)) {
 			return onCancel();
 		}
 
-		// biome-ignore lint/style/useDefaultSwitchClause: <explanation>
+		// biome-ignore lint/style/useDefaultSwitchClause: this is a CLI tool
 		switch (selectedCommand) {
-			case 'benchmark':
+			case "benchmark":
 				await benchmarkCommand(logger);
 				break;
-			case 'results':
+			case "results":
 				await resultsCommand(logger);
 				break;
-			case 'save':
+			case "save":
 				await saveCommand(logger);
 				break;
-			case 'db':
+			case "db":
 				await dbCommand(logger);
 				break;
 		}
@@ -127,6 +130,6 @@ async function main() {
 }
 
 main().catch((error) => {
-	logger.error('Fatal error:', error);
+	logger.error("Fatal error:", error);
 	process.exit(1);
 });

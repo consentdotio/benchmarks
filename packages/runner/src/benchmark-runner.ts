@@ -1,25 +1,25 @@
-import { chromium, type Page } from '@playwright/test';
-import { PerformanceMetricsCollector } from 'playwright-performance-metrics';
-import type { Config, PerfumeMetrics } from '@consentio/benchmark';
+import type { Logger } from "@c15t/logger";
+import type { Config } from "@consentio/benchmark";
 import {
+	BENCHMARK_CONSTANTS,
 	CookieBannerCollector,
 	NetworkMonitor,
-	ResourceTimingCollector,
 	PerfumeCollector,
-	BENCHMARK_CONSTANTS,
-} from '@consentio/benchmark';
-import type { Logger } from '@c15t/logger';
-import type { BenchmarkResult, BenchmarkDetails, CoreWebVitals } from './types';
-import { PerformanceAggregator } from './performance-aggregator';
+	ResourceTimingCollector,
+} from "@consentio/benchmark";
+import { chromium, type Page } from "@playwright/test";
+import { PerformanceMetricsCollector } from "playwright-performance-metrics";
+import { PerformanceAggregator } from "./performance-aggregator";
+import type { BenchmarkDetails, BenchmarkResult } from "./types";
 
 export class BenchmarkRunner {
-	private config: Config;
-	private logger: Logger;
-	private cookieBannerCollector: CookieBannerCollector;
-	private networkMonitor: NetworkMonitor;
-	private resourceTimingCollector: ResourceTimingCollector;
-	private perfumeCollector: PerfumeCollector;
-	private performanceAggregator: PerformanceAggregator;
+	private readonly config: Config;
+	private readonly logger: Logger;
+	private readonly cookieBannerCollector: CookieBannerCollector;
+	private readonly networkMonitor: NetworkMonitor;
+	private readonly resourceTimingCollector: ResourceTimingCollector;
+	private readonly perfumeCollector: PerfumeCollector;
+	private readonly performanceAggregator: PerformanceAggregator;
 
 	constructor(config: Config, logger: Logger) {
 		this.config = config;
@@ -37,11 +37,11 @@ export class BenchmarkRunner {
 	async runSingleBenchmark(page: Page, url: string): Promise<BenchmarkDetails> {
 		this.logger.debug(`Starting cookie banner benchmark for: ${url}`);
 		this.logger.debug(
-			'Cookie banner selectors:',
+			"Cookie banner selectors:",
 			this.config.cookieBanner?.selectors || []
 		);
 		this.logger.debug(
-			'Bundle type from config:',
+			"Bundle type from config:",
 			this.config.techStack?.bundleType
 		);
 
@@ -56,23 +56,23 @@ export class BenchmarkRunner {
 
 		// Navigate to the page
 		this.logger.debug(`Navigating to: ${url}`);
-		await page.goto(url, { waitUntil: 'networkidle' });
+		await page.goto(url, { waitUntil: "networkidle" });
 
 		// Wait for the specified element
 		await this.waitForElement(page);
 
 		// Wait for network to be idle
-		this.logger.debug('Waiting for network idle...');
-		await page.waitForLoadState('networkidle');
+		this.logger.debug("Waiting for network idle...");
+		await page.waitForLoadState("networkidle");
 
 		// Collect core web vitals from playwright-performance-metrics (primary source)
-		this.logger.debug('Collecting core web vitals...');
+		this.logger.debug("Collecting core web vitals...");
 		const coreWebVitals = await collector.collectMetrics(page, {
 			timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
 			retryTimeout: BENCHMARK_CONSTANTS.METRICS_RETRY_TIMEOUT,
 		});
 
-		this.logger.debug('Core web vitals collected:', {
+		this.logger.debug("Core web vitals collected:", {
 			fcp: coreWebVitals.paint?.firstContentfulPaint,
 			lcp: coreWebVitals.largestContentfulPaint,
 			cls: coreWebVitals.cumulativeLayoutShift,
@@ -80,15 +80,14 @@ export class BenchmarkRunner {
 		});
 
 		// Collect Perfume.js metrics (supplementary - TTFB, navigation timing, network info)
-		this.logger.debug('Collecting Perfume.js supplementary metrics...');
+		this.logger.debug("Collecting Perfume.js supplementary metrics...");
 		const perfumeMetrics = await this.perfumeCollector.collectMetrics(page);
-		this.logger.debug('Perfume.js metrics:', perfumeMetrics);
+		this.logger.debug("Perfume.js metrics:", perfumeMetrics);
 
 		// Collect cookie banner specific metrics
-		const cookieBannerData = await this.cookieBannerCollector.collectMetrics(
-			page
-		);
-		this.logger.debug('Cookie banner metrics:', cookieBannerData);
+		const cookieBannerData =
+			await this.cookieBannerCollector.collectMetrics(page);
+		this.logger.debug("Cookie banner metrics:", cookieBannerData);
 
 		// Collect detailed resource timing data
 		const resourceMetrics = await this.resourceTimingCollector.collect(page);
@@ -98,16 +97,16 @@ export class BenchmarkRunner {
 		const networkMetrics = this.networkMonitor.getMetrics();
 
 		// Aggregate all metrics
-		const finalMetrics = this.performanceAggregator.aggregateMetrics(
+		const finalMetrics = this.performanceAggregator.aggregateMetrics({
 			coreWebVitals,
 			cookieBannerData,
 			cookieBannerMetrics,
 			networkRequests,
 			networkMetrics,
 			resourceMetrics,
-			this.config,
-			perfumeMetrics
-		);
+			config: this.config,
+			perfumeMetrics,
+		});
 
 		// Log results
 		this.performanceAggregator.logResults(
@@ -129,12 +128,12 @@ export class BenchmarkRunner {
 	async runBenchmarks(serverUrl: string): Promise<BenchmarkResult> {
 		const browser = await chromium.launch({
 			headless: true, // Keep headless mode for stability
-			args: ['--remote-debugging-port=9222'],
+			args: ["--remote-debugging-port=9222"],
 		});
 		const results: BenchmarkDetails[] = [];
 
 		try {
-			for (let i = 0; i < this.config.iterations; i++) {
+			for (let i = 0; i < this.config.iterations; i += 1) {
 				this.logger.info(
 					`Running iteration ${i + 1}/${this.config.iterations}...`
 				);
@@ -159,7 +158,7 @@ export class BenchmarkRunner {
 
 		return {
 			name: this.config.name,
-			baseline: this.config.baseline || false,
+			baseline: this.config.baseline ?? false,
 			techStack: this.config.techStack,
 			source: this.config.source,
 			includes: this.config.includes,
@@ -181,10 +180,8 @@ export class BenchmarkRunner {
 			this.logger.debug(`Waiting for id: ${this.config.id}`);
 			await page.waitForSelector(`#${this.config.id}`);
 		} else if (this.config.custom) {
-			this.logger.debug('Running custom wait function');
+			this.logger.debug("Running custom wait function");
 			await this.config.custom(page);
 		}
 	}
-
 }
-

@@ -1,18 +1,33 @@
+import type { Logger } from "@c15t/logger";
 import type {
 	Config,
-	CoreWebVitals,
 	CookieBannerData,
 	CookieBannerMetrics,
-	NetworkRequest,
+	CoreWebVitals,
 	NetworkMetrics,
-	ResourceTimingData,
+	NetworkRequest,
 	PerfumeMetrics,
-} from '@consentio/benchmark';
-import type { Logger } from '@c15t/logger';
-import type { BenchmarkDetails, BenchmarkResult } from './types';
+	ResourceTimingData,
+} from "@consentio/benchmark";
+import type { BenchmarkDetails, BenchmarkResult } from "./types";
+
+// Constants
+const TTI_BUFFER_MS = 1000; // Buffer for true interactivity
+const PERCENTAGE_MULTIPLIER = 100; // For converting decimal to percentage
+
+type AggregateMetricsParams = {
+	coreWebVitals: CoreWebVitals;
+	cookieBannerData: CookieBannerData | null;
+	cookieBannerMetrics: CookieBannerMetrics;
+	networkRequests: NetworkRequest[];
+	networkMetrics: NetworkMetrics;
+	resourceMetrics: ResourceTimingData;
+	config: Config;
+	perfumeMetrics: PerfumeMetrics | null;
+};
 
 export class PerformanceAggregator {
-	private logger: Logger;
+	private readonly logger: Logger;
 
 	constructor(logger: Logger) {
 		this.logger = logger;
@@ -29,25 +44,95 @@ export class PerformanceAggregator {
 				coreWebVitals.paint?.firstContentfulPaint || 0,
 				coreWebVitals.domCompleteTiming || 0,
 				cookieBannerData?.bannerInteractiveTime || 0
-			) + 1000
+			) + TTI_BUFFER_MS
 		); // Add buffer for true interactivity
+	}
+
+	/**
+	 * Build cookie banner timing metrics
+	 */
+	private buildCookieBannerTiming(
+		cookieBannerData: CookieBannerData | null,
+		config: Config
+	) {
+		return {
+			renderStart: cookieBannerData?.bannerRenderTime || 0,
+			renderEnd: cookieBannerData?.bannerInteractiveTime || 0,
+			interactionStart: cookieBannerData?.bannerInteractiveTime || 0,
+			interactionEnd: cookieBannerData?.bannerInteractiveTime || 0,
+			layoutShift: cookieBannerData?.layoutShiftImpact || 0,
+			detected: cookieBannerData?.detected ?? false,
+			selector: cookieBannerData?.selector ?? null,
+			serviceName: config.cookieBanner?.serviceName ?? "unknown",
+			visibilityTime: cookieBannerData?.bannerInteractiveTime || 0,
+			viewportCoverage: cookieBannerData?.viewportCoverage || 0,
+		};
+	}
+
+	/**
+	 * Build third party metrics
+	 */
+	private buildThirdPartyMetrics(
+		networkImpact: { totalImpact: number; totalDownloadTime: number },
+		networkMetrics: NetworkMetrics,
+		config: Config
+	) {
+		return {
+			dnsLookupTime: 0,
+			connectionTime: 0,
+			downloadTime: networkImpact.totalDownloadTime,
+			totalImpact: networkImpact.totalImpact,
+			cookieServices: {
+				hosts: config.cookieBanner?.serviceHosts || [],
+				totalSize: networkMetrics.bannerBundleSize,
+				resourceCount: networkMetrics.bannerNetworkRequests,
+				dnsLookupTime: 0,
+				connectionTime: 0,
+				downloadTime: networkImpact.totalDownloadTime,
+			},
+		};
+	}
+
+	/**
+	 * Build main thread blocking metrics
+	 */
+	private buildMainThreadBlockingMetrics(
+		coreWebVitals: CoreWebVitals,
+		cookieBannerMetrics: CookieBannerMetrics
+	) {
+		const totalBlockingTime = coreWebVitals.totalBlockingTime || 0;
+		const cookieBannerEstimate =
+			cookieBannerMetrics.bannerMainThreadBlockingTime;
+
+		const percentageFromCookies =
+			totalBlockingTime > 0
+				? (cookieBannerEstimate / (totalBlockingTime || 1)) *
+					PERCENTAGE_MULTIPLIER
+				: 0;
+
+		return {
+			total: totalBlockingTime,
+			cookieBannerEstimate,
+			percentageFromCookies,
+		};
 	}
 
 	/**
 	 * Merge all collected metrics into final benchmark details
 	 */
-	aggregateMetrics(
-		coreWebVitals: CoreWebVitals,
-		cookieBannerData: CookieBannerData | null,
-		cookieBannerMetrics: CookieBannerMetrics,
-		networkRequests: NetworkRequest[],
-		networkMetrics: NetworkMetrics,
-		resourceMetrics: ResourceTimingData,
-		config: Config,
-		perfumeMetrics: PerfumeMetrics | null
-	): BenchmarkDetails {
-		const tti = this.calculateTTI(coreWebVitals, cookieBannerData);
+	aggregateMetrics(params: AggregateMetricsParams): BenchmarkDetails {
+		const {
+			coreWebVitals,
+			cookieBannerData,
+			cookieBannerMetrics,
+			networkRequests,
+			networkMetrics,
+			resourceMetrics,
+			config,
+			perfumeMetrics,
+		} = params;
 
+		const tti = this.calculateTTI(coreWebVitals, cookieBannerData);
 		const networkImpact = this.calculateNetworkImpact(networkRequests);
 
 		return {
@@ -62,11 +147,9 @@ export class PerformanceAggregator {
 				largestContentfulPaint: coreWebVitals.largestContentfulPaint || 0,
 				timeToInteractive: tti,
 				cumulativeLayoutShift: coreWebVitals.cumulativeLayoutShift || 0,
-				// Enhanced metrics from Perfume.js
 				timeToFirstByte: perfumeMetrics?.timeToFirstByte || 0,
 				firstInputDelay: perfumeMetrics?.firstInputDelay || null,
 				interactionToNextPaint: perfumeMetrics?.interactionToNextPaint || null,
-				// Detailed navigation timing from Perfume.js
 				navigationTiming: perfumeMetrics?.navigationTiming || {
 					timeToFirstByte: 0,
 					domInteractive: 0,
@@ -76,53 +159,25 @@ export class PerformanceAggregator {
 					loadEventStart: 0,
 					loadEventEnd: 0,
 				},
-				// Network information from Perfume.js
 				networkInformation: perfumeMetrics?.networkInformation || undefined,
-				cookieBanner: {
-					renderStart: cookieBannerData?.bannerRenderTime || 0,
-					renderEnd: cookieBannerData?.bannerInteractiveTime || 0,
-					interactionStart: cookieBannerData?.bannerInteractiveTime || 0,
-					interactionEnd: cookieBannerData?.bannerInteractiveTime || 0,
-					layoutShift: cookieBannerData?.layoutShiftImpact || 0,
-					detected: cookieBannerData?.detected || false,
-					selector: cookieBannerData?.selector || null,
-					serviceName: config.cookieBanner?.serviceName || 'unknown',
-					visibilityTime: cookieBannerData?.bannerInteractiveTime || 0,
-					viewportCoverage: cookieBannerData?.viewportCoverage || 0,
-				},
-				thirdParty: {
-					dnsLookupTime: 0,
-					connectionTime: 0,
-					downloadTime: networkImpact.totalDownloadTime,
-					totalImpact: networkImpact.totalImpact,
-					cookieServices: {
-						hosts: config.cookieBanner?.serviceHosts || [],
-						totalSize: networkMetrics.bannerBundleSize,
-						resourceCount: networkMetrics.bannerNetworkRequests,
-						dnsLookupTime: 0,
-						connectionTime: 0,
-						downloadTime: networkImpact.totalDownloadTime,
-					},
-				},
-				mainThreadBlocking: {
-					total: coreWebVitals.totalBlockingTime || 0,
-					cookieBannerEstimate:
-						cookieBannerMetrics.bannerMainThreadBlockingTime,
-					percentageFromCookies:
-						(coreWebVitals.totalBlockingTime || 0) > 0
-							? (cookieBannerMetrics.bannerMainThreadBlockingTime /
-									(coreWebVitals.totalBlockingTime || 1)) *
-								100
-							: 0,
-				},
+				cookieBanner: this.buildCookieBannerTiming(cookieBannerData, config),
+				thirdParty: this.buildThirdPartyMetrics(
+					networkImpact,
+					networkMetrics,
+					config
+				),
+				mainThreadBlocking: this.buildMainThreadBlockingMetrics(
+					coreWebVitals,
+					cookieBannerMetrics
+				),
 				scripts: resourceMetrics.timing.scripts,
 			},
 			resources: resourceMetrics.resources,
 			language: resourceMetrics.language,
 			cookieBanner: {
-				detected: cookieBannerData?.detected || false,
-				selector: cookieBannerData?.selector || null,
-				serviceName: config.cookieBanner?.serviceName || 'unknown',
+				detected: cookieBannerData?.detected ?? false,
+				selector: cookieBannerData?.selector ?? null,
+				serviceName: config.cookieBanner?.serviceName ?? "unknown",
 				visibilityTime: cookieBannerData?.bannerInteractiveTime || 0,
 				viewportCoverage: cookieBannerData?.viewportCoverage || 0,
 			},
@@ -159,9 +214,9 @@ export class PerformanceAggregator {
 	/**
 	 * Calculate average metrics from multiple benchmark results
 	 */
-	calculateAverages(results: BenchmarkDetails[]): BenchmarkResult['average'] {
+	calculateAverages(results: BenchmarkDetails[]): BenchmarkResult["average"] {
 		if (results.length === 0) {
-			throw new Error('Cannot calculate averages from empty results array');
+			throw new Error("Cannot calculate averages from empty results array");
 		}
 
 		return {
@@ -223,13 +278,17 @@ export class PerformanceAggregator {
 				results.reduce((acc, curr) => acc + curr.size.scripts.total, 0) /
 				results.length,
 			cssSize:
-				results.reduce((acc, curr) => acc + curr.size.styles, 0) / results.length,
+				results.reduce((acc, curr) => acc + curr.size.styles, 0) /
+				results.length,
 			imageSize:
-				results.reduce((acc, curr) => acc + curr.size.images, 0) / results.length,
+				results.reduce((acc, curr) => acc + curr.size.images, 0) /
+				results.length,
 			fontSize:
-				results.reduce((acc, curr) => acc + curr.size.fonts, 0) / results.length,
+				results.reduce((acc, curr) => acc + curr.size.fonts, 0) /
+				results.length,
 			otherSize:
-				results.reduce((acc, curr) => acc + curr.size.other, 0) / results.length,
+				results.reduce((acc, curr) => acc + curr.size.other, 0) /
+				results.length,
 			thirdPartyRequests: 0, // Default value
 			thirdPartySize: 0, // Default value
 			thirdPartyDomains: 0, // Default value
@@ -285,7 +344,14 @@ export class PerformanceAggregator {
 		cookieBannerMetrics: CookieBannerMetrics,
 		config: Config
 	): void {
-		this.logger.debug('Final cookie banner benchmark results:', {
+		let bundleStrategy = "Unknown";
+		if (cookieBannerMetrics.isBundled) {
+			bundleStrategy = "Bundled";
+		} else if (cookieBannerMetrics.isIIFE) {
+			bundleStrategy = "IIFE";
+		}
+
+		this.logger.debug("Final cookie banner benchmark results:", {
 			fcp: finalMetrics.timing.firstContentfulPaint,
 			lcp: finalMetrics.timing.largestContentfulPaint,
 			cls: finalMetrics.timing.cumulativeLayoutShift,
@@ -297,15 +363,10 @@ export class PerformanceAggregator {
 				finalMetrics.timing.cookieBanner.renderStart,
 			bannerLayoutShift: finalMetrics.timing.cookieBanner.layoutShift,
 			bannerNetworkImpact: finalMetrics.thirdParty.totalImpact,
-			bundleStrategy: cookieBannerMetrics.isBundled
-				? 'Bundled'
-				: cookieBannerMetrics.isIIFE
-					? 'IIFE'
-					: 'Unknown',
+			bundleStrategy,
 			isBundled: cookieBannerMetrics.isBundled,
 			isIIFE: cookieBannerMetrics.isIIFE,
 			configBundleType: config.techStack?.bundleType,
 		});
 	}
 }
-

@@ -1,9 +1,10 @@
-import type { Page } from '@playwright/test';
-import type { ResourceTimingData } from './types';
-import type { Logger } from '@c15t/logger';
+import type { Logger } from "@c15t/logger";
+import type { Page } from "@playwright/test";
+import { BENCHMARK_CONSTANTS } from "./constants";
+import type { ResourceTimingData } from "./types";
 
 export class ResourceTimingCollector {
-	private logger: Logger;
+	private readonly logger: Logger;
 
 	constructor(logger: Logger) {
 		this.logger = logger;
@@ -12,53 +13,33 @@ export class ResourceTimingCollector {
 	 * Collect detailed resource timing data from the browser
 	 */
 	async collect(page: Page): Promise<ResourceTimingData> {
-		this.logger.debug('Collecting resource timing data...');
+		this.logger.debug("Collecting resource timing data...");
 
-		return page.evaluate(() => {
-			console.log('🔍 [BROWSER] Starting resource collection...');
-
+		return await page.evaluate((bytesToKb: number) => {
 			const perfEntries = performance.getEntriesByType(
-				'navigation'
+				"navigation"
 			)[0] as PerformanceNavigationTiming;
 			const resourceEntries = performance.getEntriesByType(
-				'resource'
+				"resource"
 			) as PerformanceResourceTiming[];
-
-			console.log('🔍 [BROWSER] Navigation timing:', {
-				navigationStart: perfEntries.startTime,
-				domContentLoaded:
-					perfEntries.domContentLoadedEventEnd - perfEntries.startTime,
-				loadComplete: perfEntries.loadEventEnd - perfEntries.startTime,
-				domInteractive: perfEntries.domInteractive - perfEntries.startTime,
-			});
-
-			console.log('🔍 [BROWSER] Found', resourceEntries.length, 'resources');
 
 			// Categorize resources
 			const scriptEntries = resourceEntries.filter(
-				(entry) => entry.initiatorType === 'script'
+				(entry) => entry.initiatorType === "script"
 			);
 			const styleEntries = resourceEntries.filter(
-				(entry) => entry.initiatorType === 'link' && entry.name.endsWith('.css')
+				(entry) => entry.initiatorType === "link" && entry.name.endsWith(".css")
 			);
 			const imageEntries = resourceEntries.filter(
-				(entry) => entry.initiatorType === 'img'
+				(entry) => entry.initiatorType === "img"
 			);
 			const fontEntries = resourceEntries.filter(
-				(entry) => entry.initiatorType === 'font'
+				(entry) => entry.initiatorType === "font"
 			);
 			const otherEntries = resourceEntries.filter(
 				(entry) =>
-					!['script', 'link', 'img', 'font'].includes(entry.initiatorType)
+					!["script", "link", "img", "font"].includes(entry.initiatorType)
 			);
-
-			console.log('🔍 [BROWSER] Resource breakdown:', {
-				scripts: scriptEntries.length,
-				styles: styleEntries.length,
-				images: imageEntries.length,
-				fonts: fontEntries.length,
-				other: otherEntries.length,
-			});
 
 			// Calculate sizes
 			const calculateSize = (entries: PerformanceResourceTiming[]) => {
@@ -66,7 +47,7 @@ export class ResourceTimingCollector {
 					entries.reduce((acc, entry) => {
 						const size = entry.transferSize || entry.encodedBodySize || 0;
 						return acc + size;
-					}, 0) / 1024;
+					}, 0) / bytesToKb;
 				return total;
 			};
 
@@ -74,12 +55,6 @@ export class ResourceTimingCollector {
 			const domContentLoaded =
 				perfEntries.domContentLoadedEventEnd - navigationStart;
 			const load = perfEntries.loadEventEnd - navigationStart;
-
-			console.log('🔍 [BROWSER] Calculated timings:', {
-				navigationStart,
-				domContentLoaded,
-				load,
-			});
 
 			return {
 				timing: {
@@ -89,13 +64,19 @@ export class ResourceTimingCollector {
 					scripts: {
 						bundled: {
 							loadStart: 0,
-							loadEnd: scriptEntries.reduce((acc, entry) => acc + entry.duration, 0),
+							loadEnd: scriptEntries.reduce(
+								(acc, entry) => acc + entry.duration,
+								0
+							),
 							executeStart: 0,
 							executeEnd: 0,
 						},
 						thirdParty: {
 							loadStart: 0,
-							loadEnd: scriptEntries.reduce((acc, entry) => acc + entry.duration, 0),
+							loadEnd: scriptEntries.reduce(
+								(acc, entry) => acc + entry.duration,
+								0
+							),
 							executeStart: 0,
 							executeEnd: 0,
 						},
@@ -104,10 +85,14 @@ export class ResourceTimingCollector {
 				size: {
 					total: calculateSize(resourceEntries),
 					bundled: calculateSize(
-						scriptEntries.filter((e) => e.name.includes(window.location.hostname))
+						scriptEntries.filter((e) =>
+							e.name.includes(window.location.hostname)
+						)
 					),
 					thirdParty: calculateSize(
-						scriptEntries.filter((e) => !e.name.includes(window.location.hostname))
+						scriptEntries.filter(
+							(e) => !e.name.includes(window.location.hostname)
+						)
 					),
 					cookieServices: 0, // Will be calculated later
 					scripts: {
@@ -119,7 +104,9 @@ export class ResourceTimingCollector {
 							scriptEntries.filter((e) => e.startTime >= domContentLoaded)
 						),
 						thirdParty: calculateSize(
-							scriptEntries.filter((e) => !e.name.includes(window.location.hostname))
+							scriptEntries.filter(
+								(e) => !e.name.includes(window.location.hostname)
+							)
 						),
 						cookieServices: 0, // Will be calculated later
 					},
@@ -131,7 +118,7 @@ export class ResourceTimingCollector {
 				resources: {
 					scripts: scriptEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / 1024 : 0,
+						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !entry.name.includes(window.location.hostname),
@@ -142,7 +129,7 @@ export class ResourceTimingCollector {
 					})),
 					styles: styleEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / 1024 : 0,
+						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !entry.name.includes(window.location.hostname),
@@ -150,7 +137,7 @@ export class ResourceTimingCollector {
 					})),
 					images: imageEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / 1024 : 0,
+						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !entry.name.includes(window.location.hostname),
@@ -158,7 +145,7 @@ export class ResourceTimingCollector {
 					})),
 					fonts: fontEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / 1024 : 0,
+						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !entry.name.includes(window.location.hostname),
@@ -166,7 +153,7 @@ export class ResourceTimingCollector {
 					})),
 					other: otherEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / 1024 : 0,
+						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !entry.name.includes(window.location.hostname),
@@ -174,10 +161,9 @@ export class ResourceTimingCollector {
 						type: entry.initiatorType,
 					})),
 				},
-				language: 'en',
+				language: "en",
 				duration: load,
 			};
-		});
+		}, BENCHMARK_CONSTANTS.BYTES_TO_KB);
 	}
 }
-

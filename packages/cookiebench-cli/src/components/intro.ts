@@ -1,6 +1,7 @@
-import figlet from 'figlet';
-import color from 'picocolors';
-import type { CliLogger } from '../utils';
+/** biome-ignore-all lint/style/noMagicNumbers: its okay for the figlet word */
+import figlet from "figlet";
+import color from "picocolors";
+import type { CliLogger } from "../utils/logger";
 
 /**
  * Displays the CLI introduction sequence with figlet art
@@ -12,30 +13,30 @@ export async function displayIntro(
 	version?: string
 ): Promise<void> {
 	// Generate and display Figlet text (async)
-	let figletText = 'cookiebench'; // Default
+	let figletText = "cookiebench"; // Default
 	try {
 		figletText = await new Promise((resolve) => {
 			figlet.text(
-				'cookiebench',
+				"cookiebench",
 				{
-					font: 'Slant',
-					horizontalLayout: 'default',
-					verticalLayout: 'default',
+					font: "Slant",
+					horizontalLayout: "default",
+					verticalLayout: "default",
 					width: 80,
 					whitespaceBreak: true,
 				},
 				(err, data) => {
 					if (err) {
-						logger.debug('Failed to generate figlet text');
-						resolve('cookiebench');
+						logger.debug("Failed to generate figlet text");
+						resolve("cookiebench");
 					} else {
-						resolve(data || 'cookiebench');
+						resolve(data || "cookiebench");
 					}
 				}
 			);
 		});
 	} catch (error) {
-		logger.debug('Error generating figlet text', error);
+		logger.debug("Error generating figlet text", error);
 	}
 
 	// Display the figlet text with cyan/teal gradient
@@ -50,7 +51,7 @@ export async function displayIntro(
 		cyan100: (text: string) => `\x1b[38;2;65;235;255m${text}\x1b[0m`,
 	};
 
-	const lines = figletText.split('\n');
+	const lines = figletText.split("\n");
 	const coloredLines = lines.map((line, index) => {
 		// Calculate the position in the gradient based on line index
 		const position = index / (lines.length - 1);
@@ -80,7 +81,7 @@ export async function displayIntro(
 	});
 
 	// Join all colored lines and send as a single message
-	logger.message(coloredLines.join('\n'));
+	logger.message(coloredLines.join("\n"));
 
 	// Display version if provided
 	if (version) {
@@ -88,6 +89,5 @@ export async function displayIntro(
 	}
 
 	// Spacing before next step
-	logger.message('');
+	logger.message("");
 }
-
