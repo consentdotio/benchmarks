@@ -24,7 +24,7 @@
     "cookiebench": "workspace:*",
     "typescript": "^5.9.3"
   },
-  "engine": {
+  "engines": {
     "node": ">=20.9.0"
   }
 }
