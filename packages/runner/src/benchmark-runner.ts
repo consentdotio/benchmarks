@@ -49,12 +49,21 @@ export class BenchmarkRunner {
 		const collector = new PerformanceMetricsCollector();
 		const cookieBannerMetrics = this.cookieBannerCollector.initializeMetrics();
 
+		// Setup monitoring and detection
+		await this.networkMonitor.setupMonitoring(page);
+		await this.cookieBannerCollector.setupDetection(page);
+		await this.perfumeCollector.setupPerfume(page);
+
 		// Navigate to the page
 		this.logger.debug(`Navigating to: ${url}`);
 		await page.goto(url, { waitUntil: "networkidle" });
 
 		// Wait for the specified element
 		await this.waitForElement(page);
+
+		// Wait for network to be idle
+		this.logger.debug("Waiting for network idle...");
+		await page.waitForLoadState("networkidle");
 
 		// Collect core web vitals from playwright-performance-metrics (primary source)
 		this.logger.debug("Collecting core web vitals...");
@@ -121,22 +130,25 @@ export class BenchmarkRunner {
 			headless: true, // Keep headless mode for stability
 			args: ["--remote-debugging-port=9222"],
 		});
-		const page = await browser.newPage();
 		const results: BenchmarkDetails[] = [];
 
 		try {
-			// Setup monitoring once - handlers persist across navigations
-			await this.networkMonitor.setupMonitoring(page, serverUrl);
-			await this.cookieBannerCollector.setupDetection(page);
-			await this.perfumeCollector.setupPerfume(page);
-
 			for (let i = 0; i < this.config.iterations; i += 1) {
 				this.logger.info(
 					`Running iteration ${i + 1}/${this.config.iterations}...`
 				);
 
-				const result = await this.runSingleBenchmark(page, serverUrl);
+				const context = await browser.newContext();
+				const page = await context.newPage();
+
+				const result = await this.runSingleBenchmark(
+					page,
+					// Add a timestamp to the URL to avoid caching
+					`${serverUrl}?t=${Date.now()}`
+				);
 				results.push(result);
+
+				await context.close();
 			}
 		} finally {
 			await browser.close();
