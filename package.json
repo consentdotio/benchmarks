@@ -1,33 +1,33 @@
 {
-	"name": "cookiebench",
-	"private": true,
-	"scripts": {
-		"benchmark": "pnpm exec cookiebench benchmark",
-		"build": "turbo run build",
-		"check-types": "turbo run check-types",
-		"db": "pnpm exec cookiebench db",
-		"dev": "turbo run dev --filter=benchmarks",
-		"fmt": "turbo fmt",
-		"lint": "turbo run lint",
-		"results": "pnpm exec cookiebench results"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "2.3.2",
-		"@c15t/translations": "^1.7.0",
-		"@consentio/benchmark": "workspace:*",
-		"@consentio/runner": "workspace:*",
-		"@playwright/test": "^1.56.1",
-		"cli-table3": "^0.6.5",
-		"cookiebench": "workspace:*",
-		"drizzle-kit": "^0.31.6",
-		"p-limit": "^7.2.0",
-		"pretty-ms": "^9.3.0",
-		"turbo": "^2.5.8",
-		"typescript": "5.9.3",
-		"ultracite": "6.0.5"
-	},
-	"packageManager": "pnpm@9.0.0",
-	"engines": {
-		"node": ">=18"
-	}
+  "name": "cookiebench",
+  "private": true,
+  "scripts": {
+    "benchmark": "pnpm exec cookiebench benchmark",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "db": "pnpm exec cookiebench db",
+    "dev": "turbo run dev --filter=benchmarks",
+    "fmt": "turbo fmt",
+    "lint": "turbo run lint",
+    "results": "pnpm exec cookiebench results"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.2",
+    "@c15t/translations": "^1.7.0",
+    "@consentio/benchmark": "workspace:*",
+    "@consentio/runner": "workspace:*",
+    "@playwright/test": "^1.56.1",
+    "cli-table3": "^0.6.5",
+    "cookiebench": "workspace:*",
+    "drizzle-kit": "^0.31.6",
+    "p-limit": "^7.2.0",
+    "pretty-ms": "^9.3.0",
+    "turbo": "^2.5.8",
+    "typescript": "5.9.3",
+    "ultracite": "6.0.5"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=18"
+  }
 }
