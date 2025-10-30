@@ -1,0 +1,226 @@
+import type { Page } from '@playwright/test';
+
+// Config types
+export interface CookieBannerConfig {
+	selectors: string[];
+	serviceHosts: string[];
+	waitForVisibility: boolean;
+	measureViewportCoverage: boolean;
+	expectedLayoutShift: boolean;
+	serviceName: string;
+}
+
+export interface Config {
+	name: string;
+	url?: string;
+	testId?: string;
+	id?: string;
+	iterations: number;
+	baseline?: boolean;
+	custom?: (page: Page) => Promise<void>;
+	remote?: {
+		enabled?: boolean;
+		url?: string;
+		headers?: Record<string, string>;
+	};
+	cookieBanner: CookieBannerConfig;
+	internationalization: {
+		detection: string;
+		stringLoading: string;
+	};
+	techStack: {
+		bundler: string;
+		bundleType: string | string[];
+		frameworks: string[];
+		languages: string[];
+		packageManager: string;
+		typescript: boolean;
+	};
+	source: {
+		github: string | false;
+		isOpenSource: boolean | string;
+		license: string;
+		npm: string | false;
+		website?: string;
+	};
+	includes: {
+		backend: string | string[] | false;
+		components: string[];
+	};
+	company?: {
+		name: string;
+		website: string;
+		avatar: string;
+	};
+	tags?: string[];
+}
+
+// Performance API type definitions
+export interface LayoutShiftEntry extends PerformanceEntry {
+	value: number;
+	hadRecentInput: boolean;
+}
+
+// Cookie banner types
+export interface WindowWithCookieMetrics extends Window {
+	__cookieBannerMetrics: {
+		pageLoadStart: number;
+		bannerDetectionStart: number;
+		bannerFirstSeen: number;
+		bannerInteractive: number;
+		layoutShiftsBefore: number;
+		layoutShiftsAfter: number;
+		detected: boolean;
+		selector: string | null;
+	};
+}
+
+export interface CookieBannerMetrics {
+	detectionStartTime: number;
+	bannerRenderTime: number;
+	bannerInteractiveTime: number;
+	bannerScriptLoadTime: number;
+	bannerLayoutShiftImpact: number;
+	bannerNetworkRequests: number;
+	bannerBundleSize: number;
+	bannerMainThreadBlockingTime: number;
+	isBundled: boolean;
+	isIIFE: boolean;
+	bannerDetected: boolean;
+	bannerSelector: string | null;
+}
+
+export interface CookieBannerData {
+	detected: boolean;
+	selector: string | null;
+	bannerRenderTime: number;
+	bannerInteractiveTime: number;
+	bannerHydrationTime: number;
+	layoutShiftImpact: number;
+	viewportCoverage: number;
+}
+
+// Network types
+export interface NetworkRequest {
+	url: string;
+	size: number;
+	duration: number;
+	startTime: number;
+	isScript: boolean;
+	isThirdParty: boolean;
+}
+
+export interface NetworkMetrics {
+	bannerNetworkRequests: number;
+	bannerBundleSize: number;
+}
+
+// Bundle strategy types
+export interface BundleStrategy {
+	isBundled: boolean;
+	isIIFE: boolean;
+	bundleType: string | string[] | undefined;
+}
+
+// Resource timing types
+export interface ResourceTimingData {
+	timing: {
+		navigationStart: number;
+		domContentLoaded: number;
+		load: number;
+		scripts: {
+			bundled: {
+				loadStart: number;
+				loadEnd: number;
+				executeStart: number;
+				executeEnd: number;
+			};
+			thirdParty: {
+				loadStart: number;
+				loadEnd: number;
+				executeStart: number;
+				executeEnd: number;
+			};
+		};
+	};
+	size: {
+		total: number;
+		bundled: number;
+		thirdParty: number;
+		cookieServices: number;
+		scripts: {
+			total: number;
+			initial: number;
+			dynamic: number;
+			thirdParty: number;
+			cookieServices: number;
+		};
+		styles: number;
+		images: number;
+		fonts: number;
+		other: number;
+	};
+	resources: {
+		scripts: Array<{
+			name: string;
+			size: number;
+			duration: number;
+			startTime: number;
+			isThirdParty: boolean;
+			isDynamic: boolean;
+			isCookieService: boolean;
+			dnsTime: number;
+			connectionTime: number;
+		}>;
+		styles: Array<{
+			name: string;
+			size: number;
+			duration: number;
+			startTime: number;
+			isThirdParty: boolean;
+			isCookieService: boolean;
+		}>;
+		images: Array<{
+			name: string;
+			size: number;
+			duration: number;
+			startTime: number;
+			isThirdParty: boolean;
+			isCookieService: boolean;
+		}>;
+		fonts: Array<{
+			name: string;
+			size: number;
+			duration: number;
+			startTime: number;
+			isThirdParty: boolean;
+			isCookieService: boolean;
+		}>;
+		other: Array<{
+			name: string;
+			size: number;
+			duration: number;
+			startTime: number;
+			isThirdParty: boolean;
+			isCookieService: boolean;
+			type: string;
+		}>;
+	};
+	language: string;
+	duration: number;
+}
+
+// Core web vitals types
+export interface CoreWebVitals {
+	paint?: {
+		firstPaint?: number;
+		firstContentfulPaint?: number;
+	};
+	largestContentfulPaint?: number;
+	cumulativeLayoutShift?: number;
+	totalBlockingTime?: number;
+	domCompleteTiming?: number;
+	pageloadTiming?: number;
+	totalBytes?: number;
+}
+

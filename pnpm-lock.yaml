@@ -14,9 +14,15 @@ importers:
       '@c15t/translations':
         specifier: ^1.0.0
         version: 1.0.0
-      '@cookiebench/cli':
+      '@consentio/benchmark':
         specifier: workspace:*
-        version: link:packages/cli
+        version: link:packages/benchmark
+      'cookiebench':
+        specifier: workspace:*
+        version: link:packages/cookiebench-cli
+      '@consentio/runner':
+        specifier: workspace:*
+        version: link:packages/runner
       '@playwright/test':
         specifier: ^1.42.1
         version: 1.52.0
@@ -51,12 +57,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -77,10 +83,10 @@ importers:
     dependencies:
       '@c15t/nextjs':
         specifier: 1.2.2-canary-20250603153501
-        version: 1.2.2-canary-20250603153501(@libsql/client@0.15.8)(@playwright/test@1.52.0)(@types/better-sqlite3@7.6.13)(@types/react-dom@19.1.6(@types/react@19.1.6))(@types/react@19.1.6)(better-sqlite3@11.10.0)(next@15.3.3(@opentelemetry/api@1.8.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0))(ws@8.18.2)
+        version: 1.2.2-canary-20250603153501(@playwright/test@1.52.0)(@types/react-dom@19.1.6(@types/react@19.1.6))(@types/react@19.1.6)(next@15.3.3(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       next:
         specifier: 15.3.3
-        version: 15.3.3(@opentelemetry/api@1.8.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 15.3.3(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react:
         specifier: ^19.0.0
         version: 19.1.0
@@ -88,12 +94,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -128,12 +134,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -162,12 +168,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -196,12 +202,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -264,12 +270,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -298,12 +304,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -363,12 +369,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -397,12 +403,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -431,12 +437,12 @@ importers:
         specifier: ^19.0.0
         version: 19.1.0(react@19.1.0)
     devDependencies:
+      'cookiebench':
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
       '@cookiebench/benchmark-schema':
         specifier: workspace:*
         version: link:../../packages/benchmark-schema
-      '@cookiebench/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
       '@cookiebench/ts-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -453,25 +459,47 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
 
+  packages/benchmark:
+    dependencies:
+      '@playwright/test':
+        specifier: ^1.42.1
+        version: 1.52.0
+      playwright-performance-metrics:
+        specifier: ^1.2.2
+        version: 1.2.2(@playwright/test@1.52.0)
+    devDependencies:
+      '@rsdoctor/rspack-plugin':
+        specifier: ^1.1.3
+        version: 1.1.3(@rsbuild/core@1.3.22)(@rspack/core@1.3.15(@swc/helpers@0.5.17))
+      '@rslib/core':
+        specifier: ^0.9.1
+        version: 0.9.1(typescript@5.8.3)
+      '@types/node':
+        specifier: ^22.15.30
+        version: 22.15.30
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+
   packages/benchmark-schema: {}
 
-  packages/cli:
+  packages/cookiebench-cli:
     dependencies:
       '@clack/prompts':
         specifier: ^1.0.0-alpha.0
         version: 1.0.0-alpha.0
-      '@playwright/test':
-        specifier: ^1.42.1
-        version: 1.52.0
+      '@consentio/benchmark':
+        specifier: workspace:*
+        version: link:../benchmark
+      '@consentio/runner':
+        specifier: workspace:*
+        version: link:../runner
       cli-table3:
         specifier: ^0.6.3
         version: 0.6.5
       dotenv:
         specifier: ^16.5.0
         version: 16.5.0
-      package-manager-detector:
-        specifier: ^1.3.0
-        version: 1.3.0
       picocolors:
         specifier: ^1.0.0
         version: 1.1.1
@@ -485,9 +513,31 @@ importers:
       '@types/node':
         specifier: ^22.15.30
         version: 22.15.30
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+
+  packages/runner:
+    dependencies:
+      '@consentio/benchmark':
+        specifier: workspace:*
+        version: link:../benchmark
+      '@playwright/test':
+        specifier: ^1.42.1
+        version: 1.52.0
       playwright-performance-metrics:
         specifier: ^1.2.2
         version: 1.2.2(@playwright/test@1.52.0)
+    devDependencies:
+      '@rsdoctor/rspack-plugin':
+        specifier: ^1.1.3
+        version: 1.1.3(@rsbuild/core@1.3.22)(@rspack/core@1.3.15(@swc/helpers@0.5.17))
+      '@rslib/core':
+        specifier: ^0.9.1
+        version: 0.9.1(typescript@5.8.3)
+      '@types/node':
+        specifier: ^22.15.30
+        version: 22.15.30
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -2083,6 +2133,7 @@ packages:
   acorn@8.14.1:
     resolution: {integrity: sha512-OvQ/2pUDKmgfCg++xsTX1wGxfTaszcHVcTctW4UJB4hibJx2HXxxO5UmVgyjMa+ZDsiaf5wWLXYpRWMmBI0QHg==}
     engines: {node: '>=0.4.0'}
+    hasBin: true
 
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
@@ -2889,9 +2940,6 @@ packages:
     resolution: {integrity: sha512-kuUqqHNUqoIWp/c467RI4X6mmyuojY5jGutNU0wVTmEOOfcuwLqyMVoAi9MKi2Ak+5i9+nhmrK4ufZE8069kHA==}
     engines: {node: '>=18'}
 
-  package-manager-detector@1.3.0:
-    resolution: {integrity: sha512-ZsEbbZORsyHuO00lY1kV3/t72yp6Ysay6Pd17ZAlNGuGwmWDLCJxFpRs0IzfXfj1o4icJOkUEioexFHzyPurSQ==}
-
   parse-ms@4.0.0:
     resolution: {integrity: sha512-TXfryirbmq34y8QBwgqCVLi+8oA3oWx2eAnSn62ITyEhEYaWRlVZ2DvMM9eZbMs/RfxPu/PK/aBLyGj4IrqMHw==}
     engines: {node: '>=18'}
@@ -3525,11 +3573,11 @@ snapshots:
       - supports-color
       - ws
 
-  '@c15t/nextjs@1.2.2-canary-20250603153501(@libsql/client@0.15.8)(@playwright/test@1.52.0)(@types/better-sqlite3@7.6.13)(@types/react-dom@19.1.6(@types/react@19.1.6))(@types/react@19.1.6)(better-sqlite3@11.10.0)(next@15.3.3(@opentelemetry/api@1.8.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0))(ws@8.18.2)':
+  '@c15t/nextjs@1.2.2-canary-20250603153501(@playwright/test@1.52.0)(@types/react-dom@19.1.6(@types/react@19.1.6))(@types/react@19.1.6)(next@15.3.3(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
       '@c15t/react': 1.2.2-canary-20250603153501(@libsql/client@0.15.8)(@playwright/test@1.52.0)(@types/better-sqlite3@7.6.13)(@types/react-dom@19.1.6(@types/react@19.1.6))(@types/react@19.1.6)(better-sqlite3@11.10.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0))(ws@8.18.2)
       '@c15t/translations': 1.2.2-canary-20250514203718
-      next: 15.3.3(@opentelemetry/api@1.8.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      next: 15.3.3(@opentelemetry/api@1.9.0)(@playwright/test@1.52.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
     transitivePeerDependencies:
@@ -5857,8 +5905,6 @@ snapshots:
   p-limit@6.2.0:
     dependencies:
       yocto-queue: 1.2.1
-
-  package-manager-detector@1.3.0: {}
 
   parse-ms@4.0.0: {}
 

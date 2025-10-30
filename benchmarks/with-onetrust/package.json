@@ -2,12 +2,12 @@
 	"name": "with-onetrust",
 	"private": true,
 	"scripts": {
-		"dev": "next dev --port 3006 --turbopack",
+		"benchmark": "pnpm exec cookiebench benchmark",
 		"build": "next build --turbopack",
-		"start": "next start",
-		"lint": "next lint",
+		"dev": "next dev --port 3006 --turbopack",
 		"fmt": "pnpm biome format --write . && pnpm biome check --formatter-enabled=false --linter-enabled=false --organize-imports-enabled=true --write",
-		"benchmark": "pnpm exec benchmark-cli benchmark"
+		"lint": "next lint",
+		"start": "next start"
 	},
 	"dependencies": {
 		"next": "15.3.3",
@@ -16,11 +16,11 @@
 	},
 	"devDependencies": {
 		"@cookiebench/benchmark-schema": "workspace:*",
-		"@cookiebench/cli": "workspace:*",
 		"@cookiebench/ts-config": "workspace:*",
 		"@types/node": "^22.15.30",
 		"@types/react": "^19.1.6",
 		"@types/react-dom": "^19.1.6",
+		"cookiebench": "workspace:*",
 		"typescript": "^5.8.3"
 	}
 }
