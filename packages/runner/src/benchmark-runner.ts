@@ -50,7 +50,8 @@ export class BenchmarkRunner {
 		const cookieBannerMetrics = this.cookieBannerCollector.initializeMetrics();
 
 		// Setup monitoring and detection
-		await this.networkMonitor.setupMonitoring(page);
+		// Pass the target URL so NetworkMonitor can extract hostname for third-party detection
+		await this.networkMonitor.setupMonitoring(page, url);
 		await this.cookieBannerCollector.setupDetection(page);
 		await this.perfumeCollector.setupPerfume(page);
 

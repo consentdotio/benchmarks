@@ -75,16 +75,16 @@ export class PerformanceAggregator {
 		config: Config
 	) {
 		return {
-			dnsLookupTime: 0,
-			connectionTime: 0,
+			dnsLookupTime: null,
+			connectionTime: null,
 			downloadTime: networkImpact.totalDownloadTime,
 			totalImpact: networkImpact.totalImpact,
 			cookieServices: {
 				hosts: config.cookieBanner?.serviceHosts || [],
 				totalSize: networkMetrics.bannerBundleSize,
 				resourceCount: networkMetrics.bannerNetworkRequests,
-				dnsLookupTime: 0,
-				connectionTime: 0,
+				dnsLookupTime: null,
+				connectionTime: null,
 				downloadTime: networkImpact.totalDownloadTime,
 			},
 		};
@@ -103,8 +103,7 @@ export class PerformanceAggregator {
 
 		const percentageFromCookies =
 			totalBlockingTime > 0
-				? (cookieBannerEstimate / (totalBlockingTime || 1)) *
-					PERCENTAGE_MULTIPLIER
+				? (cookieBannerEstimate / totalBlockingTime) * PERCENTAGE_MULTIPLIER
 				: 0;
 
 		return {
@@ -183,8 +182,8 @@ export class PerformanceAggregator {
 					hosts: config.cookieBanner?.serviceHosts || [],
 					totalSize: networkMetrics.bannerBundleSize,
 					resourceCount: networkMetrics.bannerNetworkRequests,
-					dnsLookupTime: 0,
-					connectionTime: 0,
+					dnsLookupTime: null,
+					connectionTime: null,
 					downloadTime: networkImpact.totalDownloadTime,
 				},
 				totalImpact: networkImpact.totalImpact,
@@ -216,6 +215,20 @@ export class PerformanceAggregator {
 			throw new Error("Cannot calculate averages from empty results array");
 		}
 
+		// Helper to compute average from defined values only
+		const avgDefined = (
+			values: (number | null | undefined)[]
+		): number | null => {
+			const defined = values.filter((v): v is number => v != null);
+			return defined.length > 0
+				? defined.reduce((acc, v) => acc + v, 0) / defined.length
+				: null;
+		};
+
+		// Calculate cookieBannerTiming.firstPaint from results[].timing.firstPaint
+		const firstPaintValues = results.map((r) => r.timing.firstPaint || null);
+		const cookieBannerFirstPaint = avgDefined(firstPaintValues);
+
 		return {
 			firstContentfulPaint:
 				results.reduce(
@@ -235,7 +248,7 @@ export class PerformanceAggregator {
 					(acc, curr) => acc + curr.timing.mainThreadBlocking.total,
 					0
 				) / results.length,
-			speedIndex: 0, // Default value
+			speedIndex: null, // Not measured
 			timeToFirstByte:
 				results.reduce(
 					(acc, curr) => acc + (curr.timing.timeToFirstByte || 0),
@@ -256,7 +269,7 @@ export class PerformanceAggregator {
 					(acc, curr) => acc + curr.timing.cumulativeLayoutShift,
 					0
 				) / results.length,
-			domSize: 0, // Default value
+			domSize: null, // Not measured
 			totalRequests:
 				results.reduce(
 					(acc, curr) =>
@@ -286,38 +299,38 @@ export class PerformanceAggregator {
 			otherSize:
 				results.reduce((acc, curr) => acc + curr.size.other, 0) /
 				results.length,
-			thirdPartyRequests: 0, // Default value
-			thirdPartySize: 0, // Default value
-			thirdPartyDomains: 0, // Default value
-			thirdPartyCookies: 0, // Default value
-			thirdPartyLocalStorage: 0, // Default value
-			thirdPartySessionStorage: 0, // Default value
-			thirdPartyIndexedDB: 0, // Default value
-			thirdPartyCache: 0, // Default value
-			thirdPartyServiceWorkers: 0, // Default value
-			thirdPartyWebWorkers: 0, // Default value
-			thirdPartyWebSockets: 0, // Default value
-			thirdPartyBeacons: 0, // Default value
-			thirdPartyFetch: 0, // Default value
-			thirdPartyXHR: 0, // Default value
-			thirdPartyScripts: 0, // Default value
-			thirdPartyStyles: 0, // Default value
-			thirdPartyImages: 0, // Default value
-			thirdPartyFonts: 0, // Default value
-			thirdPartyMedia: 0, // Default value
-			thirdPartyOther: 0, // Default value
+			thirdPartyRequests: null, // Not measured
+			thirdPartySize: null, // Not measured
+			thirdPartyDomains: null, // Not measured
+			thirdPartyCookies: null, // Not measured
+			thirdPartyLocalStorage: null, // Not measured
+			thirdPartySessionStorage: null, // Not measured
+			thirdPartyIndexedDB: null, // Not measured
+			thirdPartyCache: null, // Not measured
+			thirdPartyServiceWorkers: null, // Not measured
+			thirdPartyWebWorkers: null, // Not measured
+			thirdPartyWebSockets: null, // Not measured
+			thirdPartyBeacons: null, // Not measured
+			thirdPartyFetch: null, // Not measured
+			thirdPartyXHR: null, // Not measured
+			thirdPartyScripts: null, // Not measured
+			thirdPartyStyles: null, // Not measured
+			thirdPartyImages: null, // Not measured
+			thirdPartyFonts: null, // Not measured
+			thirdPartyMedia: null, // Not measured
+			thirdPartyOther: null, // Not measured
 			thirdPartyTiming: {
-				total: 0,
-				blocking: 0,
-				dns: 0,
-				connect: 0,
-				ssl: 0,
-				send: 0,
-				wait: 0,
-				receive: 0,
+				total: null,
+				blocking: null,
+				dns: null,
+				connect: null,
+				ssl: null,
+				send: null,
+				wait: null,
+				receive: null,
 			},
 			cookieBannerTiming: {
-				firstPaint: 0,
+				firstPaint: cookieBannerFirstPaint,
 				firstContentfulPaint:
 					results.reduce(
 						(acc, curr) => acc + curr.timing.firstContentfulPaint,

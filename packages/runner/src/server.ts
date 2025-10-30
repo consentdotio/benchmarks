@@ -8,6 +8,10 @@ export async function buildAndServeNextApp(
 	appPath?: string
 ): Promise<ServerInfo> {
 	const pm = await getPackageManager();
+	if (!pm) {
+		throw new Error("No package manager found");
+	}
+
 	const cwd = appPath || process.cwd();
 
 	// Build the app
@@ -67,6 +71,29 @@ export async function buildAndServeNextApp(
 		retries += 1;
 	}
 
+	// Kill the server process before throwing to prevent resource leak
+	if (!serverProcess.killed) {
+		serverProcess.kill();
+		// Wait briefly for process to exit gracefully
+		await new Promise<void>((resolve) => {
+			const timeout = setTimeout(() => {
+				// Force kill if it didn't exit gracefully
+				try {
+					if (!serverProcess.killed) {
+						serverProcess.kill("SIGKILL");
+					}
+				} catch {
+					// Ignore if already dead
+				}
+				resolve();
+			}, ONE_SECOND);
+
+			serverProcess.once("exit", () => {
+				clearTimeout(timeout);
+				resolve();
+			});
+		});
+	}
 	throw new Error("Server failed to start");
 }
 

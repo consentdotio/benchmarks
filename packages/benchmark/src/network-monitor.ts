@@ -4,6 +4,7 @@ import { BENCHMARK_CONSTANTS } from "./constants";
 import type { Config, NetworkMetrics, NetworkRequest } from "./types";
 
 export class NetworkMonitor {
+	private readonly config: Config;
 	private readonly logger: Logger;
 	private networkRequests: NetworkRequest[] = [];
 	private metrics: NetworkMetrics = {
@@ -11,17 +12,23 @@ export class NetworkMonitor {
 		bannerBundleSize: 0,
 	};
 
-	constructor(_config: Config, logger: Logger) {
+	constructor(config: Config, logger: Logger) {
+		this.config = config;
 		this.logger = logger;
 	}
 
 	/**
 	 * Set up network request monitoring
 	 */
-	async setupMonitoring(page: Page): Promise<void> {
+	async setupMonitoring(page: Page, targetUrl?: string): Promise<void> {
+		// Extract first-party hostname from config, provided URL, or page URL
+		const firstPartyUrl = this.config.url || targetUrl || page.url();
+		const firstPartyHostname = new URL(firstPartyUrl).hostname;
+
 		await page.route("**/*", async (route: Route) => {
 			const request = route.request();
 			const url = request.url();
+			const startTime = Date.now();
 
 			try {
 				const response = await route.fetch();
@@ -31,17 +38,22 @@ export class NetworkMonitor {
 				headers["timing-allow-origin"] = "*";
 
 				const isScript = request.resourceType() === "script";
-				const isThirdParty = !url.includes(new URL(url).hostname);
+				// Compare request hostname against first-party hostname for third-party detection
+				const requestHostname = new URL(url).hostname;
+				const isThirdParty = requestHostname !== firstPartyHostname;
 
 				if (isScript) {
 					const contentLength = response.headers()["content-length"];
 					const size = contentLength ? +contentLength || 0 : 0;
 
+					// Calculate duration from request start to response
+					const duration = Date.now() - startTime;
+
 					this.networkRequests.push({
 						url,
 						size: size / BENCHMARK_CONSTANTS.BYTES_TO_KB, // Convert to KB
-						duration: 0, // Will be calculated later
-						startTime: Date.now(),
+						duration,
+						startTime,
 						isScript,
 						isThirdParty,
 					});

@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from "@c15t/logger";
 import { log, note, outro } from "@clack/prompts";
+import { inspect } from "node:util";
 import color from "picocolors";
 
 // Define standard log levels
@@ -20,7 +21,16 @@ const formatArgs = (args: unknown[]): string => {
 	if (args.length === 0) {
 		return "";
 	}
-	return `\n${args.map((arg) => `  - ${JSON.stringify(arg, null, 2)}`).join("\n")}`;
+	return `\n${args
+		.map((arg) => {
+			try {
+				return `  - ${JSON.stringify(arg, null, 2)}`;
+			} catch {
+				// Fallback to util.inspect for circular references or other serialization errors
+				return `  - ${inspect(arg, { depth: null })}`;
+			}
+		})
+		.join("\n")}`;
 };
 
 /**

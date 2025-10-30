@@ -512,9 +512,6 @@ importers:
       '@consentio/shared':
         specifier: workspace:*
         version: link:../shared
-      '@types/figlet':
-        specifier: ^1.7.0
-        version: 1.7.0
       cli-table3:
         specifier: ^0.6.3
         version: 0.6.5
@@ -537,6 +534,9 @@ importers:
       '@rslib/core':
         specifier: ^0.16.1
         version: 0.16.1(typescript@5.9.3)
+      '@types/figlet':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@types/node':
         specifier: ^24.9.2
         version: 24.9.2
