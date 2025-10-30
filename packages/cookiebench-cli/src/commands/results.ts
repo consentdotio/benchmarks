@@ -5,114 +5,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import Table from 'cli-table3';
 import prettyMilliseconds from 'pretty-ms';
-import { config } from 'dotenv';
-import { calculateScores, printScores, type CliLogger } from '../utils';
+import { calculateScores, isAdminUser, type CliLogger } from '../utils';
 import type { BenchmarkScores } from '../types';
 import type { Config } from '@consentio/runner';
-
-// Load environment variables from .env files
-config({ path: ".env" });
-config({ path: ".env.local" });
-config({ path: "www/.env.local" }); // Also check www directory
-
-// Function to save benchmark result via oRPC endpoint
-async function saveBenchmarkResult(logger: CliLogger, result: BenchmarkResult): Promise<void> {
-  const apiUrl = process.env.API_URL || "http://localhost:3000";
-  const endpoint = `${apiUrl}/api/orpc/benchmarks/save`;
-
-  try {
-    logger.info(`Attempting to save ${result.name} to ${endpoint}`);
-    
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(result),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-    }
-
-    const responseData = await response.json();
-    logger.success(
-      `Saved benchmark result for ${result.name} (App ID: ${responseData.appId})`
-    );
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error(`Failed to save benchmark result for ${result.name}: ${error.message}`);
-      if (error.message.includes('fetch failed')) {
-        logger.error(`Connection failed. Is the server running on ${apiUrl}?`);
-      }
-    } else {
-      logger.error(`Failed to save benchmark result for ${result.name}: Unknown error`);
-    }
-    throw error;
-  }
-}
-
-// Benchmark result type (matching the oRPC contract)
-interface BenchmarkResult {
-  name: string;
-  baseline: boolean;
-  cookieBannerConfig: unknown;
-  techStack: unknown;
-  internationalization: unknown;
-  source: unknown;
-  includes: string[];
-  company?: unknown;
-  tags: string[];
-  details: unknown[];
-  average: {
-    fcp: number;
-    lcp: number;
-    cls: number;
-    tbt: number;
-    tti: number;
-    scriptLoadTime: number;
-    totalSize: number;
-    scriptSize: number;
-    resourceCount: number;
-    scriptCount: number;
-    time: number;
-    thirdPartySize: number;
-    cookieServiceSize: number;
-    bannerVisibilityTime: number;
-    viewportCoverage: number;
-    thirdPartyImpact: number;
-    mainThreadBlocking: number;
-    cookieBannerBlocking: number;
-  };
-  scores?: {
-    totalScore: number;
-    grade: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Critical';
-    categoryScores: {
-      performance: number;
-      bundleStrategy: number;
-      networkImpact: number;
-      transparency: number;
-      userExperience: number;
-    };
-    categories: Array<{
-      name: string;
-      score: number;
-      maxScore: number;
-      weight: number;
-      details: Array<{
-        metric: string;
-        value: string | number;
-        score: number;
-        maxScore: number;
-        reason: string;
-      }>;
-      status: 'excellent' | 'good' | 'fair' | 'poor';
-    }>;
-    insights: string[];
-    recommendations: string[];
-  };
-}
 
 // Raw benchmark data structure from JSON files
 export interface RawBenchmarkDetail {
@@ -350,7 +245,7 @@ async function loadConfigForApp(logger: CliLogger, appName: string): Promise<Con
       },
     };
   } catch (error) {
-    logger.warn(
+    logger.debug(
       `Could not load config for ${appName}: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
@@ -415,9 +310,9 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
   const resultsFiles = await findResultsFiles(resultsDir);
   const results: Record<string, RawBenchmarkDetail[]> = {};
 
-  logger.info(`Found ${resultsFiles.length} results files:`);
+  logger.debug(`Found ${resultsFiles.length} results files:`);
   for (const file of resultsFiles) {
-    logger.info(`  - ${file}`);
+    logger.debug(`  - ${file}`);
   }
 
   for (const file of resultsFiles) {
@@ -432,8 +327,7 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
         continue;
       }
 
-      // Log the actual app name from the file
-      logger.info(`Processing ${file} with app name: "${data.app}"`);
+      logger.debug(`Processing ${file} with app name: "${data.app}"`);
 
       if (results[data.app]) {
         logger.warn(
@@ -442,7 +336,7 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
       }
 
       results[data.app] = data.results;
-      logger.success(
+      logger.debug(
         `Loaded results for ${data.app} (${data.results.length} iterations)`
       );
     } catch (error) {
@@ -452,15 +346,14 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
         }`
       );
       if (error instanceof Error && error.stack) {
-        logger.error(`Stack trace: ${error.stack}`);
+        logger.debug(`Stack trace: ${error.stack}`);
       }
     }
   }
 
-  // Log final results summary
-  logger.info("Final results summary:");
+  logger.debug("Final results summary:");
   for (const [app, appResults] of Object.entries(results)) {
-    logger.info(`  - ${app}: ${appResults.length} iterations`);
+    logger.debug(`  - ${app}: ${appResults.length} iterations`);
   }
 
   return results;
@@ -474,292 +367,437 @@ function formatTime(ms: number): string {
   });
 }
 
-function printResults(results: Record<string, RawBenchmarkDetail[]>) {
-  // Calculate baseline averages
-  const baseline = results.baseline;
-  const baselineAvgTime = baseline
-    ? baseline.reduce((a, b) => a + b.duration, 0) / baseline.length
-    : 1;
-  const baselineAvgSize = baseline
-    ? baseline.reduce((a, b) => a + b.size.total, 0) / baseline.length
-    : 1;
-  const baselineAvgFCP = baseline
-    ? baseline.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
-      baseline.length
-    : 1;
-  const baselineAvgLCP = baseline
-    ? baseline.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
-      baseline.length
-    : 1;
-  const baselineAvgCLS = baseline
-    ? baseline.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
-      baseline.length
-    : 1;
-  const baselineAvgTTI = baseline
-    ? baseline.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
-      baseline.length
-    : 1;
-  const baselineAvgBannerRender = baseline
-    ? baseline.reduce(
-        (a, b) =>
-          a + b.timing.cookieBanner.visibilityTime,
-        0
-      ) / baseline.length
-    : 1;
-  const baselineAvgScriptLoad = baseline
-    ? baseline.reduce(
-        (a, b) =>
-          a +
-          (b.timing.scripts.thirdParty.loadEnd -
-            b.timing.scripts.thirdParty.loadStart),
-        0
-      ) / baseline.length
-    : 1;
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0bytes';
+  if (bytes < 1024) return `${bytes.toFixed(0)}bytes`;
+  return `${(bytes / 1024).toFixed(0)}KB`;
+}
 
-  // Prepare and sort results by avg time
-  const sorted = Object.entries(results)
-    .map(([app, arr]) => {
-      const avgTime = arr.reduce((a, b) => a + b.duration, 0) / arr.length;
-      const avgSize = arr.reduce((a, b) => a + b.size.total, 0) / arr.length;
-      const avgFCP =
-        arr.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) / arr.length;
-      const avgLCP =
-        arr.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
-        arr.length;
-      const avgCLS =
-        arr.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
-        arr.length;
-      const avgTTI =
-        arr.reduce((a, b) => a + b.timing.timeToInteractive, 0) / arr.length;
-      const avgBannerRender =
-        arr.reduce(
-          (a, b) =>
-            a + b.timing.cookieBanner.visibilityTime,
-          0
-        ) / arr.length;
-      const avgScriptLoad =
-        arr.reduce(
-          (a, b) =>
-            a +
-            (b.timing.scripts.thirdParty.loadEnd -
-              b.timing.scripts.thirdParty.loadStart),
-          0
-        ) / arr.length;
+function getPerformanceRating(metric: string, value: number): string {
+  const ratings: Record<string, { good: number; poor: number }> = {
+    fcp: { good: 1800, poor: 3000 },
+    lcp: { good: 2500, poor: 4000 },
+    cls: { good: 0.1, poor: 0.25 },
+    tti: { good: 3800, poor: 7300 },
+    tbt: { good: 200, poor: 600 },
+  };
 
-      // Calculate average sizes for each resource type
-      const avgScriptsTotal =
-        arr.reduce((a, b) => a + b.size.scripts.total, 0) / arr.length;
-      const avgScriptsInitial =
-        arr.reduce((a, b) => a + b.size.scripts.initial, 0) / arr.length;
-      const avgScriptsDynamic =
-        arr.reduce((a, b) => a + b.size.scripts.dynamic, 0) / arr.length;
-      const avgStyles = arr.reduce((a, b) => a + b.size.styles, 0) / arr.length;
-      const avgImages = arr.reduce((a, b) => a + b.size.images, 0) / arr.length;
-      const avgFonts = arr.reduce((a, b) => a + b.size.fonts, 0) / arr.length;
-      const avgOther = arr.reduce((a, b) => a + b.size.other, 0) / arr.length;
+  const thresholds = ratings[metric];
+  if (!thresholds) return 'N/A';
 
-      return {
-        app,
-        avgTime,
-        avgSize,
-        avgFCP,
-        avgLCP,
-        avgCLS,
-        avgTTI,
-        avgBannerRender,
-        avgScriptLoad,
-        avgScriptsTotal,
-        avgScriptsInitial,
-        avgScriptsDynamic,
-        avgStyles,
-        avgImages,
-        avgFonts,
-        avgOther,
-        timeDelta: ((avgTime - baselineAvgTime) / baselineAvgTime) * 100,
-        sizeDelta: ((avgSize - baselineAvgSize) / baselineAvgSize) * 100,
-        fcpDelta: ((avgFCP - baselineAvgFCP) / baselineAvgFCP) * 100,
-        lcpDelta: ((avgLCP - baselineAvgLCP) / baselineAvgLCP) * 100,
-        clsDelta: ((avgCLS - baselineAvgCLS) / baselineAvgCLS) * 100,
-        ttiDelta: ((avgTTI - baselineAvgTTI) / baselineAvgTTI) * 100,
-        bannerRenderDelta:
-          ((avgBannerRender - baselineAvgBannerRender) /
-            baselineAvgBannerRender) *
-          100,
-        scriptLoadDelta:
-          ((avgScriptLoad - baselineAvgScriptLoad) / baselineAvgScriptLoad) *
-          100,
-      };
-    })
-    .sort((a, b) => a.avgTime - b.avgTime);
+  if (value <= thresholds.good) {
+    return color.green('Good');
+  } else if (value <= thresholds.poor) {
+    return color.yellow('Fair');
+  } else {
+    return color.red('Poor');
+  }
+}
 
-  // Setup cli-table3
-  const table = new Table({
-    head: [
-      "App",
-      "Total Time",
-      "ΔTime",
-      "FCP",
-      "ΔFCP",
-      "LCP",
-      "ΔLCP",
-      "CLS",
-      "ΔCLS",
-      "TTI",
-      "ΔTTI",
-      "Banner",
-      "ΔBanner",
-      "Script",
-      "ΔScript",
-      "Total Size",
-      "ΔSize",
-      "Scripts",
-      "Styles",
-      "Images",
-      "Fonts",
-      "Other",
-    ],
-    colWidths: [
-      15, 10, 8, 10, 8, 10, 8, 8, 8, 10, 8, 10, 8, 10, 8, 10, 8, 10, 10, 10, 10,
-      10,
-    ],
-    style: { head: ["cyan"], border: ["grey"] },
-  });
+function printDetailedResults(
+  appName: string,
+  results: RawBenchmarkDetail[],
+  scores: BenchmarkScores,
+  baseline?: RawBenchmarkDetail[]
+) {
+  console.log('\n' + color.bold(color.cyan(`━━━ ${appName.toUpperCase()} ━━━`)));
 
-  // Add rows
-  for (const r of sorted) {
-    const timeDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.timeDelta > 0 ? "+" : ""}${r.timeDelta.toFixed(1)}%`;
-    const sizeDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.sizeDelta > 0 ? "+" : ""}${r.sizeDelta.toFixed(1)}%`;
-    const fcpDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.fcpDelta > 0 ? "+" : ""}${r.fcpDelta.toFixed(1)}%`;
-    const lcpDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.lcpDelta > 0 ? "+" : ""}${r.lcpDelta.toFixed(1)}%`;
-    const clsDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.clsDelta > 0 ? "+" : ""}${r.clsDelta.toFixed(1)}%`;
-    const ttiDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.ttiDelta > 0 ? "+" : ""}${r.ttiDelta.toFixed(1)}%`;
-    const bannerDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.bannerRenderDelta > 0 ? "+" : ""}${r.bannerRenderDelta.toFixed(
-            1
-          )}%`;
-    const scriptDeltaStr =
-      r.app === "baseline"
-        ? "-"
-        : `${r.scriptLoadDelta > 0 ? "+" : ""}${r.scriptLoadDelta.toFixed(1)}%`;
-
-    table.push([
-      r.app,
-      formatTime(r.avgTime),
-      timeDeltaStr,
-      formatTime(r.avgFCP),
-      fcpDeltaStr,
-      formatTime(r.avgLCP),
-      lcpDeltaStr,
-      r.avgCLS.toFixed(3),
-      clsDeltaStr,
-      formatTime(r.avgTTI),
-      ttiDeltaStr,
-      formatTime(r.avgBannerRender),
-      bannerDeltaStr,
-      formatTime(r.avgScriptLoad),
-      scriptDeltaStr,
-      `${r.avgSize.toFixed(2)}KB`,
-      sizeDeltaStr,
-      `${r.avgScriptsTotal.toFixed(2)}KB`,
-      `${r.avgStyles.toFixed(2)}KB`,
-      `${r.avgImages.toFixed(2)}KB`,
-      `${r.avgFonts.toFixed(2)}KB`,
-      `${r.avgOther.toFixed(2)}KB`,
-    ]);
+  // ━━━ Score Display ━━━
+  const score = Math.round(scores.totalScore);
+  let scoreColor = color.green;
+  let scoreBgColor = color.bgGreen;
+  
+  if (score < 70) {
+    scoreColor = color.red;
+    scoreBgColor = color.bgRed;
+  } else if (score < 90) {
+    scoreColor = color.yellow;
+    scoreBgColor = color.bgYellow;
   }
 
-  // Print the table to console
-  // Table output is user-facing, so we use console.log directly
-  console.log(table.toString());
+  console.log('\n' + color.bold('🎯 Overall Score'));
+  console.log(
+    scoreColor(`  ${score}/100`) + 
+    ' ' + 
+    scoreBgColor(color.black(` ${scores.grade} `))
+  );
+
+  // ━━━ Key Insights ━━━
+  if (scores.insights && scores.insights.length > 0) {
+    console.log('\n' + color.bold('💡 Key Insights'));
+    for (const insight of scores.insights) {
+      console.log(color.blue('  •') + ' ' + color.dim(insight));
+    }
+  }
+
+  // Calculate averages
+  const avgBannerVisibility =
+    results.reduce((a, b) => a + b.timing.cookieBanner.visibilityTime, 0) /
+    results.length;
+  const avgViewportCoverage =
+    results.reduce((a, b) => a + b.timing.cookieBanner.viewportCoverage, 0) /
+    results.length;
+  const avgNetworkImpact =
+    results.reduce((a, b) => a + b.size.thirdParty, 0) / results.length;
+  const bannerDetected = results.some((r) => r.timing.cookieBanner.detected);
+  const isBundled = results[0]?.size.thirdParty === 0;
+
+      const avgFCP =
+    results.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
+    results.length;
+      const avgLCP =
+    results.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
+    results.length;
+      const avgTTI =
+    results.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
+    results.length;
+  const avgCLS =
+    results.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
+    results.length;
+  const avgTBT =
+    results.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
+    results.length;
+
+  const totalSize = results.reduce((a, b) => a + b.size.total, 0) / results.length;
+  const jsSize =
+    results.reduce((a, b) => a + b.size.scripts.total, 0) / results.length;
+  const cssSize = results.reduce((a, b) => a + b.size.styles, 0) / results.length;
+  const imageSize =
+    results.reduce((a, b) => a + b.size.images, 0) / results.length;
+  const fontSize = results.reduce((a, b) => a + b.size.fonts, 0) / results.length;
+  const otherSize =
+    results.reduce((a, b) => a + b.size.other, 0) / results.length;
+
+  const jsFiles =
+    results.reduce((a, b) => a + b.resources.scripts.length, 0) / results.length;
+  const cssFiles =
+    results.reduce((a, b) => a + b.resources.styles.length, 0) / results.length;
+  const imageFiles =
+    results.reduce((a, b) => a + b.resources.images.length, 0) / results.length;
+  const fontFiles =
+    results.reduce((a, b) => a + b.resources.fonts.length, 0) / results.length;
+  const otherFiles =
+    results.reduce((a, b) => a + b.resources.other.length, 0) / results.length;
+
+  // Calculate deltas if baseline exists
+  let bannerDelta = '';
+  if (baseline && appName !== 'baseline') {
+    const baselineAvgBanner =
+      baseline.reduce((a, b) => a + b.timing.cookieBanner.visibilityTime, 0) /
+      baseline.length;
+    const delta = avgBannerVisibility - baselineAvgBanner;
+    bannerDelta = ` ${delta > 0 ? '+' : ''}${formatTime(delta)}`;
+  }
+
+  // ━━━ Cookie Banner Impact ━━━
+  console.log('\n' + color.bold('🍪 Cookie Banner Impact'));
+  const bannerTable = new Table({
+    chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+    style: { 'padding-left': 2, 'padding-right': 2, border: ['grey'] },
+  });
+
+  bannerTable.push(
+    [
+      { content: 'Banner Visibility', colSpan: 1 },
+      { content: 'Viewport Coverage', colSpan: 1 },
+      { content: 'Network Impact', colSpan: 1 },
+      { content: 'Bundle Strategy', colSpan: 1 },
+    ],
+    [
+      `${color.bold(formatTime(avgBannerVisibility))}\n${color.dim(bannerDelta || 'baseline')}`,
+      `${color.bold(avgViewportCoverage.toFixed(1) + '%')}\n${color.dim('Screen real estate')}`,
+      `${color.bold(formatBytes(avgNetworkImpact * 1024))}\n${color.dim(isBundled ? 'Bundled (no network)' : 'External requests')}`,
+      `${color.bold(isBundled ? 'Bundled' : 'External')}\n${color.dim(isBundled ? 'Included in main bundle' : 'Loaded from CDN')}`,
+    ]
+  );
+
+  console.log(bannerTable.toString());
+
+  // ━━━ Core Web Vitals ━━━
+  console.log('\n' + color.bold('⚡ Core Web Vitals'));
+  const vitalsTable = new Table({
+    chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+    style: { 'padding-left': 2, 'padding-right': 2, border: ['grey'] },
+  });
+
+  vitalsTable.push(
+    [
+      { content: 'First Contentful Paint', colSpan: 1 },
+      { content: 'Largest Contentful Paint', colSpan: 1 },
+      { content: 'Time to Interactive', colSpan: 1 },
+      { content: 'Cumulative Layout Shift', colSpan: 1 },
+    ],
+    [
+      `${color.bold(formatTime(avgFCP))}\n${getPerformanceRating('fcp', avgFCP)}`,
+      `${color.bold(formatTime(avgLCP))}\n${getPerformanceRating('lcp', avgLCP)}`,
+      `${color.bold(formatTime(avgTTI))}\n${getPerformanceRating('tti', avgTTI)}`,
+      `${color.bold(avgCLS.toFixed(3))}\n${getPerformanceRating('cls', avgCLS)}`,
+    ]
+  );
+
+  console.log(vitalsTable.toString());
+
+  // ━━━ Resource Breakdown ━━━
+  console.log('\n' + color.bold('📦 Resource Breakdown'));
+  
+  const totalFiles = jsFiles + cssFiles + imageFiles + fontFiles + otherFiles;
+  const jsPercentage = totalSize > 0 ? (jsSize / totalSize) * 100 : 0;
+  const cssPercentage = totalSize > 0 ? (cssSize / totalSize) * 100 : 0;
+  const imagePercentage = totalSize > 0 ? (imageSize / totalSize) * 100 : 0;
+  const fontPercentage = totalSize > 0 ? (fontSize / totalSize) * 100 : 0;
+  const otherPercentage = totalSize > 0 ? (otherSize / totalSize) * 100 : 0;
+
+  const resourceTable = new Table({
+    chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+    style: { 'padding-left': 2, 'padding-right': 2, border: ['grey'] },
+  });
+
+  resourceTable.push(
+    [
+      { content: 'Type', colSpan: 1 },
+      { content: 'Size', colSpan: 1 },
+      { content: 'Files', colSpan: 1 },
+      { content: '% of Total', colSpan: 1 },
+    ],
+    [
+      color.cyan('JavaScript'),
+      formatBytes(jsSize * 1024),
+      Math.round(jsFiles).toString(),
+      `${jsPercentage.toFixed(1)}%`,
+    ],
+    [
+      color.cyan('CSS'),
+      formatBytes(cssSize * 1024),
+      Math.round(cssFiles).toString(),
+      `${cssPercentage.toFixed(1)}%`,
+    ],
+    [
+      color.cyan('Images'),
+      formatBytes(imageSize * 1024),
+      Math.round(imageFiles).toString(),
+      `${imagePercentage.toFixed(1)}%`,
+    ],
+    [
+      color.cyan('Fonts'),
+      formatBytes(fontSize * 1024),
+      Math.round(fontFiles).toString(),
+      `${fontPercentage.toFixed(1)}%`,
+    ],
+    [
+      color.cyan('Other'),
+      formatBytes(otherSize * 1024),
+      Math.round(otherFiles).toString(),
+      `${otherPercentage.toFixed(1)}%`,
+    ],
+    [
+      color.bold('Total'),
+      color.bold(formatBytes(totalSize * 1024)),
+      color.bold(Math.round(totalFiles).toString()),
+      color.bold('100%'),
+    ]
+  );
+
+  console.log(resourceTable.toString());
+
+  // ━━━ Performance Impact Summary ━━━
+  console.log('\n' + color.bold('📊 Performance Impact Summary'));
+  const summaryTable = new Table({
+    chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+    style: { 'padding-left': 2, 'padding-right': 2, border: ['grey'] },
+  });
+
+  const layoutStability = avgCLS === 0 ? 'Perfect' : avgCLS < 0.1 ? 'Good' : avgCLS < 0.25 ? 'Fair' : 'Poor';
+
+  summaryTable.push(
+    ['Loading Strategy', color.bold(isBundled ? 'Bundled' : 'External')],
+    ['Render Performance', color.bold(formatTime(avgBannerVisibility))],
+    ['Network Overhead', color.bold(formatBytes(avgNetworkImpact * 1024))],
+    ['Main Thread Impact', color.bold(formatTime(avgTBT))],
+    ['Layout Stability', color.bold(layoutStability)],
+    ['User Disruption', color.bold(`${avgViewportCoverage.toFixed(1)}%`)],
+  );
+
+  console.log(summaryTable.toString());
+
+  // ━━━ Network Chart (Waterfall) ━━━
+  console.log('\n' + color.bold('🌐 Network Chart'));
+  
+  // Get first iteration's resources for waterfall
+  const firstResult = results[0];
+  if (firstResult && firstResult.resources) {
+    const allResources = [
+      ...firstResult.resources.scripts.map(r => ({ ...r, type: 'script' })),
+      ...firstResult.resources.styles.map(r => ({ ...r, type: 'style' })),
+      ...firstResult.resources.images.map(r => ({ ...r, type: 'image' })),
+      ...firstResult.resources.fonts.map(r => ({ ...r, type: 'font' })),
+      ...firstResult.resources.other.map(r => ({ ...r, type: 'other' })),
+    ].sort((a, b) => a.startTime - b.startTime);
+
+    // Take top 10 resources for waterfall
+    const topResources = allResources.slice(0, 10);
+    
+    if (topResources.length > 0) {
+      const maxEndTime = Math.max(...topResources.map(r => r.startTime + r.duration));
+      const chartWidth = 60; // Width of the waterfall bars
+      
+      const waterfallTable = new Table({
+        chars: { mid: '', 'left-mid': '', 'mid-mid': '', 'right-mid': '' },
+        colWidths: [25, chartWidth + 10],
+        style: { 'padding-left': 1, 'padding-right': 1, border: ['grey'] },
+        wordWrap: true,
+      });
+
+      waterfallTable.push([
+        color.dim('Resource'),
+        color.dim('Timeline (0ms ───────────────────────────► ' + formatTime(maxEndTime) + ')'),
+      ]);
+
+      for (const resource of topResources) {
+        const fileName = resource.name.split('/').pop() || resource.name;
+        const shortName = fileName.length > 23 ? fileName.substring(0, 20) + '...' : fileName;
+        
+        const startPos = Math.floor((resource.startTime / maxEndTime) * chartWidth);
+        const barLength = Math.max(1, Math.floor((resource.duration / maxEndTime) * chartWidth));
+        
+        const emptyBefore = ' '.repeat(startPos);
+        const bar = '█'.repeat(barLength);
+        const durationLabel = resource.duration > maxEndTime * 0.1 ? formatTime(resource.duration) : '';
+        
+        let barColor = color.blue;
+        if (resource.isThirdParty) barColor = color.yellow;
+        if (resource.isCookieService) barColor = color.red;
+        
+        waterfallTable.push([
+          color.dim(shortName),
+          emptyBefore + barColor(bar) + ' ' + color.dim(durationLabel),
+        ]);
+      }
+
+      console.log(waterfallTable.toString());
+    }
+  }
+
+  // ━━━ Resource Details ━━━
+  console.log('\n' + color.bold('📋 Resource Details'));
+  
+  // Aggregate resource data across all results
+  const aggregatedResources: Array<{
+    name: string;
+    type: string;
+    source: string;
+    size: number;
+    duration: number;
+    tags: string[];
+  }> = [];
+
+  // Use first result for resource list (assuming resources are consistent)
+  const sampleResult = results[0];
+  if (sampleResult && sampleResult.resources) {
+    const allSampleResources = [
+      ...sampleResult.resources.scripts.map(r => ({ ...r, type: 'JavaScript' })),
+      ...sampleResult.resources.styles.map(r => ({ ...r, type: 'CSS' })),
+      ...sampleResult.resources.images.map(r => ({ ...r, type: 'Image' })),
+      ...sampleResult.resources.fonts.map(r => ({ ...r, type: 'Font' })),
+      ...sampleResult.resources.other.map(r => ({ ...r, type: 'Other' })),
+    ];
+
+    // Calculate averages for each resource
+    for (const sampleResource of allSampleResources) {
+      const resourceName = sampleResource.name;
+      
+      // Find this resource in all results and average the values
+      const avgSize = results.reduce((sum, result) => {
+        const allResources = [
+          ...result.resources.scripts,
+          ...result.resources.styles,
+          ...result.resources.images,
+          ...result.resources.fonts,
+          ...result.resources.other,
+        ];
+        const found = allResources.find(r => r.name === resourceName);
+        return sum + (found ? found.size : 0);
+      }, 0) / results.length;
+
+      const avgDuration = results.reduce((sum, result) => {
+        const allResources = [
+          ...result.resources.scripts,
+          ...result.resources.styles,
+          ...result.resources.images,
+          ...result.resources.fonts,
+          ...result.resources.other,
+        ];
+        const found = allResources.find(r => r.name === resourceName);
+        return sum + (found ? found.duration : 0);
+      }, 0) / results.length;
+
+      const source = sampleResource.isThirdParty 
+        ? (sampleResource.isCookieService ? 'Cookie Service' : 'Third-Party') 
+        : 'Bundled';
+      
+      const tags = [];
+      if (!sampleResource.isThirdParty) tags.push('bundled');
+      if (sampleResource.isThirdParty) tags.push('third-party');
+      if (sampleResource.isCookieService) tags.push('cookie-service');
+      if ('isDynamic' in sampleResource && sampleResource.isDynamic) tags.push('dynamic');
+      
+      // Add core/other categorization for bundled scripts
+      if (!sampleResource.isThirdParty && sampleResource.type === 'JavaScript') {
+        tags.push('core');
+      }
+
+      aggregatedResources.push({
+        name: resourceName,
+        type: sampleResource.type,
+        source,
+        size: avgSize,
+        duration: avgDuration,
+        tags,
+      });
+    }
+  }
+
+  // Sort by size (descending) and take top 10
+  const topResources = aggregatedResources
+    .sort((a, b) => b.size - a.size)
+    .slice(0, 10);
+
+  if (topResources.length > 0) {
+    const detailsTable = new Table({
+      head: ['Resource Name', 'Type', 'Source', 'Size', 'Duration', 'Tags'],
+      colWidths: [25, 12, 15, 10, 10, 20],
+      style: { head: ['cyan'], border: ['grey'] },
+      wordWrap: true,
+    });
+
+    for (const resource of topResources) {
+      const fileName = resource.name.split('/').pop() || resource.name;
+      const shortName = fileName.length > 23 ? fileName.substring(0, 20) + '...' : fileName;
+      
+      let sourceColor = color.green;
+      if (resource.source === 'Third-Party') sourceColor = color.yellow;
+      if (resource.source === 'Cookie Service') sourceColor = color.red;
+
+      detailsTable.push([
+        shortName,
+        resource.type,
+        sourceColor(resource.source),
+        formatBytes(resource.size * 1024),
+        color.blue(formatTime(resource.duration)),
+        resource.tags.join(', '),
+      ]);
+    }
+
+    console.log(detailsTable.toString());
+  }
 }
 
-// Function to transform BenchmarkScores to match oRPC contract
-function transformScoresToContract(scores: BenchmarkScores): BenchmarkResult['scores'] {
-  return {
-    totalScore: scores.totalScore,
-    grade: scores.grade,
-    categoryScores: scores.categoryScores,
-    categories: scores.categories.map(category => ({
-      name: category.name,
-      score: category.score,
-      maxScore: category.maxScore,
-      weight: category.weight,
-      details: category.details.map(detail => ({
-        metric: detail.name,
-        value: detail.score,
-        score: detail.score,
-        maxScore: detail.maxScore,
-        reason: detail.reason,
-      })),
-      status: mapStatusToContract(category.status),
-    })),
-    insights: scores.insights,
-    recommendations: scores.recommendations,
-  };
-}
-
-// Function to map status values from CLI format to contract format
-function mapStatusToContract(status: 'excellent' | 'good' | 'fair' | 'poor'): 'excellent' | 'good' | 'fair' | 'poor' {
-  // Now that both CLI and contract use the same format, just return as is
-  return status;
-}
-
-export async function resultsCommand(logger: CliLogger) {
+export async function resultsCommand(logger: CliLogger, appName?: string) {
   logger.clear();
   await setTimeout(1000);
 
-  p.intro(`${color.bgCyan(color.black(" results "))}`);
-
-  // Check database configuration
-  const databaseUrl =
-    process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL;
-  const authToken =
-    process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN;
-
-  if (
-    databaseUrl?.startsWith("libsql://") ||
-    databaseUrl?.startsWith("wss://")
-  ) {
-    logger.info(
-      `🌐 Using Turso remote database: ${color.cyan(
-        `${databaseUrl.split("@")[0]}@***`
-      )}`
-    );
-    if (!authToken) {
-      logger.warn("⚠️  No auth token found. Database operations may fail.");
-    }
-  } else if (databaseUrl?.startsWith("file:")) {
-    logger.info(`📁 Using file database: ${color.cyan(databaseUrl)}`);
-  } else if (process.env.VERCEL || process.env.NODE_ENV === "production") {
-    logger.warn("⚠️  Using in-memory database. Data will not persist!");
-  } else {
-    logger.info(
-      `📁 Using local SQLite database: ${color.cyan("benchmarks.db")}`
-    );
-  }
+  p.intro(`${color.bgCyan(color.black(" results "))} ${color.dim('Compare benchmarks')}`);
 
   const resultsDir = "benchmarks";
-  logger.step("Aggregating results...");
   const results = await aggregateResults(logger, resultsDir);
 
   if (Object.keys(results).length === 0) {
@@ -767,12 +805,61 @@ export async function resultsCommand(logger: CliLogger) {
     return;
   }
 
-  logger.info(
+  logger.debug(
     `Found results for ${Object.keys(results).length} apps: ${Object.keys(
       results
     ).join(", ")}`
   );
 
+  // If a specific app is requested, filter to that
+  let selectedApps: string[];
+  
+  if (appName && appName !== '__all__') {
+    // Direct command with specific app
+    if (!results[appName]) {
+      logger.error(`No results found for "${appName}"`);
+      logger.info(`Available apps: ${Object.keys(results).join(', ')}`);
+      return;
+    }
+    selectedApps = [appName];
+  } else if (appName === '__all__') {
+    // Show all results
+    selectedApps = Object.keys(results);
+  } else {
+    // Interactive mode - let user select which apps to view
+    const availableApps = Object.keys(results).sort((a, b) => {
+      if (a === 'baseline') return -1;
+      if (b === 'baseline') return 1;
+      return a.localeCompare(b);
+    });
+
+    const selected = await p.multiselect({
+      message: 'Select benchmarks to view (use space to toggle, all selected by default):',
+      options: availableApps.map((name) => ({
+        value: name,
+        label: name,
+        hint: `benchmarks/${name}`,
+      })),
+      initialValues: availableApps, // All selected by default
+      required: true,
+    });
+
+    if (p.isCancel(selected)) {
+      p.cancel('Operation cancelled');
+      return;
+    }
+
+    if (!Array.isArray(selected) || selected.length === 0) {
+      logger.warn('No benchmarks selected');
+      return;
+    }
+
+    selectedApps = selected;
+  }
+
+  logger.debug(`Viewing results for: ${selectedApps.join(', ')}`);
+
+  // Load configs for each app
   const appConfigs: Record<string, Config> = {};
   for (const appName of Object.keys(results)) {
     appConfigs[appName] = await loadConfigForApp(logger, appName);
@@ -800,7 +887,6 @@ export async function resultsCommand(logger: CliLogger) {
         cls: appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) / appResults.length,
         tbt: appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) / appResults.length,
         tti: appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) / appResults.length,
-        // NEW: Add Perfume.js metrics
         timeToFirstByte: appResults.reduce((a, b) => a + (b.timing.timeToFirstByte || 0), 0) / appResults.length,
         interactionToNextPaint: appResults[0]?.timing.interactionToNextPaint || null,
       },
@@ -820,7 +906,7 @@ export async function resultsCommand(logger: CliLogger) {
         thirdPartyRequests: appResults.reduce((a, b) => 
           a + b.resources.scripts.filter(s => s.isThirdParty).length, 0) / appResults.length,
         thirdPartySize: appResults.reduce((a, b) => a + b.size.thirdParty, 0) / appResults.length,
-        thirdPartyDomains: 5, // Default value
+        thirdPartyDomains: 5,
       },
       {
         cookieBannerDetected: appResults.some(r => r.timing.cookieBanner.detected),
@@ -828,7 +914,7 @@ export async function resultsCommand(logger: CliLogger) {
         cookieBannerCoverage: appResults.reduce((a, b) => a + b.timing.cookieBanner.viewportCoverage, 0) / appResults.length / 100,
       },
       {
-        domSize: 1500, // Default value
+        domSize: 1500,
         mainThreadBlocking: appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) / appResults.length,
         layoutShifts: appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) / appResults.length,
       },
@@ -838,122 +924,21 @@ export async function resultsCommand(logger: CliLogger) {
     );
   }
 
-  // Print scores
-  logger.info("\n📊 Benchmark Scores:");
-  for (const [appName, appScores] of Object.entries(scores)) {
-    logger.info(`\n${appName}:`);
-    printScores(appScores);
+  // Print detailed results for selected apps only
+  const baselineResults = results.baseline;
+  const sortedApps = selectedApps.sort((a, b) => {
+    if (a === 'baseline') return -1;
+    if (b === 'baseline') return 1;
+    return a.localeCompare(b);
+  });
+
+  for (const appName of sortedApps) {
+    printDetailedResults(appName, results[appName], scores[appName], baselineResults);
   }
 
-  // Save results to database
-  logger.step("Saving results to database...");
-  let savedCount = 0;
-  let errorCount = 0;
-
-  for (const [appName, appResults] of Object.entries(results)) {
-    try {
-      // Load config data for this app
-      const config = appConfigs[appName];
-
-      // Convert raw benchmark data to BenchmarkResult format
-      const benchmarkResult: BenchmarkResult = {
-        name: appName,
-        baseline: appName === "baseline",
-        cookieBannerConfig: {
-          selectors: config.cookieBanner.selectors,
-          serviceHosts: config.cookieBanner.serviceHosts,
-          waitForVisibility: config.cookieBanner.waitForVisibility,
-          measureViewportCoverage: config.cookieBanner.measureViewportCoverage,
-          expectedLayoutShift: config.cookieBanner.expectedLayoutShift,
-          serviceName: config.cookieBanner.serviceName,
-        },
-        techStack: config.techStack,
-        internationalization: config.internationalization,
-        source: config.source,
-        includes: Object.values(config.includes || {})
-          .flat()
-          .filter((v): v is string => typeof v === "string"),
-        company: config.company,
-        tags: config.tags || [],
-        details: appResults,
-        average: {
-          fcp: appResults.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
-            appResults.length,
-          lcp: appResults.reduce((a, b) => a + b.timing.largestContentfulPaint, 0) /
-            appResults.length,
-          cls: appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) /
-            appResults.length,
-          tbt: appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
-            appResults.length,
-          tti: appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
-            appResults.length,
-          scriptLoadTime: 0,
-          totalSize: appResults.reduce((a, b) => a + b.size.total, 0) /
-            appResults.length,
-          scriptSize: 0,
-          resourceCount: appResults.reduce((a, b) => a + b.resources.scripts.length, 0) /
-            appResults.length,
-          scriptCount: appResults.reduce((a, b) => a + b.resources.scripts.length, 0) /
-            appResults.length,
-          time: appResults.reduce((a, b) => a + b.duration, 0) / appResults.length,
-          thirdPartySize: appResults.reduce((a, b) => a + b.size.thirdParty, 0) /
-            appResults.length,
-          cookieServiceSize: appResults.reduce((a, b) => a + b.size.cookieServices, 0) /
-            appResults.length,
-          bannerVisibilityTime: appResults.reduce((a, b) => a + b.timing.cookieBanner.visibilityTime, 0) /
-            appResults.length,
-          viewportCoverage: appResults.reduce((a, b) => a + b.timing.cookieBanner.viewportCoverage, 0) /
-            appResults.length,
-          thirdPartyImpact: appResults.reduce((a, b) => a + b.timing.thirdParty.totalImpact, 0) /
-            appResults.length,
-          mainThreadBlocking: appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
-            appResults.length,
-          cookieBannerBlocking: appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.cookieBannerEstimate, 0) /
-            appResults.length,
-        },
-        scores: transformScoresToContract(scores[appName]),
-      };
-
-      await saveBenchmarkResult(logger, benchmarkResult);
-      logger.success(`Saved results for ${appName}`);
-      savedCount++;
-    } catch (error) {
-      logger.error(
-        `Failed to save results for ${appName}: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-      errorCount++;
-    }
-  }
-
-  // Print results table
-  printResults(results);
-
-  // Summary of database operations
-  if (savedCount > 0) {
-    logger.success(`Successfully saved ${savedCount} app(s) to database.`);
-  }
-  if (errorCount > 0) {
-    logger.warn(`Failed to save ${errorCount} app(s) to database.`);
-  }
-
-  if (
-    databaseUrl?.startsWith("libsql://") ||
-    databaseUrl?.startsWith("wss://")
-  ) {
-    logger.info(
-      `Results have been saved to Turso database: ${color.cyan(
-        `${databaseUrl.split("@")[0]}@***`
-      )}`
-    );
+  if (isAdminUser()) {
+    logger.outro(`\nDisplayed ${selectedApps.length} of ${Object.keys(results).length} benchmark(s) - Use ${color.cyan('cookiebench save')} to sync to database`);
   } else {
-    logger.info(
-      `Results have been saved to local database: ${color.cyan(
-        "benchmarks.db"
-      )} (in project root)`
-    );
+    logger.outro(`\nDisplayed ${selectedApps.length} of ${Object.keys(results).length} benchmark(s)`);
   }
-
-  logger.outro("Results aggregated and saved to database successfully!");
 }

@@ -35,13 +35,19 @@ async function findBenchmarkDirs(logger: CliLogger): Promise<string[]> {
 async function runSingleBenchmark(
 	logger: CliLogger,
 	appPath: string,
-	showScores = true
+	showScores = true,
+	iterationsOverride?: number
 ): Promise<boolean> {
 	const configPath = appPath ? join(appPath, 'config.json') : undefined;
 	const config = readConfig(configPath);
 	if (!config) {
 		logger.error(`Failed to read config.json for ${appPath || 'current directory'}`);
 		return false;
+	}
+
+	// Override iterations if provided
+	if (iterationsOverride !== undefined && iterationsOverride > 0) {
+		config.iterations = iterationsOverride;
 	}
 
 	try {
@@ -344,13 +350,71 @@ export async function benchmarkCommand(
 		return;
 	}
 
-	// Ask if user wants to see scores after each benchmark
-	const showScores = await p.confirm({
-		message: 'Show scores after each benchmark?',
+	// Load configs to get default iterations
+	const benchmarkConfigs = new Map<string, number>();
+	for (const benchmarkName of selectedBenchmarks) {
+		const benchmarkPath = join('benchmarks', benchmarkName);
+		const configPath = join(benchmarkPath, 'config.json');
+		const config = readConfig(configPath);
+		if (config) {
+			benchmarkConfigs.set(benchmarkName, config.iterations);
+		}
+	}
+
+	// Find the most common iteration count or first one
+	const defaultIterations =
+		benchmarkConfigs.size > 0
+			? Array.from(benchmarkConfigs.values())[0]
+			: 5;
+
+	// Show iteration counts for selected benchmarks
+	const iterationsList = Array.from(selectedBenchmarks)
+		.map((name) => {
+			const iterations = benchmarkConfigs.get(name) || '?';
+			return `${name}: ${iterations}`;
+		})
+		.join(', ');
+
+	logger.info(`Config iterations: ${color.dim(iterationsList)}`);
+
+	// Ask for iterations override
+	const iterationsInput = await p.text({
+		message: 'Number of iterations (press Enter to use config values):',
+		placeholder: `Default: ${defaultIterations}`,
+		defaultValue: '',
+		validate: (value) => {
+			if (value === '') return; // Empty is valid (use defaults)
+			const num = Number.parseInt(value, 10);
+			if (Number.isNaN(num) || num < 1) {
+				return 'Please enter a valid number greater than 0';
+			}
+		},
+	});
+
+	if (p.isCancel(iterationsInput)) {
+		p.cancel('Operation cancelled');
+		return;
+	}
+
+	// Parse iterations - if empty string, use undefined to let each benchmark use its config
+	const iterationsOverride =
+		iterationsInput === '' ? undefined : Number.parseInt(iterationsInput, 10);
+
+	if (iterationsOverride !== undefined) {
+		logger.info(
+			`Using ${color.bold(color.cyan(String(iterationsOverride)))} iterations for all benchmarks`
+		);
+	} else {
+		logger.info('Using iteration counts from each benchmark config');
+	}
+
+	// Ask if user wants to see results panel after completion
+	const showResults = await p.confirm({
+		message: 'Show results panel after completion?',
 		initialValue: true,
 	});
 
-	if (p.isCancel(showScores)) {
+	if (p.isCancel(showResults)) {
 		p.cancel('Operation cancelled');
 		return;
 	}
@@ -369,7 +433,8 @@ export async function benchmarkCommand(
 		const success = await runSingleBenchmark(
 			logger,
 			benchmarkPath,
-			showScores === true
+			false, // Don't show inline scores anymore
+			iterationsOverride
 		);
 
 		results.push({ name: benchmarkName, success });
@@ -398,6 +463,16 @@ export async function benchmarkCommand(
 		logger.warn(
 			`Failed benchmarks: ${failed.map((r) => r.name).join(', ')}`
 		);
+	}
+
+	// Show results panel if requested
+	if (showResults === true && results.some((r) => r.success)) {
+		logger.message('\n' + '═'.repeat(80) + '\n');
+		logger.info('Loading results panel...\n');
+		
+		// Dynamically import and run the results command
+		const { resultsCommand } = await import('./results.js');
+		await resultsCommand(logger);
 	}
 }
 

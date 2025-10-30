@@ -36,13 +36,16 @@ Run specific commands directly:
 # Run a benchmark
 cookiebench benchmark
 
-# View and aggregate results
+# View detailed benchmark results
 cookiebench results
 
-# View scores from existing results
+# View scores from existing results (available via CLI only)
 cookiebench scores
 
-# Manage database
+# Sync results to database (admin only)
+cookiebench save
+
+# Manage database (admin only)
 cookiebench db push
 ```
 
@@ -53,33 +56,129 @@ cookiebench db push
 Run performance benchmarks on configured applications.
 
 ```bash
-cookiebench benchmark [appPath]
+# Interactive mode - select multiple benchmarks to run
+cookiebench benchmark
+
+# Run a specific benchmark
+cookiebench benchmark benchmarks/with-c15t-nextjs
 ```
 
-The command will:
-1. Read `config.json` from the current directory or specified path
+**Interactive Multi-Select Mode:**
+
+When run without arguments, the command will:
+1. Scan the `benchmarks/` directory for available benchmarks
+2. Present a multi-select interface (use space to toggle selections)
+3. Show iteration counts from each config file
+4. Ask for iterations override (or press Enter to use config values)
+5. Ask if you want to show the results panel after completion
+6. Run selected benchmarks sequentially
+7. Show a summary of completed benchmarks
+8. Display the full results panel with all metrics (if enabled)
+
+**Single Benchmark Mode:**
+
+When a specific path is provided:
+1. Read `config.json` from the specified path
 2. Build and serve the Next.js app (or use remote URL if configured)
 3. Run benchmarks for the specified number of iterations
 4. Calculate performance scores
 5. Save results to `results.json`
+6. Display scores
+
+**Features:**
+- ✅ Multi-select with space bar toggle
+- ✅ View default iterations from config files
+- ✅ Override iterations for all benchmarks or use individual config values
+- ✅ Sequential execution with progress indicators
+- ✅ Automatic results panel display after completion (toggle on/off)
+- ✅ Comprehensive metrics: scores, insights, Core Web Vitals, resource breakdown, network waterfall
+- ✅ Error handling - continues to next benchmark on failure
+- ✅ Summary report at the end
+
+**Example:**
+```
+? Select benchmarks to run:
+  ◼ baseline
+  ◼ with-c15t-nextjs
+  ◼ with-cookieyes
+
+● info  Config iterations: baseline: 5, with-c15t-nextjs: 3, with-cookieyes: 5
+
+? Number of iterations (press Enter to use config values):
+› Default: 5
+
+  [Just press Enter to use config values, or type a number to override all]
+
+? Show results panel after completion? › Yes
+```
 
 ### results
 
-Aggregate and display benchmark results from multiple apps.
+View comprehensive benchmark results with detailed metrics and analysis.
 
 ```bash
+# Interactive mode - select which benchmarks to view (all selected by default)
 cookiebench results
+
+# View results for a specific app
+cookiebench results with-c15t-nextjs
+
+# View all results
+cookiebench results __all__
 ```
 
-Features:
+**Interactive Multi-Select Mode:**
+
+When run without arguments, you can:
+1. Select which benchmarks to view using space bar (all selected by default)
+2. Press Enter to view detailed results for selected benchmarks
+3. View baseline comparisons and deltas
+
+**Features:**
+
+Displays a detailed panel for each selected benchmark with:
+
+1. **🎯 Overall Score** - Color-coded score (0-100) with grade (Excellent/Good/Fair/Poor/Critical)
+   - 🟢 Green (90+) = Excellent
+   - 🟡 Yellow (70-89) = Good/Fair  
+   - 🔴 Red (<70) = Poor/Critical
+
+2. **💡 Key Insights** - Auto-generated bullet points highlighting strengths and areas for improvement
+
+3. **🍪 Cookie Banner Impact** - Banner visibility, viewport coverage, network impact, bundle strategy
+
+4. **⚡ Core Web Vitals** - FCP, LCP, TTI, CLS with performance ratings
+
+5. **📦 Resource Breakdown** - Detailed size analysis by type (JS, CSS, Images, Fonts, Other)
+
+6. **📊 Performance Impact Summary** - Loading strategy, render performance, network overhead, layout stability
+
+7. **🌐 Network Chart** - ASCII waterfall visualization showing resource loading timeline with color-coded bars
+
+8. **📋 Resource Details** - Sortable table with resource names, types, sources, sizes, and durations
+
+**Notes:**
+- Interactive multi-select UI - choose which benchmarks to view
+- All benchmarks selected by default for quick viewing
 - Aggregates results from all `results.json` files in benchmark directories
-- Displays comparison table with metrics and deltas from baseline
-- Calculates scores for each app
-- Saves results to database (if configured)
+- Calculates scores on-demand from raw metrics
+- Baseline comparison with delta values
+- No database writes (read-only)
+- Automatically shown after running benchmarks (if enabled)
+
+**Example:**
+```
+? Select benchmarks to view (use space to toggle, all selected by default):
+  ◼ baseline (benchmarks/baseline)
+  ◼ with-c15t-nextjs (benchmarks/with-c15t-nextjs)
+  ◼ with-cookieyes (benchmarks/with-cookieyes)
+
+● info  Viewing results for: baseline, with-c15t-nextjs, with-cookieyes
+```
 
 ### scores
 
-View calculated scores from existing benchmark results without re-running benchmarks.
+**Available via direct CLI only** - View calculated scores from existing benchmark results.
 
 ```bash
 # Interactive: choose which app to view
@@ -99,14 +198,40 @@ Features:
 - Shows insights and recommendations
 - Much faster than re-running full benchmarks
 
-Perfect for:
-- Reviewing benchmark results later
-- Comparing scores across different runs
-- Generating reports without re-benchmarking
+**Note:** This command is not shown in the interactive menu. Use the `results` command instead for a comprehensive view with all metrics, or access `scores` directly via CLI for score-only output.
+
+### save
+
+**🔒 Admin Only** - Sync benchmark results to database.
+
+```bash
+# Interactive: choose which benchmarks to save
+cookiebench save
+
+# Save a specific benchmark
+cookiebench save with-c15t-nextjs
+
+# Save all benchmarks (can also select in interactive mode)
+cookiebench save __all__
+```
+
+**Requirements:**
+- `CONSENT_ADMIN=true` environment variable must be set
+- `API_URL` for the database endpoint
+- `DATABASE_URL` and `DATABASE_AUTH_TOKEN` for database access
+
+Features:
+- Multi-select interface for choosing which benchmarks to sync
+- Sends results to API endpoint (oRPC)
+- Persists to Turso/SQLite database
+- Confirmation prompt before syncing
+- Shows success/failure count
+
+**Note:** This command is hidden from the menu and unavailable unless you have admin access. Contact the Consent.io team for access credentials if needed.
 
 ### db
 
-Manage the benchmark database.
+**🔒 Admin Only** - Manage the benchmark database.
 
 ```bash
 # Push database schema
@@ -185,13 +310,40 @@ To benchmark a remote URL instead of building locally:
 ## Environment Variables
 
 ```bash
-# Database configuration (optional)
+# Logging level (optional, default: info)
+LOG_LEVEL=debug  # error | warn | info | debug
+# Note: Use LOG_LEVEL=debug to see detailed processing information
+
+# Admin access (required for save and db commands)
+CONSENT_ADMIN=true
+
+# Database configuration (required for save command)
 DATABASE_URL=libsql://your-turso-db.turso.io
 DATABASE_AUTH_TOKEN=your-auth-token
 
-# API endpoint for saving results (optional)
+# API endpoint for saving results (required for save command)
 API_URL=http://localhost:3000
 ```
+
+### Admin Commands
+
+Some commands require admin access and are only available when `CONSENT_ADMIN=true` is set:
+
+- `save` - Sync benchmark results to database (admin only)
+- `db` - Manage database schema and migrations (admin only)
+
+**For Consent.io team members:**
+```bash
+# Enable admin mode
+export CONSENT_ADMIN=true
+
+# Now admin commands are available
+cookiebench save
+cookiebench db push
+```
+
+**For public users:**
+The `benchmark`, `results`, and `scores` commands work without admin access. Admin commands will be hidden from the menu and show an error if attempted.
 
 ## Output
 

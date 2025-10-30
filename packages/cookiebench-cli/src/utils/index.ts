@@ -4,6 +4,7 @@ import type { Config } from "../types";
 
 export * from './logger';
 export * from './scoring';
+export * from './auth';
 
 export function readConfig(configName = "config"): Config | null {
   try {

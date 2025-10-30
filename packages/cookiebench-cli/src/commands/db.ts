@@ -4,7 +4,7 @@ import { join, dirname } from 'node:path';
 import { existsSync } from 'node:fs';
 import * as p from '@clack/prompts';
 import color from 'picocolors';
-import type { CliLogger } from '../utils';
+import { isAdminUser, type CliLogger } from '../utils';
 
 const DB_PACKAGE_PATH = join(process.cwd(), 'packages', 'db');
 const DRIZZLE_CONFIG_PATH = join(DB_PACKAGE_PATH, 'drizzle.config.ts');
@@ -38,6 +38,12 @@ function runDrizzleCommand(logger: CliLogger, command: string): void {
 }
 
 export async function dbCommand(logger: CliLogger, subcommand?: string) {
+	// Double-check admin access (safeguard)
+	if (!isAdminUser()) {
+		logger.error('This command requires admin access');
+		process.exit(1);
+	}
+
 	logger.clear();
 	await setTimeout(1000);
 
