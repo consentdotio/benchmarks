@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
-import { ReactNode } from 'react';
+import type { Metadata } from "next";
+import { ReactNode } from "react";
 
 export const metadata: Metadata = {
-	title: 'benchmark',
+	title: "benchmark",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
 					async
 				/>
 				<script
-					dangerouslySetInnerHTML={{ __html: 'function OptanonWrapper() {}' }}
+					dangerouslySetInnerHTML={{ __html: "function OptanonWrapper() {}" }}
 				/>
 			</head>
 			<body>{children}</body>

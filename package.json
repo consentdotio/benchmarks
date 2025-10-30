@@ -2,26 +2,27 @@
 	"name": "cookiebench",
 	"private": true,
 	"scripts": {
-		"build": "turbo run build",
-		"dev": "turbo run dev --filter=benchmarks",
-		"lint": "turbo run lint",
-		"fmt": "turbo fmt",
-		"check-types": "turbo run check-types",
 		"benchmark": "turbo run benchmark",
-		"results": "pnpm exec benchmark-cli results",
-		"db": "pnpm exec benchmark-cli db"
+		"build": "turbo run build",
+		"check-types": "turbo run check-types",
+		"db": "pnpm exec benchmark-cli db",
+		"dev": "turbo run dev --filter=benchmarks",
+		"fmt": "turbo fmt",
+		"lint": "turbo run lint",
+		"results": "pnpm exec benchmark-cli results"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
-		"@c15t/translations": "^1.0.0",
+		"@biomejs/biome": "2.3.2",
+		"@c15t/translations": "^1.7.0",
 		"@cookiebench/cli": "workspace:*",
-		"@playwright/test": "^1.42.1",
+		"@playwright/test": "^1.56.1",
 		"cli-table3": "^0.6.5",
-		"drizzle-kit": "^0.31.1",
-		"p-limit": "^6.2.0",
-		"pretty-ms": "^9.2.0",
-		"turbo": "^2.5.3",
-		"typescript": "5.8.3"
+		"drizzle-kit": "^0.31.6",
+		"p-limit": "^7.2.0",
+		"pretty-ms": "^9.3.0",
+		"turbo": "^2.5.8",
+		"typescript": "5.9.3",
+		"ultracite": "^6.0.5"
 	},
 	"packageManager": "pnpm@9.0.0",
 	"engines": {

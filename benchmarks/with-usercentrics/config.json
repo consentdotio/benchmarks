@@ -1,40 +1,40 @@
 {
-	"$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
-	"name": "with-usercentrics",
-	"id": "usercentrics-banner",
-	"iterations": 20,
-	"cookieBanner": {
-		"selectors": ["#usercentrics-cmp-ui"],
-		"serviceHosts": ["v1.api.service.cmp.usercentrics.eu"],
-		"waitForVisibility": true,
-		"measureViewportCoverage": true,
-		"expectedLayoutShift": true,
-		"serviceName": "Usercentrics"
-	},
-	"internationalization": {
-		"detection": "manual",
-		"stringLoading": "server"
-	},
-	"techStack": {
-		"bundler": "unknown",
-		"bundleType": "iffe",
-		"frameworks": [],
-		"languages": ["javascript"],
-		"packageManager": "unknown",
-		"typescript": false
-	},
-	"source": {
-		"isOpenSource": false,
-		"license": "proprietary",
-		"website": "https://www.usercentrics.com"
-	},
-	"company": {
-		"name": "Usercentrics",
-		"website": "https://www.usercentrics.com",
-		"avatar": "https://pbs.twimg.com/profile_images/1834148528311947265/nzF56z43_400x400.jpg"
-	},
-	"includes": {
-		"backend": ["proprietary"],
-		"components": ["javascript"]
-	}
+  "$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+  "name": "with-usercentrics",
+  "id": "usercentrics-banner",
+  "iterations": 20,
+  "cookieBanner": {
+    "selectors": ["#usercentrics-cmp-ui"],
+    "serviceHosts": ["v1.api.service.cmp.usercentrics.eu"],
+    "waitForVisibility": true,
+    "measureViewportCoverage": true,
+    "expectedLayoutShift": true,
+    "serviceName": "Usercentrics"
+  },
+  "internationalization": {
+    "detection": "manual",
+    "stringLoading": "server"
+  },
+  "techStack": {
+    "bundler": "unknown",
+    "bundleType": "iffe",
+    "frameworks": [],
+    "languages": ["javascript"],
+    "packageManager": "unknown",
+    "typescript": false
+  },
+  "source": {
+    "isOpenSource": false,
+    "license": "proprietary",
+    "website": "https://www.usercentrics.com"
+  },
+  "company": {
+    "name": "Usercentrics",
+    "website": "https://www.usercentrics.com",
+    "avatar": "https://pbs.twimg.com/profile_images/1834148528311947265/nzF56z43_400x400.jpg"
+  },
+  "includes": {
+    "backend": ["proprietary"],
+    "components": ["javascript"]
+  }
 }

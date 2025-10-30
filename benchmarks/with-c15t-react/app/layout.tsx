@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata } from "next";
 
 /*
  * If you're using Next.js, we recommend installing the @c15t/nextjs package.
@@ -10,11 +10,11 @@ import {
 	ConsentManagerDialog,
 	ConsentManagerProvider,
 	CookieBanner,
-} from '@c15t/react';
-import type { ReactNode } from 'react';
+} from "@c15t/react";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-	title: 'benchmark',
+	title: "benchmark",
 };
 
 export default function RootLayout({
@@ -27,8 +27,8 @@ export default function RootLayout({
 			<body>
 				<ConsentManagerProvider
 					options={{
-						mode: 'c15t',
-						backendURL: 'https://consent-io-europe-benchmarks.c15t.dev',
+						mode: "c15t",
+						backendURL: "https://consent-io-europe-benchmarks.c15t.dev",
 					}}
 				>
 					<CookieBanner />
