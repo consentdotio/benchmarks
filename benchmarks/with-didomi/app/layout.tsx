@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { DidomiSDK, type IDidomiObject } from '@didomi/react';
-import { type ReactNode, useCallback, useState } from 'react';
+import { DidomiSDK, type IDidomiObject } from "@didomi/react";
+import { type ReactNode, useCallback, useState } from "react";
 
 export default function RootLayout({
 	children,
@@ -13,34 +13,34 @@ export default function RootLayout({
 	const onDidomiReady = useCallback((didomi: IDidomiObject) => {
 		setDidomiObject(didomi);
 		console.log(
-			'Didomi Ready - Is consent required?:',
+			"Didomi Ready - Is consent required?:",
 			didomi.isConsentRequired()
 		);
 		console.log(
-			'Didomi Ready - Consent for vendor IAB 1:',
+			"Didomi Ready - Consent for vendor IAB 1:",
 			didomi.getUserConsentStatusForVendor(1)
 		);
 		console.log(
-			'Didomi Ready - Consent for vendor IAB 1 and cookies:',
-			didomi.getUserConsentStatus('cookies', 1)
+			"Didomi Ready - Consent for vendor IAB 1 and cookies:",
+			didomi.getUserConsentStatus("cookies", 1)
 		);
 	}, []);
 
 	const onConsentChanged = useCallback(
 		(cwtToken: string) => {
 			if (!didomiObject) return;
-			console.log('Didomi Consent Changed - cwtToken:', cwtToken);
+			console.log("Didomi Consent Changed - cwtToken:", cwtToken);
 			console.log(
-				'Didomi Consent Changed - Is consent required?:',
+				"Didomi Consent Changed - Is consent required?:",
 				didomiObject.isConsentRequired()
 			);
 			console.log(
-				'Didomi Consent Changed - Consent for vendor IAB 1:',
+				"Didomi Consent Changed - Consent for vendor IAB 1:",
 				didomiObject.getUserConsentStatusForVendor(1)
 			);
 			console.log(
-				'Didomi Consent Changed - Consent for vendor IAB 1 and cookies:',
-				didomiObject.getUserConsentStatus('cookies', 1)
+				"Didomi Consent Changed - Consent for vendor IAB 1 and cookies:",
+				didomiObject.getUserConsentStatus("cookies", 1)
 			);
 		},
 		[didomiObject]
@@ -56,8 +56,8 @@ export default function RootLayout({
 					embedTCFStub={true}
 					onReady={onDidomiReady}
 					onConsentChanged={onConsentChanged}
-					onNoticeShown={() => console.log('Didomi Notice Shown')}
-					onNoticeHidden={() => console.log('Didomi Notice Hidden')}
+					onNoticeShown={() => console.log("Didomi Notice Shown")}
+					onNoticeHidden={() => console.log("Didomi Notice Hidden")}
 				/>
 				{children}
 			</body>
