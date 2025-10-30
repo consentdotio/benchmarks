@@ -224,3 +224,55 @@ export interface CoreWebVitals {
 	totalBytes?: number;
 }
 
+// Perfume.js metrics types
+export interface PerfumeMetrics {
+	// Core Web Vitals (replacing playwright-performance-metrics)
+	firstPaint: number;
+	firstContentfulPaint: number;
+	largestContentfulPaint: number;
+	cumulativeLayoutShift: number;
+	totalBlockingTime: number;
+
+	// Enhanced metrics (new)
+	firstInputDelay: number | null;
+	interactionToNextPaint: number | null;
+	timeToFirstByte: number;
+
+	// Detailed navigation timing
+	navigationTiming: {
+		timeToFirstByte: number;
+		domInteractive: number;
+		domContentLoadedEventStart: number;
+		domContentLoadedEventEnd: number;
+		domComplete: number;
+		loadEventStart: number;
+		loadEventEnd: number;
+	};
+
+	// Network information (optional)
+	networkInformation?: {
+		effectiveType: string;
+		downlink: number;
+		rtt: number;
+		saveData: boolean;
+	};
+}
+
+export interface WindowWithPerfumeMetrics extends Window {
+	__perfumeMetrics?: Record<
+		string,
+		{
+			value: number;
+			rating: string;
+			attribution?: unknown;
+			navigatorInformation?: {
+				deviceMemory?: number;
+				hardwareConcurrency?: number;
+				isLowEndDevice?: boolean;
+				isLowEndExperience?: boolean;
+				serviceWorkerStatus?: string;
+			};
+		}
+	>;
+}
+

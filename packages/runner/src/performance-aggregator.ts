@@ -6,10 +6,17 @@ import type {
 	NetworkRequest,
 	NetworkMetrics,
 	ResourceTimingData,
+	PerfumeMetrics,
 } from '@consentio/benchmark';
+import type { Logger } from '@c15t/logger';
 import type { BenchmarkDetails, BenchmarkResult } from './types';
 
 export class PerformanceAggregator {
+	private logger: Logger;
+
+	constructor(logger: Logger) {
+		this.logger = logger;
+	}
 	/**
 	 * Calculate Time to Interactive based on core web vitals and cookie banner interaction
 	 */
@@ -36,7 +43,8 @@ export class PerformanceAggregator {
 		networkRequests: NetworkRequest[],
 		networkMetrics: NetworkMetrics,
 		resourceMetrics: ResourceTimingData,
-		config: Config
+		config: Config,
+		perfumeMetrics: PerfumeMetrics | null
 	): BenchmarkDetails {
 		const tti = this.calculateTTI(coreWebVitals, cookieBannerData);
 
@@ -54,6 +62,22 @@ export class PerformanceAggregator {
 				largestContentfulPaint: coreWebVitals.largestContentfulPaint || 0,
 				timeToInteractive: tti,
 				cumulativeLayoutShift: coreWebVitals.cumulativeLayoutShift || 0,
+				// Enhanced metrics from Perfume.js
+				timeToFirstByte: perfumeMetrics?.timeToFirstByte || 0,
+				firstInputDelay: perfumeMetrics?.firstInputDelay || null,
+				interactionToNextPaint: perfumeMetrics?.interactionToNextPaint || null,
+				// Detailed navigation timing from Perfume.js
+				navigationTiming: perfumeMetrics?.navigationTiming || {
+					timeToFirstByte: 0,
+					domInteractive: 0,
+					domContentLoadedEventStart: 0,
+					domContentLoadedEventEnd: 0,
+					domComplete: 0,
+					loadEventStart: 0,
+					loadEventEnd: 0,
+				},
+				// Network information from Perfume.js
+				networkInformation: perfumeMetrics?.networkInformation || undefined,
 				cookieBanner: {
 					renderStart: cookieBannerData?.bannerRenderTime || 0,
 					renderEnd: cookieBannerData?.bannerInteractiveTime || 0,
@@ -160,8 +184,21 @@ export class PerformanceAggregator {
 					0
 				) / results.length,
 			speedIndex: 0, // Default value
-			timeToFirstByte: 0, // Default value
-			firstInputDelay: 0, // Default value
+			timeToFirstByte:
+				results.reduce(
+					(acc, curr) => acc + (curr.timing.timeToFirstByte || 0),
+					0
+				) / results.length,
+			firstInputDelay:
+				results.reduce(
+					(acc, curr) => acc + (curr.timing.firstInputDelay || 0),
+					0
+				) / results.length,
+			interactionToNextPaint:
+				results.reduce(
+					(acc, curr) => acc + (curr.timing.interactionToNextPaint || 0),
+					0
+				) / results.length,
 			cumulativeLayoutShift:
 				results.reduce(
 					(acc, curr) => acc + curr.timing.cumulativeLayoutShift,
@@ -248,7 +285,7 @@ export class PerformanceAggregator {
 		cookieBannerMetrics: CookieBannerMetrics,
 		config: Config
 	): void {
-		console.log('🔍 [DEBUG] Final cookie banner benchmark results:', {
+		this.logger.debug('Final cookie banner benchmark results:', {
 			fcp: finalMetrics.timing.firstContentfulPaint,
 			lcp: finalMetrics.timing.largestContentfulPaint,
 			cls: finalMetrics.timing.cumulativeLayoutShift,

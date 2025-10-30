@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { ChildProcess } from 'node:child_process';
+import type { PerfumeMetrics } from '@consentio/benchmark';
 
 // Re-export common types from benchmark package
 export type {
@@ -12,6 +13,7 @@ export type {
 	BundleStrategy,
 	ResourceTimingData,
 	CoreWebVitals,
+	PerfumeMetrics,
 } from '@consentio/benchmark';
 
 // Server types
@@ -46,6 +48,25 @@ export interface BenchmarkDetails {
 		largestContentfulPaint: number;
 		timeToInteractive: number;
 		cumulativeLayoutShift: number;
+		// Enhanced metrics from Perfume.js
+		timeToFirstByte: number;
+		firstInputDelay: number | null;
+		interactionToNextPaint: number | null;
+		navigationTiming: {
+			timeToFirstByte: number;
+			domInteractive: number;
+			domContentLoadedEventStart: number;
+			domContentLoadedEventEnd: number;
+			domComplete: number;
+			loadEventStart: number;
+			loadEventEnd: number;
+		};
+		networkInformation?: {
+			effectiveType: string;
+			downlink: number;
+			rtt: number;
+			saveData: boolean;
+		};
 		cookieBanner: {
 			renderStart: number;
 			renderEnd: number;
@@ -173,6 +194,7 @@ export interface BenchmarkResult {
 		speedIndex: number;
 		timeToFirstByte: number;
 		firstInputDelay: number;
+		interactionToNextPaint: number;
 		cumulativeLayoutShift: number;
 		domSize: number;
 		totalRequests: number;

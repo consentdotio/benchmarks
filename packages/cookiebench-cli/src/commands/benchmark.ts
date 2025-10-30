@@ -1,5 +1,8 @@
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
+import * as p from '@clack/prompts';
+import color from 'picocolors';
 import {
 	BenchmarkRunner,
 	buildAndServeNextApp,
@@ -7,25 +10,52 @@ import {
 	readConfig,
 	type ServerInfo,
 } from '@consentio/runner';
-import { calculateScores, printScores } from '../utils/scoring';
+import { calculateScores, printScores, type CliLogger } from '../utils';
 
-export async function benchmarkCommand(appPath?: string): Promise<void> {
+/**
+ * Find all benchmark directories
+ */
+async function findBenchmarkDirs(logger: CliLogger): Promise<string[]> {
+	const benchmarksDir = 'benchmarks';
 	try {
-		const config = readConfig(appPath ? join(appPath, 'config.json') : undefined);
-		if (!config) {
-			throw new Error('Failed to read config.json');
-		}
+		const entries = await readdir(benchmarksDir, { withFileTypes: true });
+		const dirs = entries
+			.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+			.map((entry) => entry.name);
+		return dirs;
+	} catch (error) {
+		logger.debug('Failed to read benchmarks directory:', error);
+		return [];
+	}
+}
+
+/**
+ * Run a single benchmark for a specific app
+ */
+async function runSingleBenchmark(
+	logger: CliLogger,
+	appPath: string,
+	showScores = true
+): Promise<boolean> {
+	const configPath = appPath ? join(appPath, 'config.json') : undefined;
+	const config = readConfig(configPath);
+	if (!config) {
+		logger.error(`Failed to read config.json for ${appPath || 'current directory'}`);
+		return false;
+	}
+
+	try {
 
 		let serverInfo: ServerInfo | null = null;
 		let benchmarkUrl: string;
 
 		// Check if remote benchmarking is enabled
 		if (config.remote?.enabled && config.remote.url) {
-			console.log(`🌐 Running remote benchmark against: ${config.remote.url}`);
+			logger.info(`🌐 Running remote benchmark against: ${config.remote.url}`);
 			benchmarkUrl = config.remote.url;
 		} else {
-			console.log('🏗️ Building and serving app locally...');
-			serverInfo = await buildAndServeNextApp(appPath);
+			logger.info('🏗️ Building and serving app locally...');
+			serverInfo = await buildAndServeNextApp(logger, appPath);
 			benchmarkUrl = serverInfo.url;
 		}
 
@@ -33,7 +63,7 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 
 		try {
 			// Create benchmark runner and run benchmarks
-			const runner = new BenchmarkRunner(config);
+			const runner = new BenchmarkRunner(config, logger);
 			const result = await runner.runBenchmarks(benchmarkUrl);
 
 			// Create app data for transparency scoring
@@ -128,7 +158,7 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 							(r) => r.cookieBanner.detected
 						);
 						if (!allDetected) {
-							console.log(
+							logger.warn(
 								'⚠️ [SCORING] Banner detection inconsistent or failed - marking as not detected'
 							);
 						}
@@ -140,7 +170,7 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 							(r) => r.cookieBanner.detected
 						);
 						if (!detectionSuccess) {
-							console.log(
+							logger.warn(
 								'⚠️ [SCORING] No banner detected in any iteration - applying penalty'
 							);
 							return null; // This signals failed detection for scoring
@@ -154,7 +184,7 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 
 						// If we have mixed results (some detected, some not), still penalize
 						if (hasNullValues) {
-							console.log(
+							logger.warn(
 								'⚠️ [SCORING] Inconsistent banner detection - applying penalty'
 							);
 							return null;
@@ -176,7 +206,7 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 							(r) => r.cookieBanner.detected
 						);
 						if (!detectionSuccess) {
-							console.log(
+							logger.warn(
 								'⚠️ [SCORING] Inconsistent detection - setting coverage to 0'
 							);
 							return 0; // No coverage score if detection failed
@@ -231,13 +261,15 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 			// Write results to file
 			const outputPath = join(cwd, 'results.json');
 			await writeFile(outputPath, JSON.stringify(resultsData, null, 2));
-			console.log(`✅ Benchmark results saved to ${outputPath}`);
+			logger.success(`Benchmark results saved to ${outputPath}`);
 
-			// Print scores if available
-			if (scores) {
-				console.log('📊 Benchmark Scores:');
+			// Print scores if requested
+			if (showScores && scores) {
+				logger.info('📊 Benchmark Scores:');
 				printScores(scores);
 			}
+
+			return true;
 		} finally {
 			// Only cleanup server if we started one
 			if (serverInfo) {
@@ -246,11 +278,126 @@ export async function benchmarkCommand(appPath?: string): Promise<void> {
 		}
 	} catch (error: unknown) {
 		if (error instanceof Error) {
-			console.error(`Error running benchmark: ${error.message}`);
+			logger.error(`Error running benchmark: ${error.message}`);
 		} else {
-			console.error('An unknown error occurred during benchmark');
+			logger.error('An unknown error occurred during benchmark');
 		}
+		return false;
+	}
+}
+
+/**
+ * Main benchmark command with multi-select support
+ */
+export async function benchmarkCommand(
+	logger: CliLogger,
+	appPath?: string
+): Promise<void> {
+	// If a specific app path is provided, run that benchmark directly
+	if (appPath) {
+		const success = await runSingleBenchmark(logger, appPath, true);
+		if (!success) {
+			process.exit(1);
+		}
+		return;
+	}
+
+	// Otherwise, show multi-select for available benchmarks
+	logger.clear();
+	await setTimeout(500);
+
+	p.intro(`${color.bgMagenta(color.white(' benchmark '))}`);
+
+	// Find available benchmarks
+	const availableBenchmarks = await findBenchmarkDirs(logger);
+
+	if (availableBenchmarks.length === 0) {
+		logger.error('No benchmarks found in the benchmarks/ directory');
+		logger.info(
+			'Create benchmark directories with config.json files to get started'
+		);
 		process.exit(1);
+	}
+
+	logger.info(
+		`Found ${availableBenchmarks.length} benchmark(s): ${color.cyan(availableBenchmarks.join(', '))}`
+	);
+
+	// Ask user to select benchmarks
+	const selectedBenchmarks = await p.multiselect({
+		message: 'Select benchmarks to run (use space to toggle):',
+		options: availableBenchmarks.map((name) => ({
+			value: name,
+			label: name,
+			hint: join('benchmarks', name),
+		})),
+		required: true,
+	});
+
+	if (p.isCancel(selectedBenchmarks)) {
+		p.cancel('Operation cancelled');
+		return;
+	}
+
+	if (!Array.isArray(selectedBenchmarks) || selectedBenchmarks.length === 0) {
+		logger.warn('No benchmarks selected');
+		return;
+	}
+
+	// Ask if user wants to see scores after each benchmark
+	const showScores = await p.confirm({
+		message: 'Show scores after each benchmark?',
+		initialValue: true,
+	});
+
+	if (p.isCancel(showScores)) {
+		p.cancel('Operation cancelled');
+		return;
+	}
+
+	// Run selected benchmarks sequentially
+	const results: Array<{ name: string; success: boolean }> = [];
+
+	for (let i = 0; i < selectedBenchmarks.length; i++) {
+		const benchmarkName = selectedBenchmarks[i];
+		const benchmarkPath = join('benchmarks', benchmarkName);
+
+		logger.info(
+			`\n${color.bold(color.cyan(`[${i + 1}/${selectedBenchmarks.length}]`))} Running benchmark: ${color.bold(benchmarkName)}`
+		);
+
+		const success = await runSingleBenchmark(
+			logger,
+			benchmarkPath,
+			showScores === true
+		);
+
+		results.push({ name: benchmarkName, success });
+
+		if (!success) {
+			logger.error(
+				`Failed to complete benchmark for ${benchmarkName}, continuing...`
+			);
+		}
+
+		// Add spacing between benchmarks
+		if (i < selectedBenchmarks.length - 1) {
+			logger.message('\n' + '─'.repeat(80) + '\n');
+		}
+	}
+
+	// Summary
+	logger.message('\n');
+	p.outro(
+		`${color.bold('Summary:')} ${results.filter((r) => r.success).length}/${results.length} benchmarks completed successfully`
+	);
+
+	// Show failed benchmarks if any
+	const failed = results.filter((r) => !r.success);
+	if (failed.length > 0) {
+		logger.warn(
+			`Failed benchmarks: ${failed.map((r) => r.name).join(', ')}`
+		);
 	}
 }
 

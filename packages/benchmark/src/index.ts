@@ -2,6 +2,7 @@
 export { CookieBannerCollector } from './cookie-banner-collector';
 export { NetworkMonitor } from './network-monitor';
 export { ResourceTimingCollector } from './resource-timing-collector';
+export { PerfumeCollector } from './perfume-collector';
 
 // Utilities
 export { determineBundleStrategy } from './bundle-strategy';
@@ -20,5 +21,7 @@ export type {
 	CoreWebVitals,
 	LayoutShiftEntry,
 	WindowWithCookieMetrics,
+	PerfumeMetrics,
+	WindowWithPerfumeMetrics,
 } from './types';
 

@@ -39,6 +39,9 @@ cookiebench benchmark
 # View and aggregate results
 cookiebench results
 
+# View scores from existing results
+cookiebench scores
+
 # Manage database
 cookiebench db push
 ```
@@ -73,6 +76,33 @@ Features:
 - Displays comparison table with metrics and deltas from baseline
 - Calculates scores for each app
 - Saves results to database (if configured)
+
+### scores
+
+View calculated scores from existing benchmark results without re-running benchmarks.
+
+```bash
+# Interactive: choose which app to view
+cookiebench scores
+
+# View scores for a specific app
+cookiebench scores with-c15t-nextjs
+
+# View scores for all apps
+cookiebench scores __all__
+```
+
+Features:
+- Reads existing `results.json` files from benchmark directories
+- Uses pre-calculated scores if available, or calculates them on-demand
+- Displays detailed score breakdowns by category
+- Shows insights and recommendations
+- Much faster than re-running full benchmarks
+
+Perfect for:
+- Reviewing benchmark results later
+- Comparing scores across different runs
+- Generating reports without re-benchmarking
 
 ### db
 

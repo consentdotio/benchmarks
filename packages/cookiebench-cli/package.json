@@ -18,12 +18,16 @@
 		"start": "node ./dist/index.mjs"
 	},
 	"dependencies": {
+		"@c15t/logger": "^1.0.0",
 		"@clack/prompts": "^1.0.0-alpha.0",
 		"@consentio/benchmark": "workspace:*",
 		"@consentio/runner": "workspace:*",
+		"@types/figlet": "^1.7.0",
 		"cli-table3": "^0.6.3",
 		"dotenv": "^16.5.0",
-		"picocolors": "^1.0.0"
+		"figlet": "^1.9.3",
+		"picocolors": "^1.0.0",
+		"pretty-ms": "^9.2.0"
 	},
 	"devDependencies": {
 		"@rsdoctor/rspack-plugin": "^1.1.3",

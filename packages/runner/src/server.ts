@@ -1,15 +1,17 @@
 import { spawn } from 'node:child_process';
+import type { Logger } from '@c15t/logger';
 import { getPackageManager } from './utils';
 import type { ServerInfo } from './types';
 
 export async function buildAndServeNextApp(
+	logger: Logger,
 	appPath?: string
 ): Promise<ServerInfo> {
 	const pm = await getPackageManager();
 	const cwd = appPath || process.cwd();
 
 	// Build the app
-	console.log('[Build] Building Next.js app...');
+	logger.info('Building Next.js app...');
 	const buildProcess = spawn(pm.command, [...pm.args, 'build'], {
 		cwd,
 		stdio: 'inherit',
@@ -26,9 +28,9 @@ export async function buildAndServeNextApp(
 	});
 
 	// Start the server
-	console.log('[Build] Starting Next.js server...');
+	logger.info('Starting Next.js server...');
 	const port = Math.floor(Math.random() * (9000 - 3000 + 1)) + 3000;
-	console.log('command', [
+	logger.debug('Server command:', [
 		...pm.args,
 		'start',
 		'--',
@@ -53,7 +55,7 @@ export async function buildAndServeNextApp(
 		try {
 			const response = await fetch(url);
 			if (response.ok) {
-				console.log('[Build] Server is ready!');
+				logger.success('Server is ready!');
 				return { serverProcess, url };
 			}
 		} catch {

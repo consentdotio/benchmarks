@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import Table from 'cli-table3';
 import prettyMilliseconds from 'pretty-ms';
 import { config } from 'dotenv';
-import { calculateScores, printScores } from '../utils/scoring';
+import { calculateScores, printScores, type CliLogger } from '../utils';
 import type { BenchmarkScores } from '../types';
 import type { Config } from '@consentio/runner';
 
@@ -16,12 +16,12 @@ config({ path: ".env.local" });
 config({ path: "www/.env.local" }); // Also check www directory
 
 // Function to save benchmark result via oRPC endpoint
-async function saveBenchmarkResult(result: BenchmarkResult): Promise<void> {
+async function saveBenchmarkResult(logger: CliLogger, result: BenchmarkResult): Promise<void> {
   const apiUrl = process.env.API_URL || "http://localhost:3000";
   const endpoint = `${apiUrl}/api/orpc/benchmarks/save`;
 
   try {
-    p.log.info(`Attempting to save ${result.name} to ${endpoint}`);
+    logger.info(`Attempting to save ${result.name} to ${endpoint}`);
     
     const response = await fetch(endpoint, {
       method: "POST",
@@ -37,17 +37,17 @@ async function saveBenchmarkResult(result: BenchmarkResult): Promise<void> {
     }
 
     const responseData = await response.json();
-    p.log.success(
+    logger.success(
       `Saved benchmark result for ${result.name} (App ID: ${responseData.appId})`
     );
   } catch (error) {
     if (error instanceof Error) {
-      p.log.error(`Failed to save benchmark result for ${result.name}: ${error.message}`);
+      logger.error(`Failed to save benchmark result for ${result.name}: ${error.message}`);
       if (error.message.includes('fetch failed')) {
-        p.log.error(`Connection failed. Is the server running on ${apiUrl}?`);
+        logger.error(`Connection failed. Is the server running on ${apiUrl}?`);
       }
     } else {
-      p.log.error(`Failed to save benchmark result for ${result.name}: Unknown error`);
+      logger.error(`Failed to save benchmark result for ${result.name}: Unknown error`);
     }
     throw error;
   }
@@ -143,6 +143,25 @@ export interface RawBenchmarkDetail {
     largestContentfulPaint: number;
     timeToInteractive: number;
     cumulativeLayoutShift: number;
+    // NEW: Perfume.js enhanced metrics
+    timeToFirstByte?: number;
+    firstInputDelay?: number | null;
+    interactionToNextPaint?: number | null;
+    navigationTiming?: {
+      timeToFirstByte: number;
+      domInteractive: number;
+      domContentLoadedEventStart: number;
+      domContentLoadedEventEnd: number;
+      domComplete: number;
+      loadEventStart: number;
+      loadEventEnd: number;
+    };
+    networkInformation?: {
+      effectiveType: string;
+      downlink: number;
+      rtt: number;
+      saveData: boolean;
+    };
     cookieBanner: {
       renderStart: number;
       renderEnd: number;
@@ -290,7 +309,7 @@ async function findResultsFiles(dir: string): Promise<string[]> {
   return files;
 }
 
-async function loadConfigForApp(appName: string): Promise<Config> {
+async function loadConfigForApp(logger: CliLogger, appName: string): Promise<Config> {
   const configPath = join("benchmarks", appName, "config.json");
 
   try {
@@ -331,7 +350,7 @@ async function loadConfigForApp(appName: string): Promise<Config> {
       },
     };
   } catch (error) {
-    p.log.warn(
+    logger.warn(
       `Could not load config for ${appName}: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
@@ -392,13 +411,13 @@ function safeGet<T>(obj: unknown, path: string, defaultValue: T): T {
   }
 }
 
-async function aggregateResults(resultsDir: string) {
+async function aggregateResults(logger: CliLogger, resultsDir: string) {
   const resultsFiles = await findResultsFiles(resultsDir);
   const results: Record<string, RawBenchmarkDetail[]> = {};
 
-  p.log.info(`Found ${resultsFiles.length} results files:`);
+  logger.info(`Found ${resultsFiles.length} results files:`);
   for (const file of resultsFiles) {
-    p.log.info(`  - ${file}`);
+    logger.info(`  - ${file}`);
   }
 
   for (const file of resultsFiles) {
@@ -407,41 +426,41 @@ async function aggregateResults(resultsDir: string) {
       const data: BenchmarkOutput = JSON.parse(content);
 
       if (!data.app || !data.results) {
-        p.log.warn(
+        logger.warn(
           `Skipping invalid results file: ${file} (missing app or results)`
         );
         continue;
       }
 
       // Log the actual app name from the file
-      p.log.info(`Processing ${file} with app name: "${data.app}"`);
+      logger.info(`Processing ${file} with app name: "${data.app}"`);
 
       if (results[data.app]) {
-        p.log.warn(
+        logger.warn(
           `Duplicate app name "${data.app}" found in ${file}. Previous results will be overwritten.`
         );
       }
 
       results[data.app] = data.results;
-      p.log.success(
+      logger.success(
         `Loaded results for ${data.app} (${data.results.length} iterations)`
       );
     } catch (error) {
-      p.log.error(
+      logger.error(
         `Failed to process ${file}: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
       );
       if (error instanceof Error && error.stack) {
-        p.log.error(`Stack trace: ${error.stack}`);
+        logger.error(`Stack trace: ${error.stack}`);
       }
     }
   }
 
   // Log final results summary
-  p.log.info("Final results summary:");
+  logger.info("Final results summary:");
   for (const [app, appResults] of Object.entries(results)) {
-    p.log.info(`  - ${app}: ${appResults.length} iterations`);
+    logger.info(`  - ${app}: ${appResults.length} iterations`);
   }
 
   return results;
@@ -670,21 +689,8 @@ function printResults(results: Record<string, RawBenchmarkDetail[]>) {
   }
 
   // Print the table to console
+  // Table output is user-facing, so we use console.log directly
   console.log(table.toString());
-
-  // Log a summary to console
-  p.log.info("Summary:");
-  for (const r of sorted.slice(0, 5)) {
-    // Show top 5 results
-    const deltaColor = r.timeDelta > 0 ? color.red : color.green;
-    const deltaStr =
-      r.app === "baseline"
-        ? ""
-        : ` (${deltaColor(r.timeDelta > 0 ? "+" : "")}${deltaColor(
-            r.timeDelta.toFixed(1)
-          )}${deltaColor("%")})`;
-    p.log.info(`  ${r.app}: ${formatTime(r.avgTime)}${deltaStr}`);
-  }
 }
 
 // Function to transform BenchmarkScores to match oRPC contract
@@ -718,8 +724,8 @@ function mapStatusToContract(status: 'excellent' | 'good' | 'fair' | 'poor'): 'e
   return status;
 }
 
-export async function resultsCommand() {
-  console.clear();
+export async function resultsCommand(logger: CliLogger) {
+  logger.clear();
   await setTimeout(1000);
 
   p.intro(`${color.bgCyan(color.black(" results "))}`);
@@ -734,34 +740,34 @@ export async function resultsCommand() {
     databaseUrl?.startsWith("libsql://") ||
     databaseUrl?.startsWith("wss://")
   ) {
-    p.log.info(
+    logger.info(
       `🌐 Using Turso remote database: ${color.cyan(
         `${databaseUrl.split("@")[0]}@***`
       )}`
     );
     if (!authToken) {
-      p.log.warn("⚠️  No auth token found. Database operations may fail.");
+      logger.warn("⚠️  No auth token found. Database operations may fail.");
     }
   } else if (databaseUrl?.startsWith("file:")) {
-    p.log.info(`📁 Using file database: ${color.cyan(databaseUrl)}`);
+    logger.info(`📁 Using file database: ${color.cyan(databaseUrl)}`);
   } else if (process.env.VERCEL || process.env.NODE_ENV === "production") {
-    p.log.warn("⚠️  Using in-memory database. Data will not persist!");
+    logger.warn("⚠️  Using in-memory database. Data will not persist!");
   } else {
-    p.log.info(
+    logger.info(
       `📁 Using local SQLite database: ${color.cyan("benchmarks.db")}`
     );
   }
 
   const resultsDir = "benchmarks";
-  p.log.step("Aggregating results...");
-  const results = await aggregateResults(resultsDir);
+  logger.step("Aggregating results...");
+  const results = await aggregateResults(logger, resultsDir);
 
   if (Object.keys(results).length === 0) {
-    p.log.error("No benchmark results found!");
+    logger.error("No benchmark results found!");
     return;
   }
 
-  p.log.info(
+  logger.info(
     `Found results for ${Object.keys(results).length} apps: ${Object.keys(
       results
     ).join(", ")}`
@@ -769,7 +775,7 @@ export async function resultsCommand() {
 
   const appConfigs: Record<string, Config> = {};
   for (const appName of Object.keys(results)) {
-    appConfigs[appName] = await loadConfigForApp(appName);
+    appConfigs[appName] = await loadConfigForApp(logger, appName);
   }
 
   // Calculate scores for each app
@@ -794,6 +800,9 @@ export async function resultsCommand() {
         cls: appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) / appResults.length,
         tbt: appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) / appResults.length,
         tti: appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) / appResults.length,
+        // NEW: Add Perfume.js metrics
+        timeToFirstByte: appResults.reduce((a, b) => a + (b.timing.timeToFirstByte || 0), 0) / appResults.length,
+        interactionToNextPaint: appResults[0]?.timing.interactionToNextPaint || null,
       },
       {
         totalSize: appResults.reduce((a, b) => a + b.size.total, 0) / appResults.length,
@@ -824,19 +833,20 @@ export async function resultsCommand() {
         layoutShifts: appResults.reduce((a, b) => a + b.timing.cumulativeLayoutShift, 0) / appResults.length,
       },
       appName === "baseline",
-      appData
+      appData,
+      appResults[0]?.timing.networkInformation
     );
   }
 
   // Print scores
-  console.log("\n📊 Benchmark Scores:");
+  logger.info("\n📊 Benchmark Scores:");
   for (const [appName, appScores] of Object.entries(scores)) {
-    console.log(`\n${appName}:`);
+    logger.info(`\n${appName}:`);
     printScores(appScores);
   }
 
   // Save results to database
-  p.log.step("Saving results to database...");
+  logger.step("Saving results to database...");
   let savedCount = 0;
   let errorCount = 0;
 
@@ -904,11 +914,11 @@ export async function resultsCommand() {
         scores: transformScoresToContract(scores[appName]),
       };
 
-      await saveBenchmarkResult(benchmarkResult);
-      p.log.success(`Saved results for ${appName}`);
+      await saveBenchmarkResult(logger, benchmarkResult);
+      logger.success(`Saved results for ${appName}`);
       savedCount++;
     } catch (error) {
-      p.log.error(
+      logger.error(
         `Failed to save results for ${appName}: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
@@ -922,28 +932,28 @@ export async function resultsCommand() {
 
   // Summary of database operations
   if (savedCount > 0) {
-    p.log.success(`Successfully saved ${savedCount} app(s) to database.`);
+    logger.success(`Successfully saved ${savedCount} app(s) to database.`);
   }
   if (errorCount > 0) {
-    p.log.warn(`Failed to save ${errorCount} app(s) to database.`);
+    logger.warn(`Failed to save ${errorCount} app(s) to database.`);
   }
 
   if (
     databaseUrl?.startsWith("libsql://") ||
     databaseUrl?.startsWith("wss://")
   ) {
-    p.log.info(
+    logger.info(
       `Results have been saved to Turso database: ${color.cyan(
         `${databaseUrl.split("@")[0]}@***`
       )}`
     );
   } else {
-    p.log.info(
+    logger.info(
       `Results have been saved to local database: ${color.cyan(
         "benchmarks.db"
       )} (in project root)`
     );
   }
 
-  p.outro("Results aggregated and saved to database successfully!");
+  logger.outro("Results aggregated and saved to database successfully!");
 }

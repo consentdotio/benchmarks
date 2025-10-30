@@ -1,12 +1,18 @@
 import type { Page } from '@playwright/test';
 import type { ResourceTimingData } from './types';
+import type { Logger } from '@c15t/logger';
 
 export class ResourceTimingCollector {
+	private logger: Logger;
+
+	constructor(logger: Logger) {
+		this.logger = logger;
+	}
 	/**
 	 * Collect detailed resource timing data from the browser
 	 */
 	async collect(page: Page): Promise<ResourceTimingData> {
-		console.log('🔍 [DEBUG] Collecting resource timing data...');
+		this.logger.debug('Collecting resource timing data...');
 
 		return page.evaluate(() => {
 			console.log('🔍 [BROWSER] Starting resource collection...');

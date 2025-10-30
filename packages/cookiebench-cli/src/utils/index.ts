@@ -2,13 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Config } from "../types";
 
+export * from './logger';
+export * from './scoring';
+
 export function readConfig(configName = "config"): Config | null {
   try {
     const configPath = join(process.cwd(), "config.json");
     const configContent = readFileSync(configPath, "utf-8");
     return JSON.parse(configContent) as Config;
   } catch (error) {
-    console.error(`Failed to read ${configName}/config.json:`, error);
+    // Error will be logged by caller
     return null;
   }
 }

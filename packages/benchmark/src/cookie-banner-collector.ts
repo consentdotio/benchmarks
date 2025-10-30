@@ -6,13 +6,16 @@ import type {
 	LayoutShiftEntry,
 	WindowWithCookieMetrics,
 } from './types';
+import type { Logger } from '@c15t/logger';
 import { determineBundleStrategy } from './bundle-strategy';
 
 export class CookieBannerCollector {
 	private config: Config;
+	private logger: Logger;
 
-	constructor(config: Config) {
+	constructor(config: Config, logger: Logger) {
 		this.config = config;
+		this.logger = logger;
 	}
 
 	/**
@@ -21,8 +24,8 @@ export class CookieBannerCollector {
 	initializeMetrics(): CookieBannerMetrics {
 		const { isBundled, isIIFE } = determineBundleStrategy(this.config);
 
-		console.log(
-			`🔍 [BUNDLE-STRATEGY] Detected from config: ${
+		this.logger.debug(
+			`Bundle strategy detected from config: ${
 				isBundled ? 'Bundled' : isIIFE ? 'IIFE' : 'Unknown'
 			}`,
 			{
@@ -197,8 +200,14 @@ export class CookieBannerCollector {
 			return {
 				detected: metrics.detected,
 				selector: metrics.selector,
-				bannerRenderTime: metrics.bannerFirstSeen - metrics.pageLoadStart,
-				bannerInteractiveTime: metrics.bannerInteractive - metrics.pageLoadStart,
+				bannerRenderTime:
+					metrics.detected && metrics.bannerFirstSeen > 0
+						? metrics.bannerFirstSeen - metrics.pageLoadStart
+						: 0,
+				bannerInteractiveTime:
+					metrics.detected && metrics.bannerInteractive > 0
+						? metrics.bannerInteractive - metrics.pageLoadStart
+						: 0,
 				bannerHydrationTime:
 					metrics.bannerInteractive > 0
 						? metrics.bannerInteractive - metrics.bannerFirstSeen

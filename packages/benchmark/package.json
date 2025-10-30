@@ -19,7 +19,9 @@
 		"lint": "biome lint ."
 	},
 	"dependencies": {
+		"@c15t/logger": "1.0.0",
 		"@playwright/test": "^1.42.1",
+		"perfume.js": "^9.4.0",
 		"playwright-performance-metrics": "^1.2.2"
 	},
 	"devDependencies": {

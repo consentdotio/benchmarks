@@ -1,41 +1,47 @@
 import { chromium, type Page } from '@playwright/test';
 import { PerformanceMetricsCollector } from 'playwright-performance-metrics';
-import type { Config } from '@consentio/benchmark';
+import type { Config, PerfumeMetrics } from '@consentio/benchmark';
 import {
 	CookieBannerCollector,
 	NetworkMonitor,
 	ResourceTimingCollector,
+	PerfumeCollector,
 	BENCHMARK_CONSTANTS,
 } from '@consentio/benchmark';
+import type { Logger } from '@c15t/logger';
 import type { BenchmarkResult, BenchmarkDetails, CoreWebVitals } from './types';
 import { PerformanceAggregator } from './performance-aggregator';
 
 export class BenchmarkRunner {
 	private config: Config;
+	private logger: Logger;
 	private cookieBannerCollector: CookieBannerCollector;
 	private networkMonitor: NetworkMonitor;
 	private resourceTimingCollector: ResourceTimingCollector;
+	private perfumeCollector: PerfumeCollector;
 	private performanceAggregator: PerformanceAggregator;
 
-	constructor(config: Config) {
+	constructor(config: Config, logger: Logger) {
 		this.config = config;
-		this.cookieBannerCollector = new CookieBannerCollector(config);
-		this.networkMonitor = new NetworkMonitor(config);
-		this.resourceTimingCollector = new ResourceTimingCollector();
-		this.performanceAggregator = new PerformanceAggregator();
+		this.logger = logger;
+		this.cookieBannerCollector = new CookieBannerCollector(config, logger);
+		this.networkMonitor = new NetworkMonitor(config, logger);
+		this.resourceTimingCollector = new ResourceTimingCollector(logger);
+		this.perfumeCollector = new PerfumeCollector(logger);
+		this.performanceAggregator = new PerformanceAggregator(logger);
 	}
 
 	/**
 	 * Run a single benchmark iteration
 	 */
 	async runSingleBenchmark(page: Page, url: string): Promise<BenchmarkDetails> {
-		console.log(`🔍 [DEBUG] Starting cookie banner benchmark for: ${url}`);
-		console.log(
-			'🔍 [DEBUG] Cookie banner selectors:',
+		this.logger.debug(`Starting cookie banner benchmark for: ${url}`);
+		this.logger.debug(
+			'Cookie banner selectors:',
 			this.config.cookieBanner?.selectors || []
 		);
-		console.log(
-			'🔍 [DEBUG] Bundle type from config:',
+		this.logger.debug(
+			'Bundle type from config:',
 			this.config.techStack?.bundleType
 		);
 
@@ -46,27 +52,43 @@ export class BenchmarkRunner {
 		// Setup monitoring and detection
 		await this.networkMonitor.setupMonitoring(page);
 		await this.cookieBannerCollector.setupDetection(page);
+		await this.perfumeCollector.setupPerfume(page);
 
 		// Navigate to the page
-		console.log(`🔍 [DEBUG] Navigating to: ${url}`);
+		this.logger.debug(`Navigating to: ${url}`);
 		await page.goto(url, { waitUntil: 'networkidle' });
 
 		// Wait for the specified element
 		await this.waitForElement(page);
 
 		// Wait for network to be idle
-		console.log('🔍 [DEBUG] Waiting for network idle...');
+		this.logger.debug('Waiting for network idle...');
 		await page.waitForLoadState('networkidle');
 
-		// Collect core web vitals
-		console.log('🔍 [DEBUG] Collecting core web vitals...');
-		const coreWebVitals = await this.collectCoreWebVitals(collector, page);
+		// Collect core web vitals from playwright-performance-metrics (primary source)
+		this.logger.debug('Collecting core web vitals...');
+		const coreWebVitals = await collector.collectMetrics(page, {
+			timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
+			retryTimeout: BENCHMARK_CONSTANTS.METRICS_RETRY_TIMEOUT,
+		});
+
+		this.logger.debug('Core web vitals collected:', {
+			fcp: coreWebVitals.paint?.firstContentfulPaint,
+			lcp: coreWebVitals.largestContentfulPaint,
+			cls: coreWebVitals.cumulativeLayoutShift,
+			tbt: coreWebVitals.totalBlockingTime,
+		});
+
+		// Collect Perfume.js metrics (supplementary - TTFB, navigation timing, network info)
+		this.logger.debug('Collecting Perfume.js supplementary metrics...');
+		const perfumeMetrics = await this.perfumeCollector.collectMetrics(page);
+		this.logger.debug('Perfume.js metrics:', perfumeMetrics);
 
 		// Collect cookie banner specific metrics
 		const cookieBannerData = await this.cookieBannerCollector.collectMetrics(
 			page
 		);
-		console.log('🔍 [DEBUG] Cookie banner metrics:', cookieBannerData);
+		this.logger.debug('Cookie banner metrics:', cookieBannerData);
 
 		// Collect detailed resource timing data
 		const resourceMetrics = await this.resourceTimingCollector.collect(page);
@@ -83,7 +105,8 @@ export class BenchmarkRunner {
 			networkRequests,
 			networkMetrics,
 			resourceMetrics,
-			this.config
+			this.config,
+			perfumeMetrics
 		);
 
 		// Log results
@@ -112,8 +135,8 @@ export class BenchmarkRunner {
 
 		try {
 			for (let i = 0; i < this.config.iterations; i++) {
-				console.log(
-					`[Benchmark] Running iteration ${i + 1}/${this.config.iterations}...`
+				this.logger.info(
+					`Running iteration ${i + 1}/${this.config.iterations}...`
 				);
 
 				const context = await browser.newContext();
@@ -152,40 +175,16 @@ export class BenchmarkRunner {
 	 */
 	private async waitForElement(page: Page): Promise<void> {
 		if (this.config.testId) {
-			console.log(`🔍 [DEBUG] Waiting for testId: ${this.config.testId}`);
+			this.logger.debug(`Waiting for testId: ${this.config.testId}`);
 			await page.waitForSelector(`[data-testid="${this.config.testId}"]`);
 		} else if (this.config.id) {
-			console.log(`🔍 [DEBUG] Waiting for id: ${this.config.id}`);
+			this.logger.debug(`Waiting for id: ${this.config.id}`);
 			await page.waitForSelector(`#${this.config.id}`);
 		} else if (this.config.custom) {
-			console.log('🔍 [DEBUG] Running custom wait function');
+			this.logger.debug('Running custom wait function');
 			await this.config.custom(page);
 		}
 	}
 
-	/**
-	 * Collect core web vitals using playwright-performance-metrics
-	 */
-	private async collectCoreWebVitals(
-		collector: PerformanceMetricsCollector,
-		page: Page
-	): Promise<CoreWebVitals> {
-		const coreWebVitals = await collector.collectMetrics(page, {
-			timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
-			retryTimeout: BENCHMARK_CONSTANTS.METRICS_RETRY_TIMEOUT,
-		});
-
-		console.log('🔍 [DEBUG] Core web vitals collected:', {
-			fcp: coreWebVitals.paint?.firstContentfulPaint,
-			lcp: coreWebVitals.largestContentfulPaint,
-			cls: coreWebVitals.cumulativeLayoutShift,
-			tbt: coreWebVitals.totalBlockingTime,
-			domComplete: coreWebVitals.domCompleteTiming,
-			pageLoad: coreWebVitals.pageloadTiming,
-			totalBytes: coreWebVitals.totalBytes,
-		});
-
-		return coreWebVitals;
-	}
 }
 

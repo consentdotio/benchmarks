@@ -30,6 +30,15 @@ interface MetricsData {
 	scriptLoadTime?: number;
 	isBundled?: boolean;
 	isIIFE?: boolean;
+	// NEW: Perfume.js enhanced metrics
+	timeToFirstByte?: number;
+	interactionToNextPaint?: number | null;
+	networkInformation?: {
+		effectiveType: string;
+		downlink: number;
+		rtt: number;
+		saveData: boolean;
+	};
 }
 
 interface ResourceData {
@@ -256,25 +265,25 @@ function calculatePerformanceScore(metrics: MetricsData): {
 	const tti = Number.isFinite(metrics.tti) ? metrics.tti : 0;
 	const tbt = Number.isFinite(metrics.tbt) ? metrics.tbt : 0;
 
-	// FCP Score (20 points) - More sensitive for fast sites
-	const fcpScore = fcp <= 50 ? 20 : fcp <= 100 ? 18 : fcp <= 200 ? 15 : fcp <= 500 ? 10 : 5;
+	// FCP Score (15 points) - More sensitive for fast sites
+	const fcpScore = fcp <= 50 ? 15 : fcp <= 100 ? 13 : fcp <= 200 ? 10 : fcp <= 500 ? 7 : 3;
 	totalScore += fcpScore;
 	details.push({
 		metric: 'First Contentful Paint',
 		value: formatTime(fcp),
 		score: fcpScore,
-		maxScore: 20,
+		maxScore: 15,
 		reason: fcp <= 50 ? 'Excellent' : fcp <= 100 ? 'Very Good' : fcp <= 200 ? 'Good' : fcp <= 500 ? 'Fair' : 'Poor',
 	});
 
-	// LCP Score (25 points) - More sensitive for banner rendering
-	const lcpScore = lcp <= 100 ? 25 : lcp <= 300 ? 20 : lcp <= 500 ? 15 : lcp <= 1000 ? 10 : 5;
+	// LCP Score (20 points) - More sensitive for banner rendering
+	const lcpScore = lcp <= 100 ? 20 : lcp <= 300 ? 16 : lcp <= 500 ? 12 : lcp <= 1000 ? 8 : 4;
 	totalScore += lcpScore;
 	details.push({
 		metric: 'Largest Contentful Paint',
 		value: formatTime(lcp),
 		score: lcpScore,
-		maxScore: 25,
+		maxScore: 20,
 		reason: lcp <= 100 ? 'Excellent' : lcp <= 300 ? 'Very Good' : lcp <= 500 ? 'Good' : lcp <= 1000 ? 'Fair' : 'Poor',
 	});
 
@@ -289,26 +298,50 @@ function calculatePerformanceScore(metrics: MetricsData): {
 		reason: cls <= 0.01 ? 'Excellent' : cls <= 0.05 ? 'Very Good' : cls <= 0.1 ? 'Good' : cls <= 0.25 ? 'Fair' : 'Poor',
 	});
 
-	// TTI Score (20 points) - Cookie banners should be interactive quickly
-	const ttiScore = tti <= 1000 ? 20 : tti <= 1500 ? 15 : tti <= 2000 ? 10 : tti <= 3000 ? 5 : 0;
+	// TTI Score (15 points) - Cookie banners should be interactive quickly
+	const ttiScore = tti <= 1000 ? 15 : tti <= 1500 ? 12 : tti <= 2000 ? 8 : tti <= 3000 ? 4 : 0;
 	totalScore += ttiScore;
 	details.push({
 		metric: 'Time to Interactive',
 		value: formatTime(tti),
 		score: ttiScore,
-		maxScore: 20,
+		maxScore: 15,
 		reason: tti <= 1000 ? 'Excellent' : tti <= 1500 ? 'Very Good' : tti <= 2000 ? 'Good' : tti <= 3000 ? 'Fair' : 'Poor',
 	});
 
-	// TBT Score (15 points) - Main thread blocking
-	const tbtScore = tbt <= 50 ? 15 : tbt <= 200 ? 10 : tbt <= 500 ? 5 : 0;
+	// TBT Score (10 points) - Main thread blocking
+	const tbtScore = tbt <= 50 ? 10 : tbt <= 200 ? 7 : tbt <= 500 ? 3 : 0;
 	totalScore += tbtScore;
 	details.push({
 		metric: 'Total Blocking Time',
 		value: formatTime(tbt),
 		score: tbtScore,
-		maxScore: 15,
+		maxScore: 10,
 		reason: tbt <= 50 ? 'Excellent' : tbt <= 200 ? 'Good' : tbt <= 500 ? 'Fair' : 'Poor',
+	});
+
+	// TTFB Score (10 points) - Server response time
+	const ttfb = Number.isFinite(metrics.timeToFirstByte) && metrics.timeToFirstByte !== undefined ? metrics.timeToFirstByte : 0;
+	const ttfbScore = ttfb <= 100 ? 10 : ttfb <= 200 ? 8 : ttfb <= 400 ? 5 : ttfb <= 600 ? 3 : 0;
+	totalScore += ttfbScore;
+	details.push({
+		metric: 'Time to First Byte',
+		value: formatTime(ttfb),
+		score: ttfbScore,
+		maxScore: 10,
+		reason: ttfb <= 100 ? 'Excellent' : ttfb <= 200 ? 'Good' : ttfb <= 400 ? 'Fair' : ttfb <= 600 ? 'Poor' : 'Very Poor',
+	});
+
+	// INP Score (10 points) - Interaction responsiveness (replaces/complements FID)
+	const inp = Number.isFinite(metrics.interactionToNextPaint) && metrics.interactionToNextPaint !== undefined && metrics.interactionToNextPaint !== null ? metrics.interactionToNextPaint : null;
+	const inpScore = inp === null ? 5 : inp <= 200 ? 10 : inp <= 500 ? 7 : inp <= 1000 ? 4 : 0;
+	totalScore += inpScore;
+	details.push({
+		metric: 'Interaction to Next Paint',
+		value: inp === null ? 'N/A' : formatTime(inp),
+		score: inpScore,
+		maxScore: 10,
+		reason: inp === null ? 'No interactions detected' : inp <= 200 ? 'Excellent' : inp <= 500 ? 'Good' : inp <= 1000 ? 'Fair' : 'Poor',
 	});
 
 	return { score: totalScore, maxScore, details };
@@ -699,6 +732,30 @@ function generateInsights(
 		);
 	}
 
+	// Network quality context (from Perfume.js)
+	if (metrics.networkInformation) {
+		const netInfo = metrics.networkInformation;
+		insights.push(
+			`Tested on ${netInfo.effectiveType} connection (${netInfo.downlink} Mbps, ${netInfo.rtt}ms RTT).`
+		);
+	}
+
+	// TTFB insights
+	if (metrics.timeToFirstByte) {
+		if (metrics.timeToFirstByte <= 100) {
+			insights.push('Excellent server response time (TTFB) ensures fast initial loading.');
+		} else if (metrics.timeToFirstByte > 600) {
+			insights.push('Server response time (TTFB) is slow - consider CDN or server optimization.');
+		}
+	}
+
+	// INP insights (if interactions detected)
+	if (metrics.interactionToNextPaint !== null && metrics.interactionToNextPaint !== undefined) {
+		if (metrics.interactionToNextPaint > 500) {
+			insights.push('Interaction responsiveness (INP) needs improvement for better user experience.');
+		}
+	}
+
 	return insights;
 }
 
@@ -732,6 +789,18 @@ function generateRecommendations(
 				'Reduce Total Blocking Time by optimizing JavaScript execution.'
 			);
 		}
+	}
+
+	// TTFB and INP recommendations
+	if (metrics.timeToFirstByte && metrics.timeToFirstByte > 200) {
+		recommendations.push(
+			'Improve Time to First Byte (TTFB) through server optimization, CDN usage, or caching strategies.'
+		);
+	}
+	if (metrics.interactionToNextPaint && metrics.interactionToNextPaint > 200) {
+		recommendations.push(
+			'Optimize Interaction to Next Paint (INP) by reducing JavaScript execution time and improving event handler performance.'
+		);
 	}
 
 	// Bundle strategy recommendations
@@ -797,6 +866,8 @@ export function calculateScores(
 		cls: number;
 		tbt: number;
 		tti: number;
+		timeToFirstByte?: number;
+		interactionToNextPaint?: number | null;
 	},
 	bundleMetrics: {
 		totalSize: number;
@@ -823,7 +894,13 @@ export function calculateScores(
 		layoutShifts: number;
 	},
 	isBaseline = false,
-	appData?: AppData
+	appData?: AppData,
+	networkInformation?: {
+		effectiveType: string;
+		downlink: number;
+		rtt: number;
+		saveData: boolean;
+	}
 ): BenchmarkScores {
 	if (isBaseline) {
 		return {
@@ -958,6 +1035,10 @@ export function calculateScores(
 		scriptLoadTime: 0, // TODO: Calculate from timing data
 		isBundled: networkMetrics.thirdPartyRequests === 0,
 		isIIFE: networkMetrics.thirdPartyRequests > 0,
+		// NEW: Add Perfume.js metrics
+		timeToFirstByte: metrics.timeToFirstByte || 0,
+		interactionToNextPaint: metrics.interactionToNextPaint,
+		networkInformation: networkInformation,
 	};
 
 	// Create mock resource data
@@ -1127,6 +1208,7 @@ export function calculateScores(
 }
 
 // Function to print scores in a table format
+// Note: This outputs directly to console as it's user-facing display output, not logging
 export function printScores(scores: BenchmarkScores): void {
 	// Create a table for overall scores
 	const overallTable = new Table({
@@ -1150,6 +1232,7 @@ export function printScores(scores: BenchmarkScores): void {
 		]);
 	}
 
+	// User-facing output - always display
 	console.log('\nOverall Scores:');
 	console.log(overallTable.toString());
 
@@ -1171,11 +1254,13 @@ export function printScores(scores: BenchmarkScores): void {
 		}
 	}
 
+	// User-facing output - always display
 	console.log('\nDetailed Scores:');
 	console.log(detailsTable.toString());
 
 	// Print insights
 	if (scores.insights.length > 0) {
+		// User-facing output - always display
 		console.log('\nInsights:');
 		for (const insight of scores.insights) {
 			console.log(`• ${insight}`);
@@ -1184,6 +1269,7 @@ export function printScores(scores: BenchmarkScores): void {
 
 	// Print recommendations
 	if (scores.recommendations.length > 0) {
+		// User-facing output - always display
 		console.log('\nRecommendations:');
 		for (const recommendation of scores.recommendations) {
 			console.log(`• ${recommendation}`);

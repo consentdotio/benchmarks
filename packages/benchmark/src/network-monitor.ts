@@ -1,16 +1,19 @@
 import type { Page, Route } from '@playwright/test';
 import type { Config, NetworkRequest, NetworkMetrics } from './types';
+import type { Logger } from '@c15t/logger';
 
 export class NetworkMonitor {
 	private config: Config;
+	private logger: Logger;
 	private networkRequests: NetworkRequest[] = [];
 	private metrics: NetworkMetrics = {
 		bannerNetworkRequests: 0,
 		bannerBundleSize: 0,
 	};
 
-	constructor(config: Config) {
+	constructor(config: Config, logger: Logger) {
 		this.config = config;
+		this.logger = logger;
 	}
 
 	/**
@@ -44,13 +47,13 @@ export class NetworkMonitor {
 						isThirdParty,
 					});
 
-					if (isThirdParty) {
-						this.metrics.bannerNetworkRequests++;
-						this.metrics.bannerBundleSize += size / 1024;
-						console.log(
-							`🌐 [THIRD-PARTY-SCRIPT] Detected: ${url} (${(size / 1024).toFixed(2)}KB)`
-						);
-					}
+				if (isThirdParty) {
+					this.metrics.bannerNetworkRequests++;
+					this.metrics.bannerBundleSize += size / 1024;
+					this.logger.debug(
+						`Third-party script detected: ${url} (${(size / 1024).toFixed(2)}KB)`
+					);
+				}
 				}
 
 				await route.fulfill({ response, headers });
