@@ -20,5 +20,3 @@ export type {
 	ResourceTimingData,
 	ServerInfo,
 } from "./types";
-// Utilities
-export { formatTime, getPackageManager, readConfig } from "./utils";

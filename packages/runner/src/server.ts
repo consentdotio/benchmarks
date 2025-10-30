@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import type { Logger } from "@c15t/logger";
+import { getPackageManager, ONE_SECOND } from "@consentio/shared";
 import type { ServerInfo } from "./types";
-import { getPackageManager, ONE_SECOND } from "./utils";
 
 export async function buildAndServeNextApp(
 	logger: Logger,

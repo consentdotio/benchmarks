@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@c15t/logger": "1.0.0",
+    "@consentio/shared": "workspace:*",
     "@playwright/test": "^1.56.1",
     "perfume.js": "^9.4.0",
     "playwright-performance-metrics": "^1.2.2"

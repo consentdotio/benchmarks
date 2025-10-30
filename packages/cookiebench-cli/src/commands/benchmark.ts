@@ -15,7 +15,6 @@ import {
 	BenchmarkRunner,
 	buildAndServeNextApp,
 	cleanupServer,
-	readConfig,
 	type ServerInfo,
 } from "@consentio/runner";
 import color from "picocolors";
@@ -25,8 +24,9 @@ import {
 	DEFAULT_THIRD_PARTY_DOMAINS,
 	HALF_SECOND,
 	PERCENTAGE_DIVISOR,
+	readConfig,
 	SEPARATOR_WIDTH,
-} from "../utils/constants";
+} from "../utils";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores, printScores } from "../utils/scoring";
 
@@ -402,7 +402,7 @@ export async function benchmarkCommand(
 		placeholder: `Default: ${defaultIterations}`,
 		defaultValue: "",
 		validate: (value) => {
-			if (value === "") {
+			if (!value || value === "") {
 				return; // Empty is valid (use defaults)
 			}
 			const num = Number.parseInt(value, 10);

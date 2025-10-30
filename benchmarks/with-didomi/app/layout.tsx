@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/noConsole: its okay to show it working */
 "use client";
 
 import { DidomiSDK, type IDidomiObject } from "@didomi/react";
@@ -28,7 +29,9 @@ export default function RootLayout({
 
 	const onConsentChanged = useCallback(
 		(cwtToken: string) => {
-			if (!didomiObject) return;
+			if (!didomiObject) {
+				return;
+			}
 			console.log("Didomi Consent Changed - cwtToken:", cwtToken);
 			console.log(
 				"Didomi Consent Changed - Is consent required?:",
@@ -51,13 +54,13 @@ export default function RootLayout({
 			<body>
 				<DidomiSDK
 					apiKey="7dd8ec4e-746c-455e-a610-99121b4148df"
-					iabVersion={2}
-					gdprAppliesGlobally={true}
 					embedTCFStub={true}
-					onReady={onDidomiReady}
+					gdprAppliesGlobally={true}
+					iabVersion={2}
 					onConsentChanged={onConsentChanged}
-					onNoticeShown={() => console.log("Didomi Notice Shown")}
 					onNoticeHidden={() => console.log("Didomi Notice Hidden")}
+					onNoticeShown={() => console.log("Didomi Notice Shown")}
+					onReady={onDidomiReady}
 				/>
 				{children}
 			</body>

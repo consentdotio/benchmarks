@@ -22,6 +22,7 @@
     "@clack/prompts": "^1.0.0-alpha.0",
     "@consentio/benchmark": "workspace:*",
     "@consentio/runner": "workspace:*",
+    "@consentio/shared": "workspace:*",
     "@types/figlet": "^1.7.0",
     "cli-table3": "^0.6.3",
     "dotenv": "^17.2.3",

@@ -9,11 +9,8 @@ import type {
 	PerfumeMetrics,
 	ResourceTimingData,
 } from "@consentio/benchmark";
+import { PERCENTAGE_MULTIPLIER, TTI_BUFFER_MS } from "@consentio/shared";
 import type { BenchmarkDetails, BenchmarkResult } from "./types";
-
-// Constants
-const TTI_BUFFER_MS = 1000; // Buffer for true interactivity
-const PERCENTAGE_MULTIPLIER = 100; // For converting decimal to percentage
 
 type AggregateMetricsParams = {
 	coreWebVitals: CoreWebVitals;

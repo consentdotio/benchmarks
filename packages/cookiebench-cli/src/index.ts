@@ -1,12 +1,12 @@
 import { setTimeout } from "node:timers/promises";
 import { cancel, isCancel, select } from "@clack/prompts";
+import { HALF_SECOND } from "@consentio/shared";
 import { benchmarkCommand } from "./commands/benchmark";
 import { dbCommand } from "./commands/db";
 import { resultsCommand } from "./commands/results";
 import { saveCommand } from "./commands/save";
 import { scoresCommand } from "./commands/scores";
 import { displayIntro } from "./components/intro";
-import { HALF_SECOND } from "./utils";
 import { isAdminUser } from "./utils/auth";
 import { type CliLogger, createCliLogger } from "./utils/logger";
 

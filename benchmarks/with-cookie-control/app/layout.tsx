@@ -19,7 +19,7 @@ export default function RootLayout({
 					type="text/javascript"
 				/>
 				<script
-					type="text/javascript"
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: its okay to set inner html
 					dangerouslySetInnerHTML={{
 						__html: `
 							var config = {
@@ -48,6 +48,8 @@ export default function RootLayout({
 							CookieControl.load(config);
 						`,
 					}}
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: its okay to set inner html
+					type="text/javascript"
 				/>
 			</head>
 			<body>{children}</body>

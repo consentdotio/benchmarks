@@ -15,6 +15,7 @@ export default function RootLayout({
 			<head>
 				{/* Iubenda Cookie Banner + Configuration */}
 				<script
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: its okay to set inner html
 					dangerouslySetInnerHTML={{
 						__html: `
 							window._iub = window._iub || [];
@@ -78,9 +79,9 @@ export default function RootLayout({
 					}}
 				/>
 				<script
-					src="https://cdn.iubenda.com/cs/iubenda_cs.js"
 					async
 					charSet="UTF-8"
+					src="https://cdn.iubenda.com/cs/iubenda_cs.js"
 				/>
 			</head>
 			<body>{children}</body>

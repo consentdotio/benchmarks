@@ -1,12 +1,9 @@
-export const ONE_SECOND = 1000;
-export const HALF_SECOND = 500;
+// CLI-specific constants
 export const DEFAULT_ITERATIONS = 5;
 export const DEFAULT_DOM_SIZE = 1500;
 export const DEFAULT_THIRD_PARTY_DOMAINS = 5;
-export const PERCENTAGE_DIVISOR = 100;
 export const SEPARATOR_WIDTH = 80;
 export const LINE_LENGTH = 80;
-export const KILOBYTE = 1024;
 export const CLS_DECIMAL_PLACES = 3;
 
 // Score thresholds

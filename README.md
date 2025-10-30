@@ -4,7 +4,7 @@ A benchmarking tool for measuring the performance impact of cookie consent solut
 
 ## Overview
 
-This tool measures various performance metrics when loading web applications with different cookie consent solutions. It helps developers understand the performance implications of their cookie consent implementation choices.
+This tool measures various performance metrics when loading web applications with diiferent cookie consent solutions. It helps developers understand the performance implications of their cookie consent implementation choices.
 
 ## Metrics Measured
 
@@ -93,7 +93,7 @@ Each benchmark implementation requires a `config.json` file with the following s
   - `frameworks`: Array of frameworks used
   - `bundler`: Build tool used (e.g., webpack, vite)
   - `packageManager`: Package manager used (e.g., npm, pnpm)
-  - `bundleType`: Output format (esm, iffe, cjs)
+  - `bundleType`: Output format (esm, iife, cjs)
   - `typescript`: Whether TypeScript is used
 
 - **source**: Project source information

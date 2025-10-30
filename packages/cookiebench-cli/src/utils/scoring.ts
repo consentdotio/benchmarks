@@ -3,7 +3,7 @@
 /** biome-ignore-all lint/style/noNestedTernary: scoring logic uses ternary expressions */
 import Table from "cli-table3";
 import type { BenchmarkScores } from "../types";
-import { ONE_SECOND } from "./constants";
+import { formatBytes, formatTime } from "./index";
 
 // Type definitions for better type safety
 type AppData = {
@@ -106,25 +106,6 @@ export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
 	transparency: 0.1, // 10% - Open source, company info, tech stack disclosure
 	userExperience: 0.05, // 5% - Layout stability, interaction responsiveness
 };
-
-// Helper function to format time values
-function formatTime(ms: number): string {
-	if (ms < ONE_SECOND) {
-		return `${Math.round(ms)}ms`;
-	}
-	return `${(ms / ONE_SECOND).toFixed(2)}s`;
-}
-
-// Helper function to format byte values
-function formatBytes(bytes: number): string {
-	if (bytes === 0) {
-		return "0 bytes";
-	}
-	const k = 1024;
-	const sizes = ["bytes", "KB", "MB", "GB"];
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-}
 
 // Helper function to determine if a solution is open source
 function isOpenSourceSolution(

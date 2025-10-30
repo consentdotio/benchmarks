@@ -21,5 +21,8 @@
     "@types/react-dom": "^19.2.2",
     "cookiebench": "workspace:*",
     "typescript": "^5.9.3"
+  },
+  "engine": {
+    "node": ">=20.9.0"
   }
 }

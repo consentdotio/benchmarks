@@ -1,27 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import type { Config } from "@consentio/benchmark";
-
-export const ONE_SECOND = 1000;
-export function readConfig(configPath?: string): Config | null {
-	try {
-		const path = configPath || join(process.cwd(), "config.json");
-		const configContent = readFileSync(path, "utf-8");
-		return JSON.parse(configContent) as Config;
-	} catch (error) {
-		// biome-ignore lint/suspicious/noConsole: console error is needed for debugging
-		console.error("Failed to read config.json:", error);
-		return null;
-	}
-}
-
-export function formatTime(ms: number): string {
-	if (ms < ONE_SECOND) {
-		return `${ms.toFixed(0)}ms`;
-	}
-	return `${(ms / ONE_SECOND).toFixed(2)}s`;
-}
-
+/**
+ * Detect and return the available package manager
+ * @returns Package manager command and args
+ */
 export async function getPackageManager(): Promise<{
 	command: string;
 	args: string[];

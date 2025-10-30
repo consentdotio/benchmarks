@@ -6,6 +6,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { cancel, intro, isCancel, multiselect } from "@clack/prompts";
 import type { Config } from "@consentio/runner";
+import { KILOBYTE, ONE_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
 import Table from "cli-table3";
 import color from "picocolors";
 import prettyMilliseconds from "pretty-ms";
@@ -23,11 +24,8 @@ import {
 	COL_WIDTH_TAGS,
 	COL_WIDTH_TYPE,
 	DEFAULT_DOM_SIZE,
-	KILOBYTE,
 	MAX_FILENAME_LENGTH,
 	MIN_DURATION_THRESHOLD,
-	ONE_SECOND,
-	PERCENTAGE_DIVISOR,
 	SCORE_THRESHOLD_FAIR,
 	SCORE_THRESHOLD_POOR,
 	TRUNCATED_FILENAME_LENGTH,

@@ -3,12 +3,7 @@
   "title": "Benchmark Configuration Schema",
   "description": "Schema for cookie banner benchmark configurations",
   "type": "object",
-  "required": [
-    "name",
-    "iterations",
-    "cookieBanner",
-    "techStack"
-  ],
+  "required": ["name", "iterations", "cookieBanner", "techStack"],
   "properties": {
     "name": {
       "type": "string",
@@ -53,10 +48,7 @@
     },
     "cookieBanner": {
       "type": "object",
-      "required": [
-        "selectors",
-        "serviceHosts"
-      ],
+      "required": ["selectors", "serviceHosts"],
       "properties": {
         "selectors": {
           "type": "array",
@@ -95,28 +87,16 @@
     },
     "internationalization": {
       "type": "object",
-      "required": [
-        "detection",
-        "stringLoading"
-      ],
+      "required": ["detection", "stringLoading"],
       "properties": {
         "detection": {
           "type": "string",
-          "enum": [
-            "browser",
-            "ip",
-            "manual",
-            "none"
-          ],
+          "enum": ["browser", "ip", "manual", "none"],
           "description": "Method used to determine the banner language"
         },
         "stringLoading": {
           "type": "string",
-          "enum": [
-            "bundled",
-            "server",
-            "none"
-          ],
+          "enum": ["bundled", "server", "none"],
           "description": "How the banner loads its translation strings"
         }
       }
@@ -138,21 +118,13 @@
           "oneOf": [
             {
               "type": "string",
-              "enum": [
-                "esm",
-                "cjs",
-                "iffe",
-                "bundled"
-              ]
+              "enum": ["esm", "cjs", "iife", "bundled"]
             },
             {
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "esm",
-                  "cjs"
-                ]
+                "enum": ["esm", "cjs"]
               }
             }
           ]
@@ -167,10 +139,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "typescript",
-              "javascript"
-            ]
+            "enum": ["typescript", "javascript"]
           }
         },
         "packageManager": {
@@ -194,9 +163,7 @@
             },
             {
               "type": "string",
-              "enum": [
-                "partially"
-              ]
+              "enum": ["partially"]
             }
           ]
         },

@@ -13,7 +13,7 @@
   },
   "techStack": {
     "bundler": "unknown",
-    "bundleType": "iffe",
+    "bundleType": "iife",
     "frameworks": [],
     "languages": ["javascript"],
     "packageManager": "unknown",

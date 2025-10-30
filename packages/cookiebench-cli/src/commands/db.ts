@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { cancel, confirm, intro, isCancel, select } from "@clack/prompts";
+import { ONE_SECOND } from "@consentio/shared";
 import color from "picocolors";
-import { ONE_SECOND } from "../utils";
 import { isAdminUser } from "../utils/auth";
 import type { CliLogger } from "../utils/logger";
 

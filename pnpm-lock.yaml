@@ -467,6 +467,9 @@ importers:
       '@c15t/logger':
         specifier: 1.0.0
         version: 1.0.0
+      '@consentio/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@playwright/test':
         specifier: ^1.56.1
         version: 1.56.1
@@ -506,6 +509,9 @@ importers:
       '@consentio/runner':
         specifier: workspace:*
         version: link:../runner
+      '@consentio/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@types/figlet':
         specifier: ^1.7.0
         version: 1.7.0
@@ -546,6 +552,9 @@ importers:
       '@consentio/benchmark':
         specifier: workspace:*
         version: link:../benchmark
+      '@consentio/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@playwright/test':
         specifier: ^1.56.1
         version: 1.56.1
@@ -553,6 +562,24 @@ importers:
         specifier: ^1.2.2
         version: 1.2.2(@playwright/test@1.56.1)
     devDependencies:
+      '@rsdoctor/rspack-plugin':
+        specifier: ^1.3.6
+        version: 1.3.6(@rsbuild/core@1.6.0-beta.1)(@rspack/core@1.5.8(@swc/helpers@0.5.17))
+      '@rslib/core':
+        specifier: ^0.16.1
+        version: 0.16.1(typescript@5.9.3)
+      '@types/node':
+        specifier: ^24.9.2
+        version: 24.9.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/shared:
+    devDependencies:
+      '@cookiebench/ts-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       '@rsdoctor/rspack-plugin':
         specifier: ^1.3.6
         version: 1.3.6(@rsbuild/core@1.6.0-beta.1)(@rspack/core@1.5.8(@swc/helpers@0.5.17))

@@ -4,10 +4,10 @@ import { setTimeout } from "node:timers/promises";
 
 import { cancel, confirm, intro, isCancel, multiselect } from "@clack/prompts";
 import type { Config } from "@consentio/runner";
+import { HALF_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
 import { config as loadDotenv } from "dotenv";
 import color from "picocolors";
 import type { BenchmarkScores } from "../types";
-import { HALF_SECOND, PERCENTAGE_DIVISOR } from "../utils";
 import { isAdminUser } from "../utils/auth";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores } from "../utils/scoring";
