@@ -24,5 +24,3 @@ export function readConfig<T extends BaseConfig = BaseConfig>(
 		return null;
 	}
 }
-
-

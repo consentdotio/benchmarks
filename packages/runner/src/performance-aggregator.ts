@@ -9,6 +9,7 @@ import type {
 	PerfumeMetrics,
 	ResourceTimingData,
 } from "@consentio/benchmark";
+import { PERCENTAGE_MULTIPLIER, TTI_BUFFER_MS } from "@consentio/shared";
 import {
 	calculateCoefficientOfVariation,
 	calculateStatistics,
@@ -17,9 +18,6 @@ import {
 } from "./statistics";
 import type { BenchmarkDetails, BenchmarkResult } from "./types";
 
-// Constants
-const TTI_BUFFER_MS = 1000; // Buffer for true interactivity
-const PERCENTAGE_MULTIPLIER = 100; // For converting decimal to percentage
 const VARIABILITY_WARNING_THRESHOLD = 20; // Coefficient of variation threshold for warnings
 const STABILITY_THRESHOLD = 15; // Coefficient of variation threshold for stability checks
 const TRIM_PERCENT = 10; // Percentage to trim from each end for trimmed mean
@@ -175,9 +173,9 @@ export class PerformanceAggregator {
 				largestContentfulPaint: coreWebVitals.largestContentfulPaint || 0,
 				timeToInteractive: tti,
 				cumulativeLayoutShift: coreWebVitals.cumulativeLayoutShift || 0,
-				timeToFirstByte: perfumeMetrics?.timeToFirstByte || 0,
-				firstInputDelay: perfumeMetrics?.firstInputDelay || null,
-				interactionToNextPaint: perfumeMetrics?.interactionToNextPaint || null,
+				timeToFirstByte: perfumeMetrics?.timeToFirstByte ?? 0,
+				firstInputDelay: perfumeMetrics?.firstInputDelay ?? null,
+				interactionToNextPaint: perfumeMetrics?.interactionToNextPaint ?? null,
 				navigationTiming: perfumeMetrics?.navigationTiming || {
 					timeToFirstByte: 0,
 					domInteractive: 0,
@@ -206,7 +204,10 @@ export class PerformanceAggregator {
 				detected: cookieBannerData?.detected ?? false,
 				selector: cookieBannerData?.selector ?? null,
 				serviceName: config.cookieBanner?.serviceName ?? "unknown",
-				visibilityTime: cookieBannerData?.bannerInteractiveTime || 0,
+				visibilityTime:
+					cookieBannerData?.bannerVisibilityTime ||
+					cookieBannerData?.bannerInteractiveTime ||
+					0,
 				viewportCoverage: cookieBannerData?.viewportCoverage || 0,
 			},
 			thirdParty: {

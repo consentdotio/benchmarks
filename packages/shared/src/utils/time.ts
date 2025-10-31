@@ -11,5 +11,3 @@ export function formatTime(ms: number): string {
 	}
 	return `${(ms / ONE_SECOND).toFixed(2)}s`;
 }
-
-

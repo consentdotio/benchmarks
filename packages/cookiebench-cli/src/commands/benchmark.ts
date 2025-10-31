@@ -21,7 +21,6 @@ import color from "picocolors";
 import {
 	DEFAULT_DOM_SIZE,
 	DEFAULT_ITERATIONS,
-	DEFAULT_THIRD_PARTY_DOMAINS,
 	HALF_SECOND,
 	PERCENTAGE_DIVISOR,
 	readConfig,
@@ -34,6 +33,9 @@ import { calculateScores, printScores } from "../utils/scoring";
  * Calculate average from array
  */
 function calculateAverage(values: number[]): number {
+	if (values.length === 0) {
+		return 0;
+	}
 	return values.reduce((acc, curr) => acc + curr, 0) / values.length;
 }
 
@@ -82,18 +84,47 @@ function calculateNetworkMetrics(details: BenchmarkResult["details"]) {
 	);
 
 	const thirdPartyRequests = calculateAverage(
-		details.map((d) => d.resources.scripts.filter((s) => s.isThirdParty).length)
+		details.map(
+			(d) =>
+				d.resources.scripts.filter((r) => r.isThirdParty).length +
+				d.resources.styles.filter((r) => r.isThirdParty).length +
+				d.resources.images.filter((r) => r.isThirdParty).length +
+				d.resources.fonts.filter((r) => r.isThirdParty).length +
+				d.resources.other.filter((r) => r.isThirdParty).length
+		)
 	);
 
 	const thirdPartySize = calculateAverage(
 		details.map((d) => d.size.thirdParty)
 	);
 
+	const thirdPartyDomains = calculateAverage(
+		details.map((d) => {
+			const domains = new Set<string>();
+			for (const resource of [
+				...d.resources.scripts,
+				...d.resources.styles,
+				...d.resources.images,
+				...d.resources.fonts,
+				...d.resources.other,
+			]) {
+				if (resource.isThirdParty && resource.name) {
+					try {
+						domains.add(new URL(resource.name).hostname);
+					} catch {
+						// Skip invalid URLs
+					}
+				}
+			}
+			return domains.size;
+		})
+	);
+
 	return {
 		totalRequests,
 		thirdPartyRequests,
 		thirdPartySize,
-		thirdPartyDomains: DEFAULT_THIRD_PARTY_DOMAINS,
+		thirdPartyDomains,
 	};
 }
 
@@ -182,7 +213,9 @@ function calculateCookieBannerMetrics(
  */
 function calculatePerformanceMetrics(details: BenchmarkResult["details"]) {
 	return {
-		domSize: DEFAULT_DOM_SIZE,
+		domSize: calculateAverage(
+			details.map((d) => d.dom?.size || DEFAULT_DOM_SIZE)
+		),
 		mainThreadBlocking: calculateAverage(
 			details.map((d) => d.timing.mainThreadBlocking.total)
 		),
@@ -264,6 +297,11 @@ async function runSingleBenchmark(
 				traceDir: tracesDir,
 			});
 			const result = await runner.runBenchmarks(benchmarkUrl);
+
+			if (!result.details || result.details.length === 0) {
+				logger.error("No successful benchmark iterations");
+				return false;
+			}
 
 			// Create app data for transparency scoring
 			const appData = {
@@ -355,9 +393,9 @@ export async function benchmarkCommand(
 	if (appPath) {
 		const success = await runSingleBenchmark(logger, appPath, true);
 		if (!success) {
-			process.exit(1);
+			throw new Error(`Benchmark failed for ${appPath}`);
 		}
-		process.exit(0);
+		return;
 	}
 
 	// Otherwise, show multi-select for available benchmarks
@@ -374,7 +412,7 @@ export async function benchmarkCommand(
 		logger.info(
 			"Create benchmark directories with config.json files to get started"
 		);
-		process.exit(1);
+		throw new Error("No benchmarks found");
 	}
 
 	logger.info(
@@ -531,7 +569,4 @@ export async function benchmarkCommand(
 		const { resultsCommand } = await import("./results.js");
 		await resultsCommand(logger, successfulBenchmarks);
 	}
-
-	// Exit process after command completes
-	process.exit(0);
 }

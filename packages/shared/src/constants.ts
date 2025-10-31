@@ -12,5 +12,3 @@ export const PERCENTAGE_DIVISOR = 100;
 
 // Common thresholds
 export const TTI_BUFFER_MS = 1000; // Buffer for true interactivity
-
-

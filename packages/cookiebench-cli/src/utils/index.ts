@@ -1,37 +1,23 @@
-import {
-	formatBytes as formatBytesShared,
-	formatTime as formatTimeShared,
-	getPackageManager as getPackageManagerShared,
-	HALF_SECOND,
-	KILOBYTE,
-	ONE_SECOND,
-	PERCENTAGE_DIVISOR,
-	PERCENTAGE_MULTIPLIER,
-	readConfig as readConfigShared,
-} from "@consentio/shared";
+/** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
+import { readConfig as readConfigShared } from "@consentio/shared";
 import type { Config } from "../types";
 
-// Re-export local constants
-// biome-ignore lint/performance/noBarrelFile: this is a barrel file
-export * from "./constants";
-
 // Re-export shared constants
+// Re-export shared utilities
 export {
+	formatBytes,
+	formatTime,
+	getPackageManager,
 	HALF_SECOND,
 	KILOBYTE,
 	ONE_SECOND,
 	PERCENTAGE_DIVISOR,
 	PERCENTAGE_MULTIPLIER,
-};
+} from "@consentio/shared";
+// Re-export local constants
 
-// Re-export shared utilities
-export {
-	formatBytesShared as formatBytes,
-	formatTimeShared as formatTime,
-	getPackageManagerShared as getPackageManager,
-};
+export * from "./constants";
 
 export function readConfig(configPath?: string): Config | null {
 	return readConfigShared<Config>(configPath);
 }
-

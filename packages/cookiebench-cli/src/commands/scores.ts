@@ -180,7 +180,7 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 	}
 
 	logger.outro("Done!");
-	
+
 	// Exit process after command completes
 	process.exit(0);
 }

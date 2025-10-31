@@ -161,7 +161,7 @@ Our scoring system evaluates multiple categories:
 
 **Transparency Score** (10% weight):
 
-- Open source status
+- Open-source status
 - Company information
 - Tech stack transparency
 
