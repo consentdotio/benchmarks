@@ -1,4 +1,7 @@
+import { exec } from "node:child_process";
+import { readFileSync, unlink, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { Logger } from "@c15t/logger";
 import type { Config } from "@consentio/benchmark";
 import {
@@ -12,6 +15,8 @@ import { chromium, type Page } from "@playwright/test";
 import { PerformanceMetricsCollector } from "playwright-performance-metrics";
 import { PerformanceAggregator } from "./performance-aggregator";
 import type { BenchmarkDetails, BenchmarkResult } from "./types";
+
+const execAsync = promisify(exec);
 
 // Constants
 const WARMUP_ITERATIONS = 1; // Number of warmup runs before actual benchmarking
@@ -313,6 +318,9 @@ export class BenchmarkRunner {
 
 				try {
 					if (this.saveTrace) {
+						this.logger.info(
+							`📊 Starting trace capture for iteration ${i + 1}...`
+						);
 						await context.tracing.start({
 							screenshots: true,
 							snapshots: true,
@@ -329,17 +337,51 @@ export class BenchmarkRunner {
 
 					// Save trace if enabled (must be done before closing context)
 					if (this.saveTrace) {
-						const tracePath = this.traceDir
-							? join(
-									this.traceDir,
-									`trace-${this.config.name}-iteration-${i + 1}.zip`
-								)
+						const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+						const traceZipPath = this.traceDir
+							? join(this.traceDir, `Trace-${timestamp}.zip`)
 							: join(
 									process.cwd(),
 									`trace-${this.config.name}-iteration-${i + 1}.zip`
 								);
-						await context.tracing.stop({ path: tracePath });
-						this.logger.info(`📊 Trace saved to: ${tracePath}`);
+						const traceJsonPath = this.traceDir
+							? join(this.traceDir, `Trace-${timestamp}.json`)
+							: join(
+									process.cwd(),
+									`trace-${this.config.name}-iteration-${i + 1}.json`
+								);
+
+						// Playwright saves traces as ZIP files
+						await context.tracing.stop({ path: traceZipPath });
+
+						// Extract the trace.trace file from the ZIP and save as JSON
+						try {
+							// Extract trace.trace from the ZIP
+							const tempDir = this.traceDir || process.cwd();
+							await execAsync(
+								`unzip -o "${traceZipPath}" -d "${tempDir}" trace.trace 2>/dev/null`
+							);
+
+							// Read the extracted trace.trace file and write it as JSON
+							const traceFilePath = join(tempDir, "trace.trace");
+							const traceContent = readFileSync(traceFilePath, "utf-8");
+							writeFileSync(traceJsonPath, traceContent, "utf-8");
+							// Clean up the temporary trace.trace file
+							unlink(traceFilePath, () => {
+								// Ignore errors during cleanup
+							});
+							// Clean up the ZIP file
+							unlink(traceZipPath, () => {
+								// Ignore errors during cleanup
+							});
+							this.logger.info(`📊 Trace saved to: ${traceJsonPath}`);
+						} catch {
+							// If extraction failed, keep the ZIP file
+							this.logger.warn(
+								`Failed to extract trace JSON, keeping ZIP file: ${traceZipPath}`
+							);
+							this.logger.info(`📊 Trace saved to: ${traceZipPath}`);
+						}
 					}
 
 					const iterationDurationSeconds = Math.round(

@@ -227,9 +227,21 @@ async function runSingleBenchmark(
 
 		const cwd = appPath || process.cwd();
 
+		// Create traces directory if it doesn't exist
+		const tracesDir = join(cwd, "traces");
 		try {
-			// Create benchmark runner and run benchmarks
-			const runner = new BenchmarkRunner(config, logger);
+			await mkdir(tracesDir, { recursive: true });
+		} catch {
+			// Directory might already exist, ignore error
+		}
+		logger.info(`📊 Tracing enabled - traces will be saved to: ${tracesDir}`);
+
+		try {
+			// Create benchmark runner and run benchmarks with trace saving enabled
+			const runner = new BenchmarkRunner(config, logger, {
+				saveTrace: true,
+				traceDir: tracesDir,
+			});
 			const result = await runner.runBenchmarks(benchmarkUrl);
 
 			// Create app data for transparency scoring
@@ -498,7 +510,7 @@ export async function benchmarkCommand(
 		const { resultsCommand } = await import("./results.js");
 		await resultsCommand(logger, successfulBenchmarks);
 	}
-	
+
 	// Exit process after command completes
 	process.exit(0);
 }

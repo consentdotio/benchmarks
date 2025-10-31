@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Logger } from "@c15t/logger";
 import type { Page } from "@playwright/test";
 import { BENCHMARK_CONSTANTS } from "./constants";
@@ -13,17 +17,29 @@ export class PerfumeCollector {
 	 * Setup Perfume.js in the browser to collect performance metrics
 	 */
 	async setupPerfume(page: Page): Promise<void> {
-		await page.addInitScript(() => {
+		// Load Perfume.js UMD bundle from node_modules
+		const perfumeScript = this.loadPerfumeScript();
+
+		await page.addInitScript((perfumeScriptCode: string) => {
 			// Initialize storage object
 			const win = window as WindowWithPerfumeMetrics;
 			win.__perfumeMetrics = {};
 
-			// Load Perfume.js from CDN
-			const script = document.createElement("script");
-			script.src = "https://unpkg.com/perfume.js@9.4.0/dist/perfume.umd.min.js";
-			script.onload = () => {
+			if (!perfumeScriptCode) {
+				// Perfume.js failed to load, continue without it
+				return;
+			}
+
+			try {
+				// Execute Perfume.js UMD bundle using script injection
+				// This creates the Perfume constructor on window
+				const script = document.createElement("script");
+				script.textContent = perfumeScriptCode;
+				document.head.appendChild(script);
+				document.head.removeChild(script);
+
 				// Initialize Perfume with analytics tracker
-				// @ts-expect-error - Perfume is loaded from CDN
+				// @ts-expect-error - Perfume is loaded from UMD bundle
 				new window.Perfume({
 					analyticsTracker: ({
 						metricName,
@@ -58,15 +74,87 @@ export class PerfumeCollector {
 						}
 					},
 				});
-			};
-
-			// Handle script load errors - silently fail if Perfume.js doesn't load
-			script.onerror = () => {
+			} catch (_error) {
 				// Perfume.js is optional, continue without it
-			};
+			}
+		}, perfumeScript);
+	}
 
-			document.head.appendChild(script);
-		});
+	/**
+	 * Load Perfume.js UMD bundle from node_modules
+	 */
+	private loadPerfumeScript(): string {
+		// Try multiple possible paths for perfume.js in a monorepo setup
+		const currentDir = fileURLToPath(new URL(".", import.meta.url));
+		const possiblePaths = [
+			// Package-level node_modules (most common in monorepos)
+			join(
+				currentDir,
+				"..",
+				"..",
+				"node_modules",
+				"perfume.js",
+				"dist",
+				"perfume.umd.min.js"
+			),
+			// Root node_modules (alternative location)
+			join(
+				currentDir,
+				"..",
+				"..",
+				"..",
+				"..",
+				"node_modules",
+				"perfume.js",
+				"dist",
+				"perfume.umd.min.js"
+			),
+			// Alternative root location
+			join(
+				currentDir,
+				"..",
+				"..",
+				"..",
+				"node_modules",
+				"perfume.js",
+				"dist",
+				"perfume.umd.min.js"
+			),
+			// Also try non-minified version
+			join(
+				currentDir,
+				"..",
+				"..",
+				"node_modules",
+				"perfume.js",
+				"dist",
+				"perfume.umd.js"
+			),
+		];
+
+		for (const perfumePath of possiblePaths) {
+			try {
+				return readFileSync(perfumePath, "utf-8");
+			} catch {
+				// Try next path
+			}
+		}
+
+		// Try using createRequire for ES modules (works in Node.js environments)
+		try {
+			const require = createRequire(import.meta.url);
+			const perfumeModulePath = require.resolve(
+				"perfume.js/dist/perfume.umd.min.js"
+			);
+			return readFileSync(perfumeModulePath, "utf-8");
+		} catch {
+			// Final fallback
+		}
+
+		this.logger.warn(
+			"Failed to load Perfume.js from node_modules, falling back to empty script"
+		);
+		return "";
 	}
 
 	/**
