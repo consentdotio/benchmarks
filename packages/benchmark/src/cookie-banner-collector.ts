@@ -314,7 +314,7 @@ export class CookieBannerCollector {
 							? metrics.bannerInteractive - metrics.pageLoadStart
 							: 0,
 					bannerHydrationTime:
-						metrics.bannerInteractive > 0
+						metrics.detected && metrics.bannerInteractive > 0
 							? metrics.bannerInteractive - metrics.bannerFirstSeen
 							: 0,
 					layoutShiftImpact:

@@ -23,6 +23,21 @@ export class ResourceTimingCollector {
 				"resource"
 			) as PerformanceResourceTiming[];
 
+			// Helper to determine if a resource is first-party
+			const isFirstParty = (entry: PerformanceResourceTiming) => {
+				try {
+					return (
+						new URL(entry.name, window.location.origin).hostname ===
+						window.location.hostname
+					);
+				} catch {
+					return (
+						entry.name.startsWith(window.location.origin) ||
+						entry.name.startsWith("/")
+					);
+				}
+			};
+
 			// Categorize resources
 			const scriptEntries = resourceEntries.filter(
 				(entry) => entry.initiatorType === "script"
@@ -85,14 +100,10 @@ export class ResourceTimingCollector {
 				size: {
 					total: calculateSize(resourceEntries),
 					bundled: calculateSize(
-						scriptEntries.filter((e) =>
-							e.name.includes(window.location.hostname)
-						)
+						scriptEntries.filter((entry) => isFirstParty(entry))
 					),
 					thirdParty: calculateSize(
-						scriptEntries.filter(
-							(e) => !e.name.includes(window.location.hostname)
-						)
+						scriptEntries.filter((entry) => !isFirstParty(entry))
 					),
 					cookieServices: 0, // Will be calculated later
 					scripts: {
@@ -104,9 +115,7 @@ export class ResourceTimingCollector {
 							scriptEntries.filter((e) => e.startTime >= domContentLoaded)
 						),
 						thirdParty: calculateSize(
-							scriptEntries.filter(
-								(e) => !e.name.includes(window.location.hostname)
-							)
+							scriptEntries.filter((entry) => !isFirstParty(entry))
 						),
 						cookieServices: 0, // Will be calculated later
 					},
@@ -121,7 +130,7 @@ export class ResourceTimingCollector {
 						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
-						isThirdParty: !entry.name.includes(window.location.hostname),
+						isThirdParty: !isFirstParty(entry),
 						isDynamic: entry.startTime >= domContentLoaded,
 						isCookieService: false,
 						dnsTime: entry.domainLookupEnd - entry.domainLookupStart,
@@ -132,7 +141,7 @@ export class ResourceTimingCollector {
 						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
-						isThirdParty: !entry.name.includes(window.location.hostname),
+						isThirdParty: !isFirstParty(entry),
 						isCookieService: false,
 					})),
 					images: imageEntries.map((entry) => ({
@@ -140,7 +149,7 @@ export class ResourceTimingCollector {
 						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
-						isThirdParty: !entry.name.includes(window.location.hostname),
+						isThirdParty: !isFirstParty(entry),
 						isCookieService: false,
 					})),
 					fonts: fontEntries.map((entry) => ({
@@ -148,7 +157,7 @@ export class ResourceTimingCollector {
 						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
-						isThirdParty: !entry.name.includes(window.location.hostname),
+						isThirdParty: !isFirstParty(entry),
 						isCookieService: false,
 					})),
 					other: otherEntries.map((entry) => ({
@@ -156,12 +165,19 @@ export class ResourceTimingCollector {
 						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
-						isThirdParty: !entry.name.includes(window.location.hostname),
+						isThirdParty: !isFirstParty(entry),
 						isCookieService: false,
 						type: entry.initiatorType,
 					})),
 				},
-				language: "en",
+				language: (() => {
+					const docLang = (
+						document.documentElement.getAttribute("lang") || ""
+					).trim();
+					return (
+						docLang || navigator.language || navigator.languages?.[0] || "en"
+					);
+				})(),
 				duration: load,
 			};
 		}, BENCHMARK_CONSTANTS.BYTES_TO_KB);

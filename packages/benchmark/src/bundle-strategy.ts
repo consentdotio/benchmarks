@@ -8,14 +8,17 @@ export function determineBundleStrategy(config: Config): BundleStrategy {
 		bundleType === BUNDLE_TYPES.IIFE ||
 		(Array.isArray(bundleType) && bundleType.includes(BUNDLE_TYPES.IIFE));
 
-	const isBundled =
-		!isIIFE &&
-		(bundleType === BUNDLE_TYPES.BUNDLED ||
-			(Array.isArray(bundleType) &&
-				(bundleType.includes(BUNDLE_TYPES.ESM) ||
-					bundleType.includes(BUNDLE_TYPES.CJS))) ||
-			bundleType === BUNDLE_TYPES.ESM ||
-			bundleType === BUNDLE_TYPES.CJS);
+	const isModuleBundleType =
+		bundleType === BUNDLE_TYPES.ESM ||
+		bundleType === BUNDLE_TYPES.CJS ||
+		bundleType === BUNDLE_TYPES.BUNDLED;
+
+	const isArrayWithModules =
+		Array.isArray(bundleType) &&
+		(bundleType.includes(BUNDLE_TYPES.ESM) ||
+			bundleType.includes(BUNDLE_TYPES.CJS));
+
+	const isBundled = !isIIFE && (isModuleBundleType || isArrayWithModules);
 
 	return { isBundled, isIIFE, bundleType };
 }

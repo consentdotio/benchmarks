@@ -175,38 +175,67 @@ export class PerfumeCollector {
 
 			// Get navigation timing separately
 			const navigationTiming = await page.evaluate(() => {
-				const timing = performance.timing;
-				const navigationStart = timing.navigationStart;
+				const navigation = performance.getEntriesByType("navigation")[0] as
+					| PerformanceNavigationTiming
+					| undefined;
+
+				if (!navigation) {
+					return null;
+				}
 
 				return {
-					timeToFirstByte: timing.responseStart - navigationStart,
-					domInteractive: timing.domInteractive - navigationStart,
-					domContentLoadedEventStart:
-						timing.domContentLoadedEventStart - navigationStart,
-					domContentLoadedEventEnd:
-						timing.domContentLoadedEventEnd - navigationStart,
-					domComplete: timing.domComplete - navigationStart,
-					loadEventStart: timing.loadEventStart - navigationStart,
-					loadEventEnd: timing.loadEventEnd - navigationStart,
+					timeToFirstByte: navigation.responseStart,
+					domInteractive: navigation.domInteractive,
+					domContentLoadedEventStart: navigation.domContentLoadedEventStart,
+					domContentLoadedEventEnd: navigation.domContentLoadedEventEnd,
+					domComplete: navigation.domComplete,
+					loadEventStart: navigation.loadEventStart,
+					loadEventEnd: navigation.loadEventEnd,
 				};
 			});
 
 			// Get network information
 			const networkInformation = await page.evaluate(() => {
-				// @ts-expect-error - navigator.connection is experimental
-				const connection = navigator.connection || navigator.mozConnection;
-				if (connection) {
-					return {
-						effectiveType: connection.effectiveType || "unknown",
-						downlink: connection.downlink || 0,
-						rtt: connection.rtt || 0,
-						saveData: connection.saveData,
-					};
+				try {
+					const nav = typeof navigator !== "undefined" ? navigator : null;
+					if (!nav) {
+						return;
+					}
+
+					// Access experimental network information API with vendor prefixes
+					// biome-ignore lint/suspicious/noExplicitAny: Experimental API requires dynamic access
+					const navAny = nav as any;
+					const connection =
+						navAny.connection ||
+						navAny.mozConnection ||
+						navAny.webkitConnection;
+
+					if (connection) {
+						return {
+							effectiveType: connection.effectiveType || "unknown",
+							downlink: connection.downlink || 0,
+							rtt: connection.rtt || 0,
+							saveData: Boolean(connection.saveData),
+						};
+					}
+
+					return;
+				} catch {
+					return;
 				}
-				return;
 			});
 
 			// Convert raw metrics to PerfumeMetrics format
+			const defaultNavigationTiming = {
+				timeToFirstByte: 0,
+				domInteractive: 0,
+				domContentLoadedEventStart: 0,
+				domContentLoadedEventEnd: 0,
+				domComplete: 0,
+				loadEventStart: 0,
+				loadEventEnd: 0,
+			};
+
 			const metrics: PerfumeMetrics = {
 				firstPaint: rawMetrics.FP?.value || 0,
 				firstContentfulPaint: rawMetrics.FCP?.value || 0,
@@ -216,8 +245,8 @@ export class PerfumeCollector {
 				firstInputDelay: rawMetrics.FID?.value || null,
 				interactionToNextPaint: rawMetrics.INP?.value || null,
 				timeToFirstByte:
-					rawMetrics.TTFB?.value || navigationTiming.timeToFirstByte,
-				navigationTiming,
+					rawMetrics.TTFB?.value || navigationTiming?.timeToFirstByte || 0,
+				navigationTiming: navigationTiming || defaultNavigationTiming,
 				networkInformation,
 			};
 

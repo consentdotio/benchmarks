@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --port 3006",
+    "dev": "next dev --port 3007",
     "fmt": "biome format . --write",
     "lint": "biome lint .",
     "start": "next start"

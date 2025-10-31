@@ -15,7 +15,7 @@ export default function RootLayout({
 			<head>
 				{/* Iubenda Cookie Banner + Configuration */}
 				<script
-					// biome-ignore lint/security/noDangerouslySetInnerHtml: its okay to set inner html
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: hardcoded Iubenda configuration, no user input
 					dangerouslySetInnerHTML={{
 						__html: `
 							window._iub = window._iub || [];
