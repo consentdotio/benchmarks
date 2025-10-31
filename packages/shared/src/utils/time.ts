@@ -6,6 +6,13 @@ import { ONE_SECOND } from "../constants";
  * @returns Formatted time string (e.g., "150ms" or "1.50s")
  */
 export function formatTime(ms: number): string {
+	if (!Number.isFinite(ms)) {
+		return "N/A";
+	}
+	if (ms < 0) {
+		return "0ms";
+	}
+
 	if (ms < ONE_SECOND) {
 		return `${ms.toFixed(0)}ms`;
 	}

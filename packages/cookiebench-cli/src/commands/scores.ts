@@ -6,6 +6,7 @@ import type { Config } from "@consentio/runner";
 import { HALF_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
 import color from "picocolors";
 import type { BenchmarkScores } from "../types";
+import { DEFAULT_DOM_SIZE } from "../utils/constants";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores, printScores } from "../utils/scoring";
 import type { RawBenchmarkDetail } from "./results";
@@ -180,9 +181,6 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 	}
 
 	logger.outro("Done!");
-
-	// Exit process after command completes
-	process.exit(0);
 }
 
 async function displayAppScores(
@@ -245,8 +243,17 @@ async function displayAppScores(
 			timeToFirstByte:
 				appResults.reduce((a, b) => a + (b.timing.timeToFirstByte || 0), 0) /
 				appResults.length,
-			interactionToNextPaint:
-				appResults[0]?.timing.interactionToNextPaint || null,
+			interactionToNextPaint: (() => {
+				const validValues = appResults
+					.map((r) => r.timing.interactionToNextPaint)
+					.filter(
+						(inp): inp is number =>
+							inp !== null && inp !== undefined && Number.isFinite(inp)
+					);
+				return validValues.length > 0
+					? validValues.reduce((a, b) => a + b, 0) / validValues.length
+					: null;
+			})(),
 		},
 		{
 			totalSize:
@@ -278,13 +285,40 @@ async function displayAppScores(
 			thirdPartyRequests:
 				appResults.reduce(
 					(a, b) =>
-						a + b.resources.scripts.filter((s) => s.isThirdParty).length,
+						a +
+						b.resources.scripts.filter((s) => s.isThirdParty).length +
+						b.resources.styles.filter((s) => s.isThirdParty).length +
+						b.resources.images.filter((s) => s.isThirdParty).length +
+						b.resources.fonts.filter((s) => s.isThirdParty).length +
+						b.resources.other.filter((s) => s.isThirdParty).length,
 					0
 				) / appResults.length,
 			thirdPartySize:
 				appResults.reduce((a, b) => a + b.size.thirdParty, 0) /
 				appResults.length,
-			thirdPartyDomains: 5, // Default value
+			thirdPartyDomains: (() => {
+				// Calculate unique third-party domains from resources
+				const thirdPartyHosts = new Set<string>();
+				for (const appResult of appResults) {
+					// Check all resource types for third-party resources
+					const allThirdPartyResources = [
+						...appResult.resources.scripts.filter((r) => r.isThirdParty),
+						...appResult.resources.styles.filter((r) => r.isThirdParty),
+						...appResult.resources.images.filter((r) => r.isThirdParty),
+						...appResult.resources.fonts.filter((r) => r.isThirdParty),
+						...appResult.resources.other.filter((r) => r.isThirdParty),
+					];
+					for (const resource of allThirdPartyResources) {
+						try {
+							const url = new URL(resource.name);
+							thirdPartyHosts.add(url.hostname);
+						} catch {
+							// Invalid URL, skip
+						}
+					}
+				}
+				return thirdPartyHosts.size;
+			})(),
 		},
 		{
 			cookieBannerDetected: appResults.some(
@@ -304,7 +338,7 @@ async function displayAppScores(
 				PERCENTAGE_DIVISOR,
 		},
 		{
-			domSize: 1500, // Default value
+			domSize: DEFAULT_DOM_SIZE,
 			mainThreadBlocking:
 				appResults.reduce((a, b) => a + b.timing.mainThreadBlocking.total, 0) /
 				appResults.length,

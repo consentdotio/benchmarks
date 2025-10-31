@@ -151,6 +151,9 @@ export type BenchmarkDetails = {
 			type: string;
 		}>;
 	};
+	dom?: {
+		size?: number;
+	};
 	cookieBanner: EnhancedCookieBannerTiming;
 	thirdParty: ThirdPartyMetrics;
 };

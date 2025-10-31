@@ -117,11 +117,20 @@ export class CookieBannerCollector {
 				// Monitor for layout shifts specifically
 				let cumulativeLayoutShift = 0;
 				if ("PerformanceObserver" in window) {
+					// Type guard to safely check if entry is a LayoutShiftEntry
+					const isLayoutShiftEntry = (
+						entry: PerformanceEntry
+					): entry is LayoutShiftEntry =>
+						entry.entryType === "layout-shift" &&
+						"value" in entry &&
+						typeof entry.value === "number" &&
+						"hadRecentInput" in entry &&
+						typeof entry.hadRecentInput === "boolean";
+
 					const clsObserver = new PerformanceObserver((list) => {
 						for (const entry of list.getEntries()) {
-							const layoutShiftEntry = entry as LayoutShiftEntry;
-							if (!layoutShiftEntry.hadRecentInput) {
-								cumulativeLayoutShift += layoutShiftEntry.value;
+							if (isLayoutShiftEntry(entry) && !entry.hadRecentInput) {
+								cumulativeLayoutShift += entry.value;
 								(
 									window as unknown as WindowWithCookieMetrics
 								).__cookieBannerMetrics.layoutShiftsAfter =
@@ -130,6 +139,10 @@ export class CookieBannerCollector {
 						}
 					});
 					clsObserver.observe({ type: "layout-shift", buffered: true });
+					// Store observer reference for cleanup
+					(
+						window as unknown as WindowWithCookieMetrics
+					).__cookieBannerMetrics.clsObserver = clsObserver;
 				}
 
 				// Cookie banner detection logic
@@ -282,6 +295,16 @@ export class CookieBannerCollector {
 					return null;
 				}
 
+				// Read final layout shift value before disconnecting observer
+				const layoutShiftImpact =
+					metrics.layoutShiftsAfter - metrics.layoutShiftsBefore;
+
+				// Clean up PerformanceObserver to prevent memory leaks
+				if (metrics.clsObserver) {
+					metrics.clsObserver.disconnect();
+					metrics.clsObserver = undefined;
+				}
+
 				return {
 					detected: metrics.detected,
 					selector: metrics.selector,
@@ -317,8 +340,7 @@ export class CookieBannerCollector {
 						metrics.detected && metrics.bannerInteractive > 0
 							? metrics.bannerInteractive - metrics.bannerFirstSeen
 							: 0,
-					layoutShiftImpact:
-						metrics.layoutShiftsAfter - metrics.layoutShiftsBefore,
+					layoutShiftImpact,
 					viewportCoverage: metrics.detected
 						? (() => {
 								if (!metrics.selector) {

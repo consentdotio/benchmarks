@@ -132,8 +132,7 @@ export class PerformanceAggregator {
 
 		const percentageFromCookies =
 			totalBlockingTime > 0
-				? (cookieBannerEstimate / (totalBlockingTime || 1)) *
-					PERCENTAGE_MULTIPLIER
+				? (cookieBannerEstimate / totalBlockingTime) * PERCENTAGE_MULTIPLIER
 				: 0;
 
 		return {
@@ -176,7 +175,7 @@ export class PerformanceAggregator {
 				timeToFirstByte: perfumeMetrics?.timeToFirstByte ?? 0,
 				firstInputDelay: perfumeMetrics?.firstInputDelay ?? null,
 				interactionToNextPaint: perfumeMetrics?.interactionToNextPaint ?? null,
-				navigationTiming: perfumeMetrics?.navigationTiming || {
+				navigationTiming: perfumeMetrics?.navigationTiming ?? {
 					timeToFirstByte: 0,
 					domInteractive: 0,
 					domContentLoadedEventStart: 0,
@@ -185,7 +184,7 @@ export class PerformanceAggregator {
 					loadEventStart: 0,
 					loadEventEnd: 0,
 				},
-				networkInformation: perfumeMetrics?.networkInformation || undefined,
+				networkInformation: perfumeMetrics?.networkInformation ?? undefined,
 				cookieBanner: this.buildCookieBannerTiming(cookieBannerData, config),
 				thirdParty: this.buildThirdPartyMetrics(
 					networkImpact,

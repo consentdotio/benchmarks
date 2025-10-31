@@ -213,14 +213,10 @@ function calculateCookieBannerMetrics(
 function calculatePerformanceMetrics(details: BenchmarkResult["details"]) {
 	return {
 		domSize: calculateAverage(
-			details.map(
-				(d) =>
-					(d as unknown as { dom?: { size?: number } }).dom?.size ??
-					DEFAULT_DOM_SIZE
-			)
+			details.map((d) => d.dom?.size ?? DEFAULT_DOM_SIZE)
 		),
 		mainThreadBlocking: calculateAverage(
-			details.map((d) => d.timing.mainThreadBlocking?.total ?? 0)
+			details.map((d) => d.timing.mainThreadBlocking.total)
 		),
 		layoutShifts: calculateAverage(
 			details.map((d) => d.timing.cumulativeLayoutShift)
@@ -288,8 +284,16 @@ async function runSingleBenchmark(
 		const tracesDir = join(cwd, "traces");
 		try {
 			await mkdir(tracesDir, { recursive: true });
-		} catch {
-			// Directory might already exist, ignore error
+		} catch (error: unknown) {
+			// Ignore EEXIST - directory already exists
+			if (
+				error &&
+				typeof error === "object" &&
+				"code" in error &&
+				error.code !== "EEXIST"
+			) {
+				throw error;
+			}
 		}
 		logger.info(`📊 Tracing enabled - traces will be saved to: ${tracesDir}`);
 
@@ -569,7 +573,12 @@ export async function benchmarkCommand(
 			.map((r) => r.name);
 
 		// Dynamically import and run the results command with specific benchmarks
-		const { resultsCommand } = await import("./results.js");
-		await resultsCommand(logger, successfulBenchmarks);
+		try {
+			const { resultsCommand } = await import("./results.js");
+			await resultsCommand(logger, successfulBenchmarks);
+		} catch (error) {
+			logger.error("Failed to load results panel");
+			logger.debug(error instanceof Error ? error.message : String(error));
+		}
 	}
 }

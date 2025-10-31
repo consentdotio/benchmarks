@@ -74,7 +74,9 @@ export class PerfumeCollector {
 						}
 					},
 				});
-			} catch (_error) {
+			} catch (error) {
+				// biome-ignore lint/suspicious/noConsole: This runs in browser context via addInitScript
+				console.warn("Failed to initialize Perfume.js:", error);
 				// Perfume.js is optional, continue without it
 			}
 		}, perfumeScript);
@@ -242,8 +244,8 @@ export class PerfumeCollector {
 				largestContentfulPaint: rawMetrics.LCP?.value || 0,
 				cumulativeLayoutShift: rawMetrics.CLS?.value || 0,
 				totalBlockingTime: rawMetrics.TBT?.value || 0,
-				firstInputDelay: rawMetrics.FID?.value || null,
-				interactionToNextPaint: rawMetrics.INP?.value || null,
+				firstInputDelay: rawMetrics.FID?.value ?? null,
+				interactionToNextPaint: rawMetrics.INP?.value ?? null,
 				timeToFirstByte:
 					rawMetrics.TTFB?.value || navigationTiming?.timeToFirstByte || 0,
 				navigationTiming: navigationTiming || defaultNavigationTiming,

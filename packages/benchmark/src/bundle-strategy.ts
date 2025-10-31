@@ -16,7 +16,8 @@ export function determineBundleStrategy(config: Config): BundleStrategy {
 	const isArrayWithModules =
 		Array.isArray(bundleType) &&
 		(bundleType.includes(BUNDLE_TYPES.ESM) ||
-			bundleType.includes(BUNDLE_TYPES.CJS));
+			bundleType.includes(BUNDLE_TYPES.CJS) ||
+			bundleType.includes(BUNDLE_TYPES.BUNDLED));
 
 	const isBundled = !isIIFE && (isModuleBundleType || isArrayWithModules);
 

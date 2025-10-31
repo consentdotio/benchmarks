@@ -79,19 +79,17 @@ export class ResourceTimingCollector {
 					scripts: {
 						bundled: {
 							loadStart: 0,
-							loadEnd: scriptEntries.reduce(
-								(acc, entry) => acc + entry.duration,
-								0
-							),
+							loadEnd: scriptEntries
+								.filter((entry) => isFirstParty(entry))
+								.reduce((acc, entry) => acc + entry.duration, 0),
 							executeStart: 0,
 							executeEnd: 0,
 						},
 						thirdParty: {
 							loadStart: 0,
-							loadEnd: scriptEntries.reduce(
-								(acc, entry) => acc + entry.duration,
-								0
-							),
+							loadEnd: scriptEntries
+								.filter((entry) => !isFirstParty(entry))
+								.reduce((acc, entry) => acc + entry.duration, 0),
 							executeStart: 0,
 							executeEnd: 0,
 						},
@@ -127,7 +125,8 @@ export class ResourceTimingCollector {
 				resources: {
 					scripts: scriptEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
+						size:
+							(entry.transferSize || entry.encodedBodySize || 0) / bytesToKb,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !isFirstParty(entry),
@@ -138,7 +137,8 @@ export class ResourceTimingCollector {
 					})),
 					styles: styleEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
+						size:
+							(entry.transferSize || entry.encodedBodySize || 0) / bytesToKb,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !isFirstParty(entry),
@@ -146,7 +146,8 @@ export class ResourceTimingCollector {
 					})),
 					images: imageEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
+						size:
+							(entry.transferSize || entry.encodedBodySize || 0) / bytesToKb,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !isFirstParty(entry),
@@ -154,7 +155,8 @@ export class ResourceTimingCollector {
 					})),
 					fonts: fontEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
+						size:
+							(entry.transferSize || entry.encodedBodySize || 0) / bytesToKb,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !isFirstParty(entry),
@@ -162,7 +164,8 @@ export class ResourceTimingCollector {
 					})),
 					other: otherEntries.map((entry) => ({
 						name: entry.name,
-						size: entry.transferSize ? entry.transferSize / bytesToKb : 0,
+						size:
+							(entry.transferSize || entry.encodedBodySize || 0) / bytesToKb,
 						duration: entry.duration,
 						startTime: entry.startTime - navigationStart,
 						isThirdParty: !isFirstParty(entry),

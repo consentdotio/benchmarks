@@ -2,13 +2,10 @@
  * Detect and return the available package manager
  * @returns Package manager command and args
  */
-export async function getPackageManager(): Promise<
-	| {
-			command: string;
-			args: string[];
-	  }
-	| undefined
-> {
+export async function getPackageManager(): Promise<{
+	command: string;
+	args: string[];
+}> {
 	try {
 		const { execSync } = await import("node:child_process");
 		const output = execSync("npm -v", { encoding: "utf-8" });
@@ -35,4 +32,6 @@ export async function getPackageManager(): Promise<
 			}
 		}
 	}
+	// Fallback if all checks succeed but output is falsy (shouldn't happen in practice)
+	return { command: "npm", args: ["run"] };
 }

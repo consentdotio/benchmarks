@@ -73,6 +73,7 @@ export interface WindowWithCookieMetrics extends Window {
 		layoutShiftsAfter: number;
 		detected: boolean;
 		selector: string | null;
+		clsObserver?: PerformanceObserver;
 	};
 }
 
