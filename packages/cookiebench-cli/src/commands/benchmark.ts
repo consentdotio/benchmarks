@@ -192,8 +192,7 @@ function calculateCookieBannerMetrics(
 
 	// Calculate coverage
 	let cookieBannerCoverage = 0;
-	const detectionConsistent = details.every((r) => r.cookieBanner.detected);
-	if (detectionConsistent) {
+	if (allDetected) {
 		cookieBannerCoverage =
 			calculateAverage(details.map((d) => d.cookieBanner.viewportCoverage)) /
 			PERCENTAGE_DIVISOR;
@@ -214,10 +213,14 @@ function calculateCookieBannerMetrics(
 function calculatePerformanceMetrics(details: BenchmarkResult["details"]) {
 	return {
 		domSize: calculateAverage(
-			details.map((d) => d.dom?.size || DEFAULT_DOM_SIZE)
+			details.map(
+				(d) =>
+					(d as unknown as { dom?: { size?: number } }).dom?.size ??
+					DEFAULT_DOM_SIZE
+			)
 		),
 		mainThreadBlocking: calculateAverage(
-			details.map((d) => d.timing.mainThreadBlocking.total)
+			details.map((d) => d.timing.mainThreadBlocking?.total ?? 0)
 		),
 		layoutShifts: calculateAverage(
 			details.map((d) => d.timing.cumulativeLayoutShift)
