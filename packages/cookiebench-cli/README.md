@@ -60,7 +60,7 @@ Run performance benchmarks on configured applications.
 cookiebench benchmark
 
 # Run a specific benchmark
-cookiebench benchmark benchmarks/with-c15t-nextjs
+cookiebench benchmark benchmarks/c15t-nextjs
 ```
 
 **Interactive Multi-Select Mode:**
@@ -99,10 +99,10 @@ When a specific path is provided:
 ```
 ? Select benchmarks to run:
   ◼ baseline
-  ◼ with-c15t-nextjs
-  ◼ with-cookieyes
+  ◼ c15t-nextjs
+  ◼ cookieyes
 
-● info  Config iterations: baseline: 5, with-c15t-nextjs: 3, with-cookieyes: 5
+● info  Config iterations: baseline: 5, c15t-nextjs: 3, cookieyes: 5
 
 ? Number of iterations (press Enter to use config values):
 › Default: 5
@@ -121,7 +121,7 @@ View comprehensive benchmark results with detailed metrics and analysis.
 cookiebench results
 
 # View results for a specific app
-cookiebench results with-c15t-nextjs
+cookiebench results c15t-nextjs
 
 # View all results
 cookiebench results __all__
@@ -170,10 +170,10 @@ Displays a detailed panel for each selected benchmark with:
 ```
 ? Select benchmarks to view (use space to toggle, all selected by default):
   ◼ baseline (benchmarks/baseline)
-  ◼ with-c15t-nextjs (benchmarks/with-c15t-nextjs)
-  ◼ with-cookieyes (benchmarks/with-cookieyes)
+  ◼ c15t-nextjs (benchmarks/c15t-nextjs)
+  ◼ cookieyes (benchmarks/cookieyes)
 
-● info  Viewing results for: baseline, with-c15t-nextjs, with-cookieyes
+● info  Viewing results for: baseline, c15t-nextjs, cookieyes
 ```
 
 ### scores
@@ -185,7 +185,7 @@ Displays a detailed panel for each selected benchmark with:
 cookiebench scores
 
 # View scores for a specific app
-cookiebench scores with-c15t-nextjs
+cookiebench scores c15t-nextjs
 
 # View scores for all apps
 cookiebench scores __all__
@@ -209,7 +209,7 @@ Features:
 cookiebench save
 
 # Save a specific benchmark
-cookiebench save with-c15t-nextjs
+cookiebench save c15t-nextjs
 
 # Save all benchmarks (can also select in interactive mode)
 cookiebench save __all__
@@ -247,7 +247,7 @@ Create a `config.json` file in your project:
 
 ```json
 {
-  "name": "my-app-with-cookieyes",
+  "name": "my-app-cookieyes",
   "iterations": 5,
   "baseline": false,
   "cookieBanner": {

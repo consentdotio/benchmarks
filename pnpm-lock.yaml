@@ -82,7 +82,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-c15t-nextjs:
+  benchmarks/c15t-nextjs:
     dependencies:
       '@c15t/nextjs':
         specifier: 1.7.1
@@ -119,7 +119,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-c15t-react:
+  benchmarks/c15t-react:
     dependencies:
       '@c15t/react':
         specifier: 1.7.1
@@ -159,7 +159,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-cookie-control:
+  benchmarks/cookie-control:
     dependencies:
       next:
         specifier: 16.0.1
@@ -193,7 +193,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-cookie-yes:
+  benchmarks/cookie-yes:
     dependencies:
       next:
         specifier: 16.0.1
@@ -227,7 +227,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-didomi:
+  benchmarks/didomi:
     dependencies:
       '@didomi/react':
         specifier: ^1.8.8
@@ -261,7 +261,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-enzuzo:
+  benchmarks/enzuzo:
     dependencies:
       next:
         specifier: 16.0.1
@@ -295,7 +295,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-iubenda:
+  benchmarks/iubenda:
     dependencies:
       next:
         specifier: 16.0.1
@@ -329,7 +329,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-ketch:
+  benchmarks/ketch:
     dependencies:
       next:
         specifier: 16.0.1
@@ -360,41 +360,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-onetrust:
-    dependencies:
-      next:
-        specifier: 16.0.1
-        version: 16.0.1(@opentelemetry/api@1.9.0)(@playwright/test@1.56.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      react:
-        specifier: ^19.2.0
-        version: 19.2.0
-      react-dom:
-        specifier: ^19.2.0
-        version: 19.2.0(react@19.2.0)
-    devDependencies:
-      '@cookiebench/benchmark-schema':
-        specifier: workspace:*
-        version: link:../../packages/benchmark-schema
-      '@cookiebench/ts-config':
-        specifier: workspace:*
-        version: link:../../packages/typescript-config
-      '@types/node':
-        specifier: ^24.9.2
-        version: 24.9.2
-      '@types/react':
-        specifier: ^19.2.2
-        version: 19.2.2
-      '@types/react-dom':
-        specifier: ^19.2.2
-        version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  benchmarks/with-osano:
+  benchmarks/onetrust:
     dependencies:
       next:
         specifier: 16.0.1
@@ -428,7 +394,41 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  benchmarks/with-usercentrics:
+  benchmarks/osano:
+    dependencies:
+      next:
+        specifier: 16.0.1
+        version: 16.0.1(@opentelemetry/api@1.9.0)(@playwright/test@1.56.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.0
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.0(react@19.2.0)
+    devDependencies:
+      '@cookiebench/benchmark-schema':
+        specifier: workspace:*
+        version: link:../../packages/benchmark-schema
+      '@cookiebench/ts-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^24.9.2
+        version: 24.9.2
+      '@types/react':
+        specifier: ^19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      cookiebench:
+        specifier: workspace:*
+        version: link:../../packages/cookiebench-cli
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  benchmarks/usercentrics:
     dependencies:
       next:
         specifier: 16.0.1

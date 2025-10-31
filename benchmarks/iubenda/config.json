@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+  "name": "iubenda",
+  "id": "iubenda-cs-banner",
+  "iterations": 20,
+  "cookieBanner": {
+    "selectors": [".iubenda-cs-content"],
+    "serviceHosts": [
+      "iubenda.com",
+      "cdn.iubenda.com",
+      "cs.iubenda.com",
+      "cookiepolicy.iubenda.com"
+    ],
+    "waitForVisibility": true,
+    "measureViewportCoverage": true,
+    "expectedLayoutShift": true,
+    "serviceName": "Iubenda"
+  },
+  "internationalization": {
+    "detection": "manual",
+    "stringLoading": "bundled"
+  },
+  "techStack": {
+    "bundler": "unknown",
+    "bundleType": "iife",
+    "frameworks": [],
+    "languages": ["javascript"],
+    "packageManager": "unknown",
+    "typescript": false
+  },
+  "source": {
+    "isOpenSource": false,
+    "license": "proprietary",
+    "website": "https://www.iubenda.com"
+  },
+  "company": {
+    "name": "Iubenda",
+    "website": "https://iubenda.com",
+    "avatar": "https://pbs.twimg.com/profile_images/1022496373671903232/sE3b81SL_400x400.jpg"
+  },
+  "includes": {
+    "backend": ["proprietary"],
+    "components": ["javascript"]
+  }
+}
