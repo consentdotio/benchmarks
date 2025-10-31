@@ -10,8 +10,16 @@ import type {
 	WindowWithCookieMetrics,
 } from "./types";
 
-// Opacity threshold for determining when banner is actually visible to users
-// This accounts for CSS transitions - banners that fade in should score based on when users can see them
+/**
+ * Opacity threshold for determining when banner is actually visible to users.
+ *
+ * This threshold (0.5 = 50% opacity) accounts for CSS transitions and animations.
+ * A banner that renders instantly but fades in slowly will only be considered
+ * "visible" once it reaches 50% opacity, ensuring scores reflect actual user
+ * experience rather than just technical render time.
+ *
+ * @see METHODOLOGY.md for detailed explanation of render time vs visibility time
+ */
 const OPACITY_VISIBILITY_THRESHOLD = 0.5;
 
 export class CookieBannerCollector {
@@ -62,7 +70,18 @@ export class CookieBannerCollector {
 	}
 
 	/**
-	 * Set up cookie banner detection script in the browser
+	 * Set up cookie banner detection script in the browser.
+	 *
+	 * This method injects a detection script that runs before page load to track
+	 * banner appearance metrics. It measures both technical render time (when element
+	 * appears in DOM) and user-perceived visibility time (when opacity > threshold).
+	 *
+	 * Metrics tracked:
+	 * - bannerFirstSeen: Technical render time (element in DOM)
+	 * - bannerVisibleTime: User-perceived visibility (opacity > 0.5)
+	 * - bannerInteractive: When buttons become clickable
+	 *
+	 * @see METHODOLOGY.md for detailed measurement approach
 	 */
 	async setupDetection(page: Page): Promise<void> {
 		const selectors = this.config.cookieBanner?.selectors || [];
@@ -128,16 +147,24 @@ export class CookieBannerCollector {
 								const computedStyle = window.getComputedStyle(element);
 								const opacity = Number.parseFloat(computedStyle.opacity);
 
-								// Check if element is rendered (for technical metrics)
+								/**
+								 * Technical render check: Element exists in DOM with dimensions.
+								 * This determines when the banner element first appears, regardless
+								 * of visibility. Used for bannerRenderTime metric.
+								 */
 								const isRendered =
 									rect.width > 0 &&
 									rect.height > 0 &&
 									computedStyle.visibility !== "hidden" &&
 									computedStyle.display !== "none";
 
-								// Check if element is actually visible to users (opacity > threshold for UX metrics)
-								// This accounts for CSS transitions - a banner that renders fast but fades in slowly
-								// should score worse for UX than one that renders slower but is immediately visible
+								/**
+								 * User-perceived visibility check: Element is rendered AND visible.
+								 * Uses opacity threshold to account for CSS animations. A banner that
+								 * renders instantly but fades in slowly will only be considered "visible"
+								 * once opacity > 0.5. This ensures scores reflect actual user experience.
+								 * Used for bannerVisibilityTime metric (primary scoring metric).
+								 */
 								const isVisible = isRendered && opacity > opacityThreshold;
 
 								if (isRendered) {
@@ -147,7 +174,11 @@ export class CookieBannerCollector {
 									// performance.now() returns time since navigation start (timeOrigin)
 									const now = performance.now();
 
-									// Track when banner first appears (technical render time)
+									/**
+									 * Track technical render time: When banner element first appears in DOM.
+									 * This is measured from navigationStart and represents when the element
+									 * has dimensions and is not hidden. Used for bannerRenderTime metric.
+									 */
 									if (!bannerMetrics.detected) {
 										bannerMetrics.detected = true;
 										bannerMetrics.selector = selector;
@@ -155,8 +186,12 @@ export class CookieBannerCollector {
 										bannerMetrics.layoutShiftsBefore = cumulativeLayoutShift;
 									}
 
-									// Track when banner is actually visible to users (UX metric)
-									// Only update if we haven't set it yet or if this is earlier
+									/**
+									 * Track user-perceived visibility time: When banner becomes visible to users.
+									 * Only recorded when opacity > threshold (0.5), accounting for CSS animations.
+									 * This is the primary metric used for scoring (bannerVisibilityTime).
+									 * Only update if not set yet or if this measurement is earlier.
+									 */
 									if (
 										isVisible &&
 										(bannerMetrics.bannerVisibleTime === 0 ||
@@ -225,7 +260,17 @@ export class CookieBannerCollector {
 	}
 
 	/**
-	 * Collect cookie banner specific metrics from the browser
+	 * Collect cookie banner specific metrics from the browser.
+	 *
+	 * Returns both technical metrics (bannerRenderTime) and user-perceived metrics
+	 * (bannerVisibilityTime). The visibilityTime metric is used for scoring as it
+	 * reflects actual user experience including CSS animations.
+	 *
+	 * All timing metrics are relative to navigationStart (includes TTFB).
+	 *
+	 * @returns CookieBannerData with render time, visibility time, interactive time,
+	 *          layout shift impact, and viewport coverage
+	 * @see METHODOLOGY.md for detailed explanation of metrics
 	 */
 	async collectMetrics(page: Page): Promise<CookieBannerData | null> {
 		return await page.evaluate(
@@ -240,10 +285,21 @@ export class CookieBannerCollector {
 				return {
 					detected: metrics.detected,
 					selector: metrics.selector,
+					/**
+					 * Technical render time: When banner element first appeared in DOM.
+					 * Measured from navigationStart. This is tracked for reference but
+					 * not used in primary scoring.
+					 */
 					bannerRenderTime:
 						metrics.detected && metrics.bannerFirstSeen > 0
 							? metrics.bannerFirstSeen - metrics.pageLoadStart
 							: 0,
+					/**
+					 * User-perceived visibility time: When banner becomes visible to users.
+					 * Uses opacity threshold (0.5) to account for CSS animations. This is the
+					 * primary metric used for scoring. Falls back to render time if visibility
+					 * time was not recorded (e.g., banner rendered with opacity already > 0.5).
+					 */
 					bannerVisibilityTime: (() => {
 						if (metrics.detected && metrics.bannerVisibleTime > 0) {
 							return metrics.bannerVisibleTime - metrics.pageLoadStart;

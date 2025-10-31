@@ -98,7 +98,23 @@ function calculateNetworkMetrics(details: BenchmarkResult["details"]) {
 }
 
 /**
- * Calculate cookie banner metrics from benchmark results
+ * Calculate cookie banner metrics from benchmark results.
+ *
+ * This function aggregates cookie banner metrics across all iterations and calculates
+ * the average timing for scoring. It uses bannerVisibilityTime (user-perceived visibility
+ * with opacity > 0.5) rather than bannerRenderTime (technical render time) to ensure
+ * scores reflect actual user experience.
+ *
+ * Scoring methodology:
+ * - Requires consistent detection across ALL iterations for positive score
+ * - Uses average of visibilityTime across iterations
+ * - Applies penalties for inconsistent detection
+ * - Calculates viewport coverage percentage
+ *
+ * @param details Array of benchmark details from all iterations
+ * @param logger Logger instance for warnings
+ * @returns Aggregated cookie banner metrics for scoring
+ * @see METHODOLOGY.md for detailed explanation of render time vs visibility time
  */
 function calculateCookieBannerMetrics(
 	details: BenchmarkResult["details"],
@@ -117,6 +133,11 @@ function calculateCookieBannerMetrics(
 	let cookieBannerTiming: number | null = null;
 
 	if (detectionSuccess) {
+		/**
+		 * Use bannerVisibilityTime (opacity-based, user-perceived) for scoring.
+		 * This ensures scores reflect actual user experience including CSS animations.
+		 * Not using bannerRenderTime (technical render time) for scoring.
+		 */
 		const timingValues = details.map((r) => r.cookieBanner.visibilityTime);
 		const hasNullValues = timingValues.some((t) => t === null || t === 0);
 

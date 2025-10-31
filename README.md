@@ -4,7 +4,9 @@ A benchmarking tool for measuring the performance impact of cookie consent solut
 
 ## Overview
 
-This tool measures various performance metrics when loading web applications with diiferent cookie consent solutions. It helps developers understand the performance implications of their cookie consent implementation choices.
+This tool measures various performance metrics when loading web applications with different cookie consent solutions. It helps developers understand the performance implications of their cookie consent implementation choices.
+
+For detailed information about how benchmarks are measured, see [METHODOLOGY.md](./METHODOLOGY.md).
 
 ## Metrics Measured
 
@@ -17,7 +19,11 @@ This tool measures various performance metrics when loading web applications wit
 ### Additional Metrics
 - **Total Time**: Complete page load time
 - **Script Load Time**: Time taken to load and execute JavaScript
-- **Banner Render Time**: Time taken to render the cookie consent banner
+- **Banner Render Time**: Technical render time (when element appears in DOM)
+- **Banner Visibility Time**: User-perceived visibility time (when opacity > 0.5, accounts for CSS animations)
+- **Banner Interactive Time**: Time until banner buttons become clickable
+
+See [METHODOLOGY.md](./METHODOLOGY.md) for detailed explanation of render time vs visibility time.
 
 ### Resource Size Metrics
 - **Total Size**: Combined size of all resources
@@ -41,7 +47,8 @@ This tool measures various performance metrics when loading web applications wit
 2. **Performance Metrics**:
    - Metrics are collected over a 1-second window after page load
    - Some metrics (like CLS) may need longer observation periods
-   - Network conditions are not simulated
+   - Network conditions are not simulated (benchmarks run on localhost)
+   - See [METHODOLOGY.md](./METHODOLOGY.md) for detailed limitations and measurement approach
 
 ## Usage
 

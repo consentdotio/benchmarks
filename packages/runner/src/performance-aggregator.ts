@@ -58,7 +58,17 @@ export class PerformanceAggregator {
 	}
 
 	/**
-	 * Build cookie banner timing metrics
+	 * Build cookie banner timing metrics.
+	 *
+	 * Uses bannerVisibilityTime (opacity-based, user-perceived) as the primary
+	 * visibility metric for scoring. This accounts for CSS animations and ensures
+	 * scores reflect actual user experience. Falls back to interactiveTime if
+	 * visibilityTime is not available.
+	 *
+	 * @param cookieBannerData Collected banner metrics from browser
+	 * @param config Benchmark configuration
+	 * @returns Cookie banner timing object with render, visibility, and interactive times
+	 * @see METHODOLOGY.md for detailed explanation of visibility time vs render time
 	 */
 	private buildCookieBannerTiming(
 		cookieBannerData: CookieBannerData | null,
@@ -73,9 +83,16 @@ export class PerformanceAggregator {
 			detected: cookieBannerData?.detected ?? false,
 			selector: cookieBannerData?.selector ?? null,
 			serviceName: config.cookieBanner?.serviceName ?? "unknown",
-			// Use visibilityTime (UX metric) which accounts for CSS transitions
-			// Falls back to interactiveTime if visibilityTime not available
-			visibilityTime: cookieBannerData?.bannerVisibilityTime || cookieBannerData?.bannerInteractiveTime || 0,
+			/**
+			 * Primary visibility metric: Uses bannerVisibilityTime (opacity > 0.5, user-perceived)
+			 * which accounts for CSS transitions. Falls back to interactiveTime if visibilityTime
+			 * not available. This metric is used for scoring to ensure results reflect actual
+			 * user experience rather than just technical render time.
+			 */
+			visibilityTime:
+				cookieBannerData?.bannerVisibilityTime ||
+				cookieBannerData?.bannerInteractiveTime ||
+				0,
 			viewportCoverage: cookieBannerData?.viewportCoverage || 0,
 		};
 	}
