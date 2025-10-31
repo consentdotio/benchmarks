@@ -1,4 +1,4 @@
-import { readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
@@ -324,7 +324,7 @@ export async function benchmarkCommand(
 		if (!success) {
 			process.exit(1);
 		}
-		return;
+		process.exit(0);
 	}
 
 	// Otherwise, show multi-select for available benchmarks
@@ -498,4 +498,7 @@ export async function benchmarkCommand(
 		const { resultsCommand } = await import("./results.js");
 		await resultsCommand(logger, successfulBenchmarks);
 	}
+	
+	// Exit process after command completes
+	process.exit(0);
 }

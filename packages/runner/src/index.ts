@@ -20,5 +20,12 @@ export type {
 	ResourceTimingData,
 	ServerInfo,
 } from "./types";
+// Statistics utilities
+export {
+	calculateCoefficientOfVariation,
+	calculateStatistics,
+	calculateTrimmedMean,
+	isStable,
+} from "./statistics";
 // Utilities
 export { formatTime, getPackageManager, readConfig } from "./utils";

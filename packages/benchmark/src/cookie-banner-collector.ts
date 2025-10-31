@@ -10,6 +10,10 @@ import type {
 	WindowWithCookieMetrics,
 } from "./types";
 
+// Opacity threshold for determining when banner is actually visible to users
+// This accounts for CSS transitions - banners that fade in should score based on when users can see them
+const OPACITY_VISIBILITY_THRESHOLD = 0.5;
+
 export class CookieBannerCollector {
 	private readonly config: Config;
 	private readonly logger: Logger;
@@ -68,13 +72,22 @@ export class CookieBannerCollector {
 				bannerSelectors: string[];
 				pollInterval: number;
 				detectionTimeout: number;
+				opacityThreshold: number;
 			}) => {
-				const { bannerSelectors, pollInterval, detectionTimeout } = config;
-				// Store initial performance baseline (use 0 as reference point for navigationStart)
+				const {
+					bannerSelectors,
+					pollInterval,
+					detectionTimeout,
+					opacityThreshold,
+				} = config;
+				// Store initial performance baseline
+				// pageLoadStart = 0 means all times are relative to navigation start
+				// performance.now() already returns time since navigation (timeOrigin)
 				(window as unknown as WindowWithCookieMetrics).__cookieBannerMetrics = {
 					pageLoadStart: 0,
 					bannerDetectionStart: 0,
 					bannerFirstSeen: 0,
+					bannerVisibleTime: 0, // Track when banner is actually visible (opacity > 0.5)
 					bannerInteractive: 0,
 					layoutShiftsBefore: 0,
 					layoutShiftsAfter: 0,
@@ -102,28 +115,55 @@ export class CookieBannerCollector {
 
 				// Cookie banner detection logic
 				const detectCookieBanner = () => {
-					(
-						window as unknown as WindowWithCookieMetrics
-					).__cookieBannerMetrics.bannerDetectionStart = performance.now();
+					const metrics = (window as unknown as WindowWithCookieMetrics)
+						.__cookieBannerMetrics;
+					// performance.now() returns time since navigation start (timeOrigin)
+					metrics.bannerDetectionStart = performance.now();
 
 					for (const selector of bannerSelectors) {
 						try {
 							const element = document.querySelector(selector);
 							if (element) {
 								const rect = element.getBoundingClientRect();
-								const isVisible =
+								const computedStyle = window.getComputedStyle(element);
+								const opacity = Number.parseFloat(computedStyle.opacity);
+
+								// Check if element is rendered (for technical metrics)
+								const isRendered =
 									rect.width > 0 &&
 									rect.height > 0 &&
-									window.getComputedStyle(element).visibility !== "hidden" &&
-									window.getComputedStyle(element).display !== "none";
+									computedStyle.visibility !== "hidden" &&
+									computedStyle.display !== "none";
 
-								if (isVisible) {
-									const metrics = (window as unknown as WindowWithCookieMetrics)
-										.__cookieBannerMetrics;
-									metrics.detected = true;
-									metrics.selector = selector;
-									metrics.bannerFirstSeen = performance.now();
-									metrics.layoutShiftsBefore = cumulativeLayoutShift;
+								// Check if element is actually visible to users (opacity > threshold for UX metrics)
+								// This accounts for CSS transitions - a banner that renders fast but fades in slowly
+								// should score worse for UX than one that renders slower but is immediately visible
+								const isVisible = isRendered && opacity > opacityThreshold;
+
+								if (isRendered) {
+									const bannerMetrics = (
+										window as unknown as WindowWithCookieMetrics
+									).__cookieBannerMetrics;
+									// performance.now() returns time since navigation start (timeOrigin)
+									const now = performance.now();
+
+									// Track when banner first appears (technical render time)
+									if (!bannerMetrics.detected) {
+										bannerMetrics.detected = true;
+										bannerMetrics.selector = selector;
+										bannerMetrics.bannerFirstSeen = now;
+										bannerMetrics.layoutShiftsBefore = cumulativeLayoutShift;
+									}
+
+									// Track when banner is actually visible to users (UX metric)
+									// Only update if we haven't set it yet or if this is earlier
+									if (
+										isVisible &&
+										(bannerMetrics.bannerVisibleTime === 0 ||
+											now < bannerMetrics.bannerVisibleTime)
+									) {
+										bannerMetrics.bannerVisibleTime = now;
+									}
 
 									// Check if banner is interactive
 									const buttons = element.querySelectorAll(
@@ -134,7 +174,7 @@ export class CookieBannerCollector {
 										const firstButton = buttons[0] as HTMLElement;
 										if (firstButton.offsetParent !== null) {
 											// Element is visible and clickable
-											metrics.bannerInteractive = performance.now();
+											bannerMetrics.bannerInteractive = now;
 										}
 									}
 
@@ -148,41 +188,38 @@ export class CookieBannerCollector {
 					return false;
 				};
 
-				// Start detection after DOM is ready
-				if (document.readyState === "loading") {
-					document.addEventListener("DOMContentLoaded", () => {
-						setTimeout(() => {
-							if (!detectCookieBanner()) {
-								// Keep checking for dynamically loaded banners
-								const interval = setInterval(() => {
-									if (detectCookieBanner()) {
-										clearInterval(interval);
-									}
-								}, pollInterval);
-
-								// Stop checking after timeout
-								setTimeout(() => clearInterval(interval), detectionTimeout);
+				// Start detection immediately - try right away, then poll if needed
+				// This ensures we catch banners that appear instantly (like in offline/bundled mode)
+				const startDetection = () => {
+					// Try immediate detection first (catches instant renders)
+					if (!detectCookieBanner()) {
+						// If not found immediately, start polling
+						const interval = setInterval(() => {
+							if (detectCookieBanner()) {
+								clearInterval(interval);
 							}
-						}, pollInterval); // Small delay to allow for initial render
-					});
-				} else {
-					setTimeout(() => {
-						if (!detectCookieBanner()) {
-							const interval = setInterval(() => {
-								if (detectCookieBanner()) {
-									clearInterval(interval);
-								}
-							}, pollInterval);
+						}, pollInterval);
 
-							setTimeout(() => clearInterval(interval), detectionTimeout);
-						}
-					}, pollInterval);
+						// Stop checking after timeout
+						setTimeout(() => clearInterval(interval), detectionTimeout);
+					}
+				};
+
+				// If DOM is already loaded, start immediately
+				if (document.readyState !== "loading") {
+					startDetection();
+				} else {
+					// Otherwise wait for DOMContentLoaded, but start immediately after
+					document.addEventListener("DOMContentLoaded", startDetection, {
+						once: true,
+					});
 				}
 			},
 			{
 				bannerSelectors: selectors,
 				pollInterval: BENCHMARK_CONSTANTS.BANNER_POLL_INTERVAL,
 				detectionTimeout: BENCHMARK_CONSTANTS.BANNER_DETECTION_TIMEOUT,
+				opacityThreshold: OPACITY_VISIBILITY_THRESHOLD,
 			}
 		);
 	}
@@ -207,6 +244,15 @@ export class CookieBannerCollector {
 						metrics.detected && metrics.bannerFirstSeen > 0
 							? metrics.bannerFirstSeen - metrics.pageLoadStart
 							: 0,
+					bannerVisibilityTime: (() => {
+						if (metrics.detected && metrics.bannerVisibleTime > 0) {
+							return metrics.bannerVisibleTime - metrics.pageLoadStart;
+						}
+						if (metrics.detected && metrics.bannerFirstSeen > 0) {
+							return metrics.bannerFirstSeen - metrics.pageLoadStart;
+						}
+						return 0; // Fallback to render time if visibility time not set
+					})(),
 					bannerInteractiveTime:
 						metrics.detected && metrics.bannerInteractive > 0
 							? metrics.bannerInteractive - metrics.pageLoadStart
@@ -225,11 +271,33 @@ export class CookieBannerCollector {
 								const element = document.querySelector(metrics.selector);
 								if (element) {
 									const rect = element.getBoundingClientRect();
-									return (
-										((rect.width * rect.height) /
-											(window.innerWidth * window.innerHeight)) *
-										percentageMultiplier
+									const viewportWidth = window.innerWidth;
+									const viewportHeight = window.innerHeight;
+
+									// Calculate the intersection of element rect with viewport
+									// Only count the visible portion of the banner
+									const visibleLeft = Math.max(0, rect.left);
+									const visibleTop = Math.max(0, rect.top);
+									const visibleRight = Math.min(
+										viewportWidth,
+										rect.left + rect.width
 									);
+									const visibleBottom = Math.min(
+										viewportHeight,
+										rect.top + rect.height
+									);
+
+									// Calculate visible area (intersection with viewport)
+									const visibleWidth = Math.max(0, visibleRight - visibleLeft);
+									const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+									const visibleArea = visibleWidth * visibleHeight;
+									const viewportArea = viewportWidth * viewportHeight;
+
+									if (viewportArea === 0) {
+										return 0;
+									}
+
+									return (visibleArea / viewportArea) * percentageMultiplier;
 								}
 								return 0;
 							})()

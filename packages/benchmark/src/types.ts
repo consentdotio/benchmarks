@@ -67,6 +67,7 @@ export interface WindowWithCookieMetrics extends Window {
 		pageLoadStart: number;
 		bannerDetectionStart: number;
 		bannerFirstSeen: number;
+		bannerVisibleTime: number; // When banner is actually visible (opacity > 0.5) - for UX metrics
 		bannerInteractive: number;
 		layoutShiftsBefore: number;
 		layoutShiftsAfter: number;
@@ -93,7 +94,8 @@ export type CookieBannerMetrics = {
 export type CookieBannerData = {
 	detected: boolean;
 	selector: string | null;
-	bannerRenderTime: number;
+	bannerRenderTime: number; // Technical: when banner is painted to screen
+	bannerVisibilityTime: number; // UX: when banner is actually visible to users (opacity > 0.5)
 	bannerInteractiveTime: number;
 	bannerHydrationTime: number;
 	layoutShiftImpact: number;

@@ -369,11 +369,19 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
 	return results;
 }
 
+// Minimum threshold for showing decimal milliseconds (JavaScript precision is ~0.1ms)
+const SUB_MILLISECOND_THRESHOLD = 1;
+const MILLISECOND_DECIMAL_PLACES = 3;
+
 function formatTime(ms: number): string {
+	// JavaScript timing precision is typically ~0.1ms, so we don't show microseconds
+	// For very small values, show fractional milliseconds
 	return prettyMilliseconds(ms, {
 		secondsDecimalDigits: 2,
 		keepDecimalsOnWholeSeconds: true,
 		compact: true,
+		millisecondsDecimalDigits:
+			ms < SUB_MILLISECOND_THRESHOLD ? MILLISECOND_DECIMAL_PLACES : 0,
 	});
 }
 
