@@ -11,9 +11,6 @@ importers:
       '@biomejs/biome':
         specifier: 2.3.2
         version: 2.3.2
-      '@c15t/translations':
-        specifier: ^1.7.0
-        version: 1.7.0
       '@consentio/benchmark':
         specifier: workspace:*
         version: link:packages/benchmark
@@ -32,9 +29,6 @@ importers:
       drizzle-kit:
         specifier: ^0.31.6
         version: 0.31.6
-      p-limit:
-        specifier: ^7.2.0
-        version: 7.2.0
       pretty-ms:
         specifier: ^9.3.0
         version: 9.3.0
@@ -75,9 +69,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -112,9 +103,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -124,9 +112,6 @@ importers:
       '@c15t/react':
         specifier: 1.7.1
         version: 1.7.1(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(@opentelemetry/instrumentation@0.207.0(@opentelemetry/api@1.9.0))(@types/better-sqlite3@7.6.13)(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(better-sqlite3@12.4.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typeorm@0.3.27(better-sqlite3@12.4.1)(reflect-metadata@0.2.2))(use-sync-external-store@1.6.0(react@19.2.0))(ws@8.18.3)
-      '@c15t/translations':
-        specifier: ^1.7.0
-        version: 1.7.0
       next:
         specifier: 16.0.1
         version: 16.0.1(@opentelemetry/api@1.9.0)(@playwright/test@1.56.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -152,9 +137,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -186,9 +168,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -220,9 +199,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -288,9 +264,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -322,9 +295,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -387,9 +357,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -421,9 +388,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -455,9 +419,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.2
         version: 19.2.2(@types/react@19.2.2)
-      cookiebench:
-        specifier: workspace:*
-        version: link:../../packages/cookiebench-cli
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2862,10 +2823,6 @@ packages:
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
 
-  p-limit@7.2.0:
-    resolution: {integrity: sha512-ATHLtwoTNDloHRFFxFJdHnG6n2WUeFjaR8XQMFdKIv0xkXjrER8/iG9iu265jOM95zXHAfv9oTkqhrfbIzosrQ==}
-    engines: {node: '>=20'}
-
   package-json-from-dist@1.0.1:
     resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
 
@@ -3403,10 +3360,6 @@ packages:
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
-
-  yocto-queue@1.2.1:
-    resolution: {integrity: sha512-AyeEbWOu/TAXdxlV9wmGcR0+yh2j3vYPGOECcIj2S7MkrLyC7ne+oye2BKTItt0ii2PHk4cDy+95+LshzbXnGg==}
-    engines: {node: '>=12.20'}
 
   zod@4.1.12:
     resolution: {integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==}
@@ -5778,10 +5731,6 @@ snapshots:
 
   openapi-types@12.1.3: {}
 
-  p-limit@7.2.0:
-    dependencies:
-      yocto-queue: 1.2.1
-
   package-json-from-dist@1.0.1: {}
 
   parse-ms@4.0.0: {}
@@ -6304,8 +6253,6 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
-
-  yocto-queue@1.2.1: {}
 
   zod@4.1.12: {}
 
