@@ -1,9 +1,9 @@
-import type { Metadata } from 'next';
-import Script from 'next/script';
-import type { ReactNode } from 'react';
+import type { Metadata } from "next";
+import Script from "next/script";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-	title: 'benchmark',
+	title: "benchmark",
 };
 
 export default function RootLayout({
