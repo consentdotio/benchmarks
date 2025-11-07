@@ -221,6 +221,40 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  benchmarks/with-dgp-cookie-consent:
+    dependencies:
+      next:
+        specifier: 16.0.1
+        version: 16.0.1(@opentelemetry/api@1.9.0)(@playwright/test@1.56.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.0
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.0(react@19.2.0)
+    devDependencies:
+      '@cookiebench/benchmark-schema':
+        specifier: workspace:*
+        version: link:../../packages/benchmark-schema
+      '@cookiebench/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@cookiebench/ts-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^24.9.2
+        version: 24.9.2
+      '@types/react':
+        specifier: ^19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   benchmarks/with-didomi:
     dependencies:
       '@didomi/react':
