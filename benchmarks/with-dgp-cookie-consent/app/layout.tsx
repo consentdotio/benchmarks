@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
@@ -15,11 +16,12 @@ export default function RootLayout({
 			<head>
 				{/** Add custom styles to consent-dialog to allow benchmarking, cuz selecting elements inside shadow DOM is not yet supported */}
 				<style>{`consent-dialog { display: block; }`}</style>
-				<script
+				<Script
 					id="dgp-cookie-consent-config"
-					type="text/javascript"
-					dangerouslySetInnerHTML={{
-						__html: `
+                    type="text/javascript"
+                    strategy="beforeInteractive"
+				>
+                    {`
                     window.CookieConsentTranslations = {
                         locale: 'en-US',
                         tabAgree: {
@@ -66,14 +68,14 @@ export default function RootLayout({
                         disableCross: false,
                         disableHeader: false,
                     };
-                    `,
-					}}
-				/>
-				<script
+                    `}
+                </Script>
+				<Script
 					id="dgp-cookie-consent-script"
 					src="https://cdn.jsdelivr.net/gh/danielsitek/dgp-cookie-consent@1.8.0/dist/cookies.min.js"
-					type="text/javascript"
-					async
+                    strategy="beforeInteractive"
+                    type="text/javascript"
+                    async
 				/>
 			</head>
 			<body>{children}</body>
