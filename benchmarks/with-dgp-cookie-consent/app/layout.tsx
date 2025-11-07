@@ -11,47 +11,48 @@ export default function RootLayout({
 	children: ReactNode;
 }>) {
 	return (
-		<html lang="cs" suppressHydrationWarning>
+		<html lang="en" suppressHydrationWarning>
 			<head>
 				<script
+                    id="dgp-cookie-consent-config"
 					dangerouslySetInnerHTML={{
 						__html: `
                     window.CookieConsentTranslations = {
-                        locale: 'cs-CZ',
+                        locale: 'en-US',
                         tabAgree: {
-                            title: 'Souhlas',
-                            body: '<p><strong>Tato webová stránka používá cookies</strong></p><p>K personalizaci obsahu a reklam, poskytování funkcí sociálních médií a analýze naší návštěvnosti využíváme soubory cookie.</p>',
+                            title: 'Consent',
+                            body: '<p><strong>This website uses cookies</strong></p><p>We use cookies to personalize content and ads, provide social media features, and analyze our traffic.</p>',
                         },
                         tabAbout: {
-                            title: 'O aplikaci',
-                            body: '<p>Cookies jsou malé textové soubory, které mohou být používány webovými stránkami, aby učinily uživatelský zážitek více efektivní.</p>',
+                            title: 'About',
+                            body: '<p>Cookies are small text files that can be used by websites to make the user experience more efficient.</p>',
                         },
                         tabDetail: {
                             title: 'Detail',
                             necessary: {
-                                title: 'Nutné',
-                                perex: 'Nutné cookies pomáhají, aby byla webová stránka použitelná.',
+                                title: 'Necessary',
+                                perex: 'Necessary cookies help make a website usable.',
                             },
                             preferences: {
-                                title: 'Preferenční',
-                                perex: 'Preferenční cookies umožňují, aby si webová stránka zapamatovala informace.',
+                                title: 'Preference',
+                                perex: 'Preference cookies enable a website to remember information.',
                             },
                             statistics: {
-                                title: 'Statistické',
-                                perex: 'Statistické cookies pomáhají majitelům webových stránek.',
+                                title: 'Statistics',
+                                perex: 'Statistics cookies help website owners.',
                             },
                             marketing: {
-                                title: 'Marketingové',
-                                perex: 'Marketingové cookies jsou používány pro sledování návštěvníků.',
+                                title: 'Marketing',
+                                perex: 'Marketing cookies are used to track visitors.',
                             },
                         },
-                        buttonEdit: { label: 'Nastavit' },
-                        buttonAllowAll: { label: 'Povolit vše' },
-                        buttonRejectAll: { label: 'Odmítnout vše' },
-                        buttonConfirm: { label: 'Potvrdit' },
-                        badge: { label: 'Upravit nastavení cookies' },
-                        dialog: { label: 'Vaše nastavení cookies' },
-                        lastUpdated: 'Prohlášení o cookies bylo naposledy aktualizováno %date.',
+                        buttonEdit: { label: 'Settings' },
+                        buttonAllowAll: { label: 'Allow all' },
+                        buttonRejectAll: { label: 'Reject all' },
+                        buttonConfirm: { label: 'Confirm' },
+                        badge: { label: 'Edit cookie settings' },
+                        dialog: { label: 'Your cookie settings' },
+                        lastUpdated: 'Cookie statement was last updated %date.',
                     };
 
                     window.CookieConsentSettings = {
@@ -66,6 +67,7 @@ export default function RootLayout({
 					}}
 				/>
 				<script
+                    id="dgp-cookie-consent-script"
 					src="https://cdn.jsdelivr.net/gh/danielsitek/dgp-cookie-consent@1.8.0/dist/cookies.min.js"
 					type="text/javascript"
 					async
