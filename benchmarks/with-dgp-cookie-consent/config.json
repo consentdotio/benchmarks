@@ -4,7 +4,7 @@
 	"id": "dgp-cookie-consent",
 	"iterations": 20,
 	"cookieBanner": {
-		"selectors": [".c-d.t"],
+		"selectors": ["consent-dialog"],
 		"serviceHosts": ["cdn.jsdelivr.net"],
 		"waitForVisibility": true,
 		"measureViewportCoverage": true,

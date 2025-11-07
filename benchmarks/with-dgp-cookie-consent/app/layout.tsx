@@ -13,8 +13,11 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head>
+				{/** Add custom styles to consent-dialog to allow benchmarking, cuz selecting elements inside shadow DOM is not yet supported */}
+				<style>{`consent-dialog { display: block; }`}</style>
 				<script
-                    id="dgp-cookie-consent-config"
+					id="dgp-cookie-consent-config"
+					type="text/javascript"
 					dangerouslySetInnerHTML={{
 						__html: `
                     window.CookieConsentTranslations = {
@@ -67,7 +70,7 @@ export default function RootLayout({
 					}}
 				/>
 				<script
-                    id="dgp-cookie-consent-script"
+					id="dgp-cookie-consent-script"
 					src="https://cdn.jsdelivr.net/gh/danielsitek/dgp-cookie-consent@1.8.0/dist/cookies.min.js"
 					type="text/javascript"
 					async
