@@ -1,57 +1,48 @@
 {
-    "$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
-    "name": "with-dgp-cookie-consent",
-    "id": "dgp-cookie-consent",
-    "iterations": 20,
-    "cookieBanner": {
-        "selectors": [
-            ".c-d.t"
-        ],
-        "serviceHosts": [
-            "cdn.jsdelivr.net"
-        ],
-        "waitForVisibility": true,
-        "measureViewportCoverage": true,
-        "expectedLayoutShift": true,
-        "serviceName": "DGP Cookie Consent"
-    },
-    "techStack": {
-        "bundler": "rollup",
-        "bundleType": "iffe",
-        "frameworks": [],
-        "languages": [
-            "typescript"
-        ],
-        "packageManager": "npm",
-        "typescript": true
-    },
-    "internationalization": {
-        "detection": "manual",
-        "stringLoading": "server"
-    },
-    "source": {
-        "isOpenSource": true,
-        "license": "MIT",
-        "github": "https://github.com/danielsitek/dgp-cookie-consent",
-        "website": "https://github.com/danielsitek/dgp-cookie-consent"
-    },
-    "company": {
-        "name": "Daniel Sitek",
-        "website": "https://github.com/danielsitek",
-        "avatar": "https://avatars.githubusercontent.com/u/danielsitek"
-    },
-    "includes": {
-        "backend": "false",
-        "components": [
-            "webcomponent",
-            "typescript"
-        ]
-    },
-    "tags": [
-        "lightweight",
-        "zero-dependency",
-        "gdpr",
-        "webcomponent",
-        "typescript"
-    ]
+	"$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+	"name": "with-dgp-cookie-consent",
+	"id": "dgp-cookie-consent",
+	"iterations": 20,
+	"cookieBanner": {
+		"selectors": [".c-d.t"],
+		"serviceHosts": ["cdn.jsdelivr.net"],
+		"waitForVisibility": true,
+		"measureViewportCoverage": true,
+		"expectedLayoutShift": true,
+		"serviceName": "DGP Cookie Consent"
+	},
+	"techStack": {
+		"bundler": "rollup",
+		"bundleType": "iffe",
+		"frameworks": [],
+		"languages": ["typescript"],
+		"packageManager": "npm",
+		"typescript": true
+	},
+	"internationalization": {
+		"detection": "manual",
+		"stringLoading": "server"
+	},
+	"source": {
+		"isOpenSource": true,
+		"license": "MIT",
+		"github": "https://github.com/danielsitek/dgp-cookie-consent",
+		"website": "https://github.com/danielsitek/dgp-cookie-consent"
+	},
+	"company": {
+		"name": "Daniel Sitek",
+		"website": "https://github.com/danielsitek",
+		"avatar": "https://avatars.githubusercontent.com/u/danielsitek"
+	},
+	"includes": {
+		"backend": "false",
+		"components": ["webcomponent", "typescript"]
+	},
+	"tags": [
+		"lightweight",
+		"zero-dependency",
+		"gdpr",
+		"webcomponent",
+		"typescript"
+	]
 }
