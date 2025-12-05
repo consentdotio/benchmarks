@@ -18,22 +18,22 @@
     "start": "node ./dist/index.mjs"
   },
   "dependencies": {
-    "@c15t/logger": "^1.0.0",
-    "@clack/prompts": "^1.0.0-alpha.0",
+    "@c15t/logger": "^1.0.1",
+    "@clack/prompts": "1.0.0-alpha.7",
     "@consentio/benchmark": "workspace:*",
     "@consentio/runner": "workspace:*",
     "@consentio/shared": "workspace:*",
-    "cli-table3": "^0.6.3",
+    "cli-table3": "^0.6.5",
     "dotenv": "^17.2.3",
-    "figlet": "^1.9.3",
-    "picocolors": "^1.0.0",
+    "figlet": "^1.9.4",
+    "picocolors": "^1.1.1",
     "pretty-ms": "^9.3.0"
   },
   "devDependencies": {
+    "@rsdoctor/rspack-plugin": "^1.3.12",
+    "@rslib/core": "^0.18.3",
     "@types/figlet": "^1.7.0",
-    "@rsdoctor/rspack-plugin": "^1.3.6",
-    "@rslib/core": "^0.16.1",
-    "@types/node": "^24.9.2",
+    "@types/node": "^20.10.1",
     "typescript": "^5.9.3"
   }
 }

@@ -9,17 +9,17 @@
     "start": "next start --port 3003"
   },
   "dependencies": {
-    "@c15t/react": "1.7.1",
-    "next": "16.0.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "@c15t/react": "1.8.1",
+    "next": "16.0.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
   },
   "devDependencies": {
     "@cookiebench/benchmark-schema": "workspace:*",
     "@cookiebench/ts-config": "workspace:*",
-    "@types/node": "^24.9.2",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
+    "@types/node": "^20.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
     "typescript": "^5.9.3"
   },
   "engines": {
