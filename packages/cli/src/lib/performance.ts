@@ -84,7 +84,7 @@ export async function collectCookieBannerMetrics(
       bannerLayoutShift: 0,
       bannerMainThreadBlocking: 0,
       bannerNetworkImpact: 0,
-      measurementComplete: false,
+      measurementComplete: false
     };
 
     (window as unknown as WindowWithWebVitals).__webVitalsMetrics =
@@ -107,7 +107,8 @@ export async function collectCookieBannerMetrics(
       // Largest Contentful Paint
       const lcpObserver = new PerformanceObserver((list) => {
         const entries = list.getEntries();
-        const lastEntry = entries.at(-1);
+        const lastEntry =
+          entries.length > 0 ? entries[entries.length - 1] : null;
         if (lastEntry) {
           webVitalsMetrics.lcp = lastEntry.startTime;
           console.log("🔍 [BROWSER] LCP captured:", webVitalsMetrics.lcp);
@@ -245,7 +246,7 @@ export async function collectCookieBannerMetrics(
     bannerHydrationTime: 0,
     bannerLayoutShift: 0,
     bannerMainThreadBlocking: 0,
-    bannerNetworkImpact: 0,
+    bannerNetworkImpact: 0
   };
 }
 
@@ -295,7 +296,7 @@ export async function collectWebVitalsAfterLoad(
       lcp: storedMetrics.lcp,
       cls: storedMetrics.cls,
       tbt: storedMetrics.tbt,
-      bannerDetected: storedMetrics.bannerDetected,
+      bannerDetected: storedMetrics.bannerDetected
     });
 
     return storedMetrics;
@@ -321,7 +322,7 @@ export async function collectWebVitalsAfterLoad(
       bannerHydrationTime: 0,
       bannerLayoutShift: 0,
       bannerMainThreadBlocking: 0,
-      bannerNetworkImpact: 0,
+      bannerNetworkImpact: 0
     };
   }
 
@@ -333,7 +334,7 @@ export async function collectWebVitalsAfterLoad(
     return {
       domContentLoaded:
         navigation.domContentLoadedEventEnd - navigation.fetchStart,
-      loadComplete: navigation.loadEventEnd - navigation.fetchStart,
+      loadComplete: navigation.loadEventEnd - navigation.fetchStart
     };
   });
 
@@ -362,7 +363,7 @@ export async function collectWebVitalsAfterLoad(
     bannerHydrationTime: webVitals.bannerHydrationTime,
     bannerLayoutShift: webVitals.bannerLayoutShift,
     bannerMainThreadBlocking: webVitals.bannerMainThreadBlocking,
-    bannerNetworkImpact: webVitals.bannerNetworkImpact,
+    bannerNetworkImpact: webVitals.bannerNetworkImpact
   };
 
   console.log("🔍 [PERFORMANCE] Final metrics collected:", {
@@ -371,7 +372,7 @@ export async function collectWebVitalsAfterLoad(
     cls: finalMetrics.cls,
     tti: finalMetrics.tti,
     tbt: finalMetrics.tbt,
-    bannerDetected: finalMetrics.bannerDetected,
+    bannerDetected: finalMetrics.bannerDetected
   });
 
   return finalMetrics;
@@ -398,7 +399,7 @@ export async function collectPerformanceMetrics(
     lcp: metrics.lcp,
     cls: metrics.cls,
     tbt: metrics.tbt,
-    tti: metrics.tti,
+    tti: metrics.tti
   };
 }
 
@@ -431,7 +432,7 @@ export async function collectResourceTiming(page: Page): Promise<{
       totalSize,
       scriptSize,
       resourceCount: resources.length,
-      scriptCount: scripts.length,
+      scriptCount: scripts.length
     };
   });
 }
