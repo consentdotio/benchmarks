@@ -1,15 +1,15 @@
 {
-  "name": "benchmark-baseline",
-  "version": "0.1.0",
+  "name": "c15t-react",
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3003",
     "fmt": "biome format . --write",
     "lint": "biome lint .",
-    "start": "next start"
+    "start": "next start --port 3003"
   },
   "dependencies": {
+    "@c15t/react": "1.8.1",
     "next": "16.0.7",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
