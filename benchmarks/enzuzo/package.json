@@ -1,0 +1,27 @@
+{
+  "name": "enzuzo",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3002",
+    "fmt": "biome format . --write",
+    "lint": "biome lint .",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@cookiebench/benchmark-schema": "workspace:*",
+    "@cookiebench/ts-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

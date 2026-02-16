@@ -1,0 +1,28 @@
+{
+  "name": "@consentio/shared",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "rslib build",
+    "check-types": "tsc --noEmit",
+    "dev": "rslib build --watch",
+    "fmt": "biome format . --write",
+    "lint": "biome lint ."
+  },
+  "devDependencies": {
+    "@cookiebench/ts-config": "workspace:*",
+    "@rsdoctor/rspack-plugin": "^1.5.2",
+    "@rslib/core": "^0.16.1",
+    "@types/node": "^24.0.9",
+    "typescript": "catalog:"
+  }
+}

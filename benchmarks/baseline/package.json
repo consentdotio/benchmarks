@@ -3,25 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "benchmark": "pnpm exec benchmark-cli benchmark",
-    "build": "next build ",
+    "build": "next build",
     "dev": "next dev --port 3000",
     "fmt": "biome format . --write",
     "lint": "biome lint .",
     "start": "next start"
   },
   "dependencies": {
-    "next": "16.0.7",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@cookiebench/benchmark-schema": "workspace:*",
-    "@cookiebench/cli": "workspace:*",
     "@cookiebench/ts-config": "workspace:*",
-    "@types/node": "^24.10.1",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "typescript": "^5.9.3"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   }
 }
