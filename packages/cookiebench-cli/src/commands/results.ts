@@ -6,7 +6,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { cancel, intro, isCancel, multiselect } from "@clack/prompts";
 import type { Config } from "@consentio/runner";
-import { KILOBYTE, ONE_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
+import { ONE_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
 import Table from "cli-table3";
 import color from "picocolors";
 import prettyMilliseconds from "pretty-ms";
@@ -32,6 +32,12 @@ import {
 } from "../utils/constants";
 import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
+import {
+	ConfigValidationError,
+	formatConfigIssues,
+	formatBytes as formatBytesShared,
+	loadValidatedConfigSync,
+} from "../utils";
 import { calculateScores } from "../utils/scoring";
 
 // Raw benchmark data structure from JSON files
@@ -182,39 +188,11 @@ export type RawBenchmarkDetail = {
 };
 
 export type BenchmarkOutput = {
+	schemaVersion?: number;
 	app: string;
 	results: RawBenchmarkDetail[];
-	scores?: {
-		totalScore: number;
-		grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
-		categoryScores: {
-			performance: number;
-			bundleStrategy: number;
-			networkImpact: number;
-			transparency: number;
-			userExperience: number;
-		};
-		categories: Array<{
-			name: string;
-			score: number;
-			maxScore: number;
-			weight: number;
-			details: Array<{
-				name: string;
-				score: number;
-				maxScore: number;
-				reason: string;
-			}>;
-			status: "good" | "warning" | "critical";
-		}>;
-		insights: string[];
-		recommendations: string[];
-	};
-	metadata: {
-		timestamp: string;
-		iterations: number;
-		language: string;
-	};
+	scores?: BenchmarkScores;
+	metadata?: Record<string, unknown>;
 };
 
 async function findResultsFiles(dir: string): Promise<string[]> {
@@ -254,90 +232,30 @@ async function loadConfigForApp(
 	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
-		const configContent = await readFile(configPath, "utf-8");
-		const config = JSON.parse(configContent);
-
-		return {
-			name: config.name || appName,
-			iterations: config.iterations || 0,
-			techStack: config.techStack || {
-				languages: [],
-				frameworks: [],
-				bundler: "unknown",
-				bundleType: "unknown",
-				packageManager: "unknown",
-				typescript: false,
-			},
-			source: config.source || {
-				license: "unknown",
-				isOpenSource: false,
-				github: false,
-				npm: false,
-			},
-			includes: config.includes || { backend: [], components: [] },
-			company: config.company || undefined,
-			tags: config.tags || [],
-			cookieBanner: config.cookieBanner || {
-				serviceName: "Unknown",
-				selectors: [],
-				serviceHosts: [],
-				waitForVisibility: false,
-				measureViewportCoverage: false,
-				expectedLayoutShift: false,
-			},
-			internationalization: config.internationalization || {
-				detection: "none",
-				stringLoading: "bundled",
-			},
-		};
+		return loadValidatedConfigSync(configPath);
 	} catch (error) {
+		if (error instanceof ConfigValidationError) {
+			logger.error(`Invalid config for ${appName}`);
+			logger.error(formatConfigIssues(error.issues));
+			throw error;
+		}
 		logger.debug(
 			`Could not load config for ${appName}: ${
 				error instanceof Error ? error.message : "Unknown error"
 			}`
 		);
-		return {
-			name: appName,
-			iterations: 0,
-			techStack: {
-				languages: [],
-				frameworks: [],
-				bundler: "unknown",
-				bundleType: "unknown",
-				packageManager: "unknown",
-				typescript: false,
-			},
-			source: {
-				license: "unknown",
-				isOpenSource: false,
-				github: false,
-				npm: false,
-			},
-			includes: {
-				backend: [],
-				components: [],
-			},
-			company: undefined,
-			tags: [],
-			cookieBanner: {
-				serviceName: "Unknown",
-				selectors: [],
-				serviceHosts: [],
-				waitForVisibility: false,
-				measureViewportCoverage: false,
-				expectedLayoutShift: false,
-			},
-			internationalization: {
-				detection: "none",
-				stringLoading: "bundled",
-			},
-		};
+		throw error;
 	}
 }
 
-async function aggregateResults(logger: CliLogger, resultsDir: string) {
+async function aggregateResults(
+	logger: CliLogger,
+	resultsDir: string,
+	scopedApps?: Set<string>
+) {
 	const resultsFiles = await findResultsFiles(resultsDir);
 	const results: Record<string, RawBenchmarkDetail[]> = {};
+	const nonV2Files: string[] = [];
 
 	logger.debug(`Found ${resultsFiles.length} results files:`);
 	for (const file of resultsFiles) {
@@ -348,25 +266,37 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
 		try {
 			const content = await readFile(file, "utf-8");
 			const data: BenchmarkOutput = JSON.parse(content);
+			const appFromFile = typeof data.app === "string" ? data.app : null;
 
-			if (!(data.app && data.results)) {
+			if (scopedApps && appFromFile && !scopedApps.has(appFromFile)) {
+				continue;
+			}
+
+			if (data.schemaVersion !== 2) {
+				if (!scopedApps || (appFromFile && scopedApps.has(appFromFile))) {
+					nonV2Files.push(file);
+				}
+				continue;
+			}
+
+			if (!(appFromFile && data.results)) {
 				logger.warn(
 					`Skipping invalid results file: ${file} (missing app or results)`
 				);
 				continue;
 			}
 
-			logger.debug(`Processing ${file} with app name: "${data.app}"`);
+			logger.debug(`Processing ${file} with app name: "${appFromFile}"`);
 
-			if (results[data.app]) {
+			if (results[appFromFile]) {
 				logger.warn(
-					`Duplicate app name "${data.app}" found in ${file}. Previous results will be overwritten.`
+					`Duplicate app name "${appFromFile}" found in ${file}. Previous results will be overwritten.`
 				);
 			}
 
-			results[data.app] = data.results;
+			results[appFromFile] = data.results;
 			logger.debug(
-				`Loaded results for ${data.app} (${data.results.length} iterations)`
+				`Loaded results for ${appFromFile} (${data.results.length} iterations)`
 			);
 		} catch (error) {
 			logger.error(
@@ -383,6 +313,12 @@ async function aggregateResults(logger: CliLogger, resultsDir: string) {
 	logger.debug("Final results summary:");
 	for (const [app, appResults] of Object.entries(results)) {
 		logger.debug(`  - ${app}: ${appResults.length} iterations`);
+	}
+
+	if (nonV2Files.length > 0) {
+		throw new Error(
+			`Found ${nonV2Files.length} non-v2 results files. Run \"cookiebench migrate-results\" first.`
+		);
 	}
 
 	return results;
@@ -402,16 +338,6 @@ function formatTime(ms: number): string {
 		millisecondsDecimalDigits:
 			ms < SUB_MILLISECOND_THRESHOLD ? MILLISECOND_DECIMAL_PLACES : 0,
 	});
-}
-
-function formatBytes(bytes: number): string {
-	if (bytes === 0) {
-		return "0bytes";
-	}
-	if (bytes < KILOBYTE) {
-		return `${bytes.toFixed(0)}bytes`;
-	}
-	return `${(bytes / KILOBYTE).toFixed(0)}KB`;
 }
 
 function getPerformanceRating(metric: string, value: number): string {
@@ -490,8 +416,38 @@ function printDetailedResults(
 		results.length;
 	const avgNetworkImpact =
 		results.reduce((a, b) => a + b.size.thirdParty, 0) / results.length;
+	const avgThirdPartyRequests =
+		results.reduce(
+			(total, result) =>
+				total +
+				result.resources.scripts.filter((resource) => resource.isThirdParty)
+					.length +
+				result.resources.styles.filter((resource) => resource.isThirdParty)
+					.length +
+				result.resources.images.filter((resource) => resource.isThirdParty)
+					.length +
+				result.resources.fonts.filter((resource) => resource.isThirdParty)
+					.length +
+				result.resources.other.filter((resource) => resource.isThirdParty)
+					.length,
+			0
+		) / results.length;
 	const _bannerDetected = results.some((r) => r.timing.cookieBanner.detected);
-	const isBundled = results[0]?.size.thirdParty === 0;
+	const isBundled = avgThirdPartyRequests === 0;
+	const formattedThirdPartyRequests = Number.isInteger(avgThirdPartyRequests)
+		? avgThirdPartyRequests.toString()
+		: avgThirdPartyRequests.toFixed(1);
+	const networkImpactSummary = isBundled
+		? formatBytesShared(avgNetworkImpact)
+		: `${formatBytesShared(avgNetworkImpact)} (${formattedThirdPartyRequests} req)`;
+	const networkImpactHint = isBundled
+		? "Bundled (no external requests)"
+		: avgNetworkImpact > 0
+			? "External requests"
+			: "External requests (size unavailable)";
+	const bundleStrategyHint = isBundled
+		? "Included in main bundle"
+		: "Loaded from external hosts";
 
 	const avgFCP =
 		results.reduce((a, b) => a + b.timing.firstContentfulPaint, 0) /
@@ -547,7 +503,9 @@ function printDetailedResults(
 	// ━━━ Cookie Banner Impact (dual timing modes) ━━━
 	console.log(`\n${color.bold("🍪 Cookie Banner Impact")}`);
 	console.log(
-		color.dim("  Dual timing: DOM presence (technical) | Banner visible (used for score)")
+		color.dim(
+			"  Dual timing: DOM presence (technical) | Banner visible (used for score)"
+		)
 	);
 	const bannerTable = new Table({
 		chars: { mid: "", "left-mid": "", "mid-mid": "", "right-mid": "" },
@@ -566,8 +524,8 @@ function printDetailedResults(
 			`${color.bold(formatTime(avgBannerDomPresenceTimeMs))}\n${color.dim("Technical render")}`,
 			`${color.bold(formatTime(avgBannerVisibleTimeMs))}\n${color.dim(bannerDelta || "baseline")}`,
 			`${color.bold(`${avgViewportCoverage.toFixed(1)}%`)}\n${color.dim("Screen real estate")}`,
-			`${color.bold(formatBytes(avgNetworkImpact * KILOBYTE))}\n${color.dim(isBundled ? "Bundled (no network)" : "External requests")}`,
-			`${color.bold(isBundled ? "Bundled" : "External")}\n${color.dim(isBundled ? "Included in main bundle" : "Loaded from CDN")}`,
+			`${color.bold(networkImpactSummary)}\n${color.dim(networkImpactHint)}`,
+			`${color.bold(isBundled ? "Bundled" : "External")}\n${color.dim(bundleStrategyHint)}`,
 		]
 	);
 
@@ -626,37 +584,37 @@ function printDetailedResults(
 		],
 		[
 			color.cyan("JavaScript"),
-			formatBytes(jsSize * KILOBYTE),
+			formatBytesShared(jsSize),
 			Math.round(jsFiles).toString(),
 			`${jsPercentage.toFixed(1)}%`,
 		],
 		[
 			color.cyan("CSS"),
-			formatBytes(cssSize * KILOBYTE),
+			formatBytesShared(cssSize),
 			Math.round(cssFiles).toString(),
 			`${cssPercentage.toFixed(1)}%`,
 		],
 		[
 			color.cyan("Images"),
-			formatBytes(imageSize * KILOBYTE),
+			formatBytesShared(imageSize),
 			Math.round(imageFiles).toString(),
 			`${imagePercentage.toFixed(1)}%`,
 		],
 		[
 			color.cyan("Fonts"),
-			formatBytes(fontSize * KILOBYTE),
+			formatBytesShared(fontSize),
 			Math.round(fontFiles).toString(),
 			`${fontPercentage.toFixed(1)}%`,
 		],
 		[
 			color.cyan("Other"),
-			formatBytes(otherSize * KILOBYTE),
+			formatBytesShared(otherSize),
 			Math.round(otherFiles).toString(),
 			`${otherPercentage.toFixed(1)}%`,
 		],
 		[
 			color.bold("Total"),
-			color.bold(formatBytes(totalSize * KILOBYTE)),
+			color.bold(formatBytesShared(totalSize)),
 			color.bold(Math.round(totalFiles).toString()),
 			color.bold("100%"),
 		]
@@ -683,7 +641,7 @@ function printDetailedResults(
 	summaryTable.push(
 		["Loading Strategy", color.bold(isBundled ? "Bundled" : "External")],
 		["Render Performance", color.bold(formatTime(avgBannerVisibleTimeMs))],
-		["Network Overhead", color.bold(formatBytes(avgNetworkImpact * KILOBYTE))],
+		["Network Overhead", color.bold(networkImpactSummary)],
 		["Main Thread Impact", color.bold(formatTime(avgTBT))],
 		["Layout Stability", color.bold(layoutStability)],
 		["User Disruption", color.bold(`${avgViewportCoverage.toFixed(1)}%`)]
@@ -907,7 +865,7 @@ function printDetailedResults(
 				shortName,
 				resource.type,
 				sourceColor(resource.source),
-				formatBytes(resource.size * KILOBYTE),
+				formatBytesShared(resource.size),
 				color.blue(formatTime(resource.duration)),
 				resource.tags.join(", "),
 			]);
@@ -930,7 +888,12 @@ export async function resultsCommand(
 
 	const projectRoot = findProjectRoot();
 	const resultsDir = join(projectRoot, "benchmarks");
-	const results = await aggregateResults(logger, resultsDir);
+	const scopedApps = Array.isArray(appName)
+		? new Set(appName)
+		: appName && appName !== "__all__"
+			? new Set([appName])
+			: undefined;
+	const results = await aggregateResults(logger, resultsDir, scopedApps);
 
 	if (Object.keys(results).length === 0) {
 		logger.error("No benchmark results found!");
@@ -1120,6 +1083,14 @@ export async function resultsCommand(
 						}
 						return sum + thirdPartyHosts.size;
 					}, 0) / appResults.length,
+				scriptLoadTime:
+					appResults.reduce(
+						(a, b) =>
+							a +
+							b.timing.scripts.bundled.loadEnd +
+							b.timing.scripts.thirdParty.loadEnd,
+						0
+					) / appResults.length,
 			},
 			{
 				cookieBannerDetected: appResults.some(

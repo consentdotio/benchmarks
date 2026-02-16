@@ -6,7 +6,8 @@
 	"main": "schema.json",
 	"files": [
 		"schema.json",
-		"base.json"
+		"base.json",
+		"results.schema.json"
 	],
 	"publishConfig": {
 		"access": "public"

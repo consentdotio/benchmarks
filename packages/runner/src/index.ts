@@ -8,7 +8,10 @@ export { buildAndServeNextApp, cleanupServer } from "./server";
 // Types
 export type {
 	BenchmarkDetails,
+	BenchmarkEnvironment,
+	BenchmarkQuality,
 	BenchmarkResult,
+	BenchmarkStatistics,
 	BundleStrategy,
 	Config,
 	CookieBannerConfig,

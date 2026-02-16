@@ -8,6 +8,11 @@ import { HALF_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
 import { config as loadDotenv } from "dotenv";
 import color from "picocolors";
 import type { BenchmarkScores } from "../types";
+import {
+	ConfigValidationError,
+	formatConfigIssues,
+	loadValidatedConfigSync,
+} from "../utils";
 import { isAdminUser } from "../utils/auth";
 import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
@@ -20,14 +25,11 @@ loadDotenv({ path: ".env.local" });
 loadDotenv({ path: "www/.env.local" });
 
 type BenchmarkOutput = {
+	schemaVersion?: number;
 	app: string;
 	results: RawBenchmarkDetail[];
 	scores?: BenchmarkScores;
-	metadata?: {
-		timestamp: string;
-		iterations: number;
-		languages?: string[];
-	};
+	metadata?: Record<string, unknown>;
 };
 
 // Benchmark result type (matching the oRPC contract)
@@ -65,6 +67,11 @@ type BenchmarkResult = {
 	scores?: {
 		totalScore: number;
 		grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+		indexes?: {
+			performanceIndex: number;
+			governanceIndex: number;
+			combinedIndex: number;
+		};
 		categoryScores: {
 			performance: number;
 			bundleStrategy: number;
@@ -159,43 +166,13 @@ async function loadConfigForApp(
 	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
-		const configContent = await readFile(configPath, "utf-8");
-		const config = JSON.parse(configContent);
-
-		return {
-			name: config.name || appName,
-			iterations: config.iterations || 0,
-			techStack: config.techStack || {
-				languages: [],
-				frameworks: [],
-				bundler: "unknown",
-				bundleType: "bundled",
-				packageManager: "unknown",
-				typescript: false,
-			},
-			source: config.source || {
-				license: "unknown",
-				isOpenSource: false,
-				github: false,
-				npm: false,
-			},
-			includes: config.includes || { backend: [], components: [] },
-			company: config.company || undefined,
-			tags: config.tags || [],
-			cookieBanner: config.cookieBanner || {
-				serviceName: "Unknown",
-				selectors: [],
-				serviceHosts: [],
-				waitForVisibility: false,
-				measureViewportCoverage: false,
-				expectedLayoutShift: false,
-			},
-			internationalization: config.internationalization || {
-				detection: "none",
-				stringLoading: "bundled",
-			},
-		};
+		return loadValidatedConfigSync(configPath);
 	} catch (error) {
+		if (error instanceof ConfigValidationError) {
+			logger.error(`Invalid config for ${appName}`);
+			logger.error(formatConfigIssues(error.issues));
+			return null;
+		}
 		logger.debug(`Could not load config for ${appName}:`, error);
 		return null;
 	}
@@ -207,6 +184,7 @@ function transformScoresToContract(
 	return {
 		totalScore: scores.totalScore,
 		grade: scores.grade,
+		indexes: scores.indexes,
 		categoryScores: scores.categoryScores,
 		categories: scores.categories.map((category) => ({
 			name: category.name,
@@ -286,10 +264,16 @@ export async function saveCommand(
 
 	// Load all results
 	const allResults: Record<string, BenchmarkOutput> = {};
+	const nonV2Files: string[] = [];
 	for (const file of resultsFiles) {
 		try {
 			const content = await readFile(file, "utf-8");
 			const data: BenchmarkOutput = JSON.parse(content);
+
+			if (data.schemaVersion !== 2) {
+				nonV2Files.push(file);
+				continue;
+			}
 
 			if (data.app && data.results) {
 				allResults[data.app] = data;
@@ -297,6 +281,13 @@ export async function saveCommand(
 		} catch (error) {
 			logger.debug(`Failed to load ${file}:`, error);
 		}
+	}
+
+	if (nonV2Files.length > 0) {
+		logger.error(
+			`Found ${nonV2Files.length} non-v2 results files. Run ${color.cyan("cookiebench migrate-results")} first.`
+		);
+		return;
 	}
 
 	if (Object.keys(allResults).length === 0) {
@@ -401,6 +392,11 @@ async function saveAppToDatabase(
 	projectRoot: string
 ): Promise<void> {
 	const appConfig = await loadConfigForApp(logger, appName, projectRoot);
+	if (!appConfig) {
+		throw new Error(
+			`Cannot save ${appName}: benchmark config validation failed`
+		);
+	}
 	const appResults = result.results;
 	if (appResults.length === 0) {
 		logger.warn(`Skipping ${appName}: no benchmark iterations found.`);
@@ -413,12 +409,10 @@ async function saveAppToDatabase(
 		const appData = {
 			name: appName,
 			baseline: appName === "baseline",
-			company: appConfig?.company ? JSON.stringify(appConfig.company) : null,
-			techStack: appConfig?.techStack
-				? JSON.stringify(appConfig.techStack)
-				: "{}",
-			source: appConfig?.source ? JSON.stringify(appConfig.source) : null,
-			tags: appConfig?.tags ? JSON.stringify(appConfig.tags) : null,
+			company: appConfig.company ? JSON.stringify(appConfig.company) : null,
+			techStack: JSON.stringify(appConfig.techStack),
+			source: appConfig.source ? JSON.stringify(appConfig.source) : null,
+			tags: appConfig.tags ? JSON.stringify(appConfig.tags) : null,
 		};
 
 		scores = calculateScores(
@@ -515,6 +509,14 @@ async function saveAppToDatabase(
 						}
 						return sum + thirdPartyHosts.size;
 					}, 0) / appResults.length,
+				scriptLoadTime:
+					appResults.reduce(
+						(a, b) =>
+							a +
+							b.timing.scripts.bundled.loadEnd +
+							b.timing.scripts.thirdParty.loadEnd,
+						0
+					) / appResults.length,
 			},
 			{
 				cookieBannerDetected: appResults.some(
@@ -557,17 +559,17 @@ async function saveAppToDatabase(
 	const benchmarkResult: BenchmarkResult = {
 		name: appName,
 		baseline: appName === "baseline",
-		cookieBannerConfig: appConfig?.cookieBanner || {},
-		techStack: appConfig?.techStack || {},
-		internationalization: appConfig?.internationalization || {},
-		source: appConfig?.source || {},
-		includes: appConfig?.includes
+		cookieBannerConfig: appConfig.cookieBanner,
+		techStack: appConfig.techStack,
+		internationalization: appConfig.internationalization,
+		source: appConfig.source,
+		includes: appConfig.includes
 			? Object.values(appConfig.includes)
 					.flat()
 					.filter((v): v is string => typeof v === "string")
 			: [],
-		company: appConfig?.company ? JSON.stringify(appConfig.company) : undefined,
-		tags: appConfig?.tags || [],
+		company: appConfig.company ? JSON.stringify(appConfig.company) : undefined,
+		tags: appConfig.tags || [],
 		details: appResults,
 		average: {
 			fcp:
@@ -585,13 +587,30 @@ async function saveAppToDatabase(
 			tti:
 				appResults.reduce((a, b) => a + b.timing.timeToInteractive, 0) /
 				appResults.length,
-			scriptLoadTime: 0,
+			scriptLoadTime:
+				appResults.reduce(
+					(a, b) =>
+						a +
+						b.timing.scripts.bundled.loadEnd +
+						b.timing.scripts.thirdParty.loadEnd,
+					0
+				) / appResults.length,
 			totalSize:
 				appResults.reduce((a, b) => a + b.size.total, 0) / appResults.length,
-			scriptSize: 0,
-			resourceCount:
-				appResults.reduce((a, b) => a + b.resources.scripts.length, 0) /
+			scriptSize:
+				appResults.reduce((a, b) => a + b.size.scripts.total, 0) /
 				appResults.length,
+			resourceCount:
+				appResults.reduce(
+					(a, b) =>
+						a +
+						b.resources.scripts.length +
+						b.resources.styles.length +
+						b.resources.images.length +
+						b.resources.fonts.length +
+						b.resources.other.length,
+					0
+				) / appResults.length,
 			scriptCount:
 				appResults.reduce((a, b) => a + b.resources.scripts.length, 0) /
 				appResults.length,

@@ -24,6 +24,7 @@ type MetricsData = {
 	tbt: number;
 	totalSize: number;
 	thirdPartySize: number;
+	thirdPartyRequestCount?: number;
 	bannerVisibilityTime: number;
 	viewportCoverage: number;
 	resourceCount?: number;
@@ -520,6 +521,9 @@ function calculateNetworkScore(
 	const thirdPartySize = Number.isFinite(metrics.thirdPartySize)
 		? metrics.thirdPartySize
 		: 0;
+	const thirdPartyRequestCount = Number.isFinite(metrics.thirdPartyRequestCount)
+		? metrics.thirdPartyRequestCount || 0
+		: 0;
 	const resourceCount = Number.isFinite(metrics.resourceCount)
 		? metrics.resourceCount || 0
 		: 0;
@@ -559,28 +563,55 @@ function calculateNetworkScore(
 
 	// Third-party size impact (25 points)
 	const thirdPartySizeKB = thirdPartySize / 1024;
-	const thirdPartyNetworkScore =
-		thirdPartySizeKB === 0
-			? 25
-			: thirdPartySizeKB <= 50
-				? 15
-				: thirdPartySizeKB <= 100
-					? 10
-					: 5;
-	totalScore += thirdPartyNetworkScore;
-	details.push({
-		metric: "Third-party Size",
-		value: formatBytes(thirdPartySize),
-		score: thirdPartyNetworkScore,
-		maxScore: 25,
-		reason:
-			thirdPartySizeKB === 0
-				? "Zero third-party"
-				: thirdPartySizeKB <= 50
+	const formattedThirdPartyRequestCount = Number.isInteger(
+		thirdPartyRequestCount
+	)
+		? thirdPartyRequestCount.toString()
+		: thirdPartyRequestCount.toFixed(1);
+
+	let thirdPartyNetworkScore = 25;
+	let thirdPartyReason = "Zero third-party";
+	if (thirdPartyRequestCount > 0) {
+		if (thirdPartySizeKB > 0) {
+			thirdPartyNetworkScore =
+				thirdPartySizeKB <= 50 ? 15 : thirdPartySizeKB <= 100 ? 10 : 5;
+			thirdPartyReason =
+				thirdPartySizeKB <= 50
 					? "Minimal third-party"
 					: thirdPartySizeKB <= 100
 						? "Moderate third-party"
-						: "Heavy third-party",
+						: "Heavy third-party";
+		} else {
+			// Size can be unavailable for cross-origin responses without Timing-Allow-Origin.
+			thirdPartyNetworkScore =
+				thirdPartyRequestCount <= 2 ? 15 : thirdPartyRequestCount <= 5 ? 10 : 5;
+			thirdPartyReason =
+				thirdPartyRequestCount <= 2
+					? "Third-party traffic detected (size unavailable)"
+					: thirdPartyRequestCount <= 5
+						? "Multiple third-party requests (size unavailable)"
+						: "Heavy third-party traffic (size unavailable)";
+		}
+	} else if (thirdPartySizeKB > 0) {
+		thirdPartyNetworkScore =
+			thirdPartySizeKB <= 50 ? 15 : thirdPartySizeKB <= 100 ? 10 : 5;
+		thirdPartyReason =
+			thirdPartySizeKB <= 50
+				? "Minimal third-party"
+				: thirdPartySizeKB <= 100
+					? "Moderate third-party"
+					: "Heavy third-party";
+	}
+	totalScore += thirdPartyNetworkScore;
+	details.push({
+		metric: "Third-party Size",
+		value:
+			thirdPartyRequestCount > 0
+				? `${formatBytes(thirdPartySize)} (${formattedThirdPartyRequestCount} req)`
+				: formatBytes(thirdPartySize),
+		score: thirdPartyNetworkScore,
+		maxScore: 25,
+		reason: thirdPartyReason,
 	});
 
 	// Network requests (25 points)
@@ -737,10 +768,9 @@ function calculateUXScore(
 	});
 
 	// Banner visible time (35 points) — scored from user-visible time only, not DOM presence
-	const bannerVisibleTimeMs =
-		Number.isFinite(benchmarkData.bannerRenderTime)
-			? benchmarkData.bannerRenderTime || 0
-			: metrics.bannerVisibilityTime || 0;
+	const bannerVisibleTimeMs = Number.isFinite(benchmarkData.bannerRenderTime)
+		? benchmarkData.bannerRenderTime || 0
+		: metrics.bannerVisibilityTime || 0;
 	const renderScore =
 		bannerVisibleTimeMs <= 25
 			? 35
@@ -961,7 +991,10 @@ function generateRecommendations(
 				"Reduce bundle size through code splitting and tree shaking."
 			);
 		}
-		if (metrics.thirdPartySize > 0) {
+		if (
+			metrics.thirdPartySize > 0 ||
+			(metrics.thirdPartyRequestCount ?? 0) > 0
+		) {
 			recommendations.push(
 				"Eliminate or reduce third-party resources for better performance."
 			);
@@ -1031,6 +1064,7 @@ export function calculateScores(
 		thirdPartyRequests: number;
 		thirdPartySize: number;
 		thirdPartyDomains: number;
+		scriptLoadTime?: number;
 	},
 	/** Must use user-visible time (opacity > 0.5), not DOM presence time, for scoring. */
 	transparencyMetrics: {
@@ -1053,118 +1087,15 @@ export function calculateScores(
 		saveData: boolean;
 	}
 ): BenchmarkScores {
-	if (isBaseline) {
-		return {
-			totalScore: 100,
-			grade: "Excellent",
-			categoryScores: {
-				performance: 100,
-				bundleStrategy: 100,
-				networkImpact: 100,
-				transparency: 100,
-				userExperience: 100,
-			},
-			categories: [
-				{
-					name: "Performance",
-					score: 100,
-					maxScore: 100,
-					weight: 1,
-					details: [
-						{
-							name: "Core Web Vitals",
-							score: 100,
-							maxScore: 100,
-							weight: 1,
-							status: "good",
-							reason: "Baseline measurement",
-						},
-					],
-					status: "good",
-					reason: "Baseline measurement",
-				},
-				{
-					name: "Bundle Strategy",
-					score: 100,
-					maxScore: 100,
-					weight: 1,
-					details: [
-						{
-							name: "Bundle Size",
-							score: 100,
-							maxScore: 100,
-							weight: 1,
-							status: "good",
-							reason: "Baseline measurement",
-						},
-					],
-					status: "good",
-					reason: "Baseline measurement",
-				},
-				{
-					name: "Network Impact",
-					score: 100,
-					maxScore: 100,
-					weight: 1,
-					details: [
-						{
-							name: "Network Requests",
-							score: 100,
-							maxScore: 100,
-							weight: 1,
-							status: "good",
-							reason: "Baseline measurement",
-						},
-					],
-					status: "good",
-					reason: "Baseline measurement",
-				},
-				{
-					name: "Transparency",
-					score: 100,
-					maxScore: 100,
-					weight: 1,
-					details: [
-						{
-							name: "Cookie Banner",
-							score: 100,
-							maxScore: 100,
-							weight: 1,
-							status: "good",
-							reason: "Baseline measurement",
-						},
-					],
-					status: "good",
-					reason: "Baseline measurement",
-				},
-				{
-					name: "User Experience",
-					score: 100,
-					maxScore: 100,
-					weight: 1,
-					details: [
-						{
-							name: "User Experience",
-							score: 100,
-							maxScore: 100,
-							weight: 1,
-							status: "good",
-							reason: "Baseline measurement",
-						},
-					],
-					status: "good",
-					reason: "Baseline measurement",
-				},
-			],
-			insights: [],
-			recommendations: [],
-		};
-	}
+	const normalizedThirdPartyRequests = Math.max(
+		0,
+		Math.round(networkMetrics.thirdPartyRequests)
+	);
 
 	// Create app data structure
 	const app: AppData = appData || {
 		name: "unknown",
-		baseline: false,
+		baseline: isBaseline,
 		company: null,
 		techStack: "{}",
 		source: null,
@@ -1180,12 +1111,13 @@ export function calculateScores(
 		tbt: metrics.tbt,
 		totalSize: bundleMetrics.totalSize,
 		thirdPartySize: networkMetrics.thirdPartySize,
+		thirdPartyRequestCount: normalizedThirdPartyRequests,
 		bannerVisibilityTime: transparencyMetrics.cookieBannerVisibleTimeMs || 0,
 		viewportCoverage: transparencyMetrics.cookieBannerCoverage * 100,
 		resourceCount: networkMetrics.totalRequests,
-		scriptLoadTime: 0, // TODO: Calculate from timing data
-		isBundled: networkMetrics.thirdPartyRequests === 0,
-		isIIFE: networkMetrics.thirdPartyRequests > 0,
+		scriptLoadTime: networkMetrics.scriptLoadTime || 0,
+		isBundled: normalizedThirdPartyRequests === 0,
+		isIIFE: normalizedThirdPartyRequests > 0,
 		// NEW: Add Perfume.js metrics
 		timeToFirstByte: metrics.timeToFirstByte || 0,
 		interactionToNextPaint: metrics.interactionToNextPaint,
@@ -1196,10 +1128,10 @@ export function calculateScores(
 	const resourceData: ResourceData[] = [
 		{ size: bundleMetrics.jsSize, isThirdParty: false },
 		{ size: bundleMetrics.cssSize, isThirdParty: false },
-		...Array.from({ length: networkMetrics.thirdPartyRequests }, () => ({
+		...Array.from({ length: normalizedThirdPartyRequests }, () => ({
 			size:
 				networkMetrics.thirdPartySize /
-				Math.max(networkMetrics.thirdPartyRequests, 1),
+				Math.max(normalizedThirdPartyRequests, 1),
 			isThirdParty: true,
 		})),
 	];
@@ -1233,25 +1165,8 @@ export function calculateScores(
 	);
 	const uxScore = calculateUXScore(metricsData, benchmarkData);
 
-	// Calculate weighted total score using more balanced weights
+	// Calculate category percentages first
 	const weights = DEFAULT_SCORE_WEIGHTS;
-	const totalScore = Math.round(
-		(performanceScore.score / performanceScore.maxScore) *
-			100 *
-			weights.performance +
-			(bundleScore.score / bundleScore.maxScore) *
-				100 *
-				weights.bundleStrategy +
-			(networkScore.score / networkScore.maxScore) *
-				100 *
-				weights.networkImpact +
-			(transparencyScore.score / transparencyScore.maxScore) *
-				100 *
-				weights.transparency +
-			(uxScore.score / uxScore.maxScore) * 100 * weights.userExperience
-	);
-
-	// Create category scores
 	const categoryScores = {
 		performance: Math.round(
 			(performanceScore.score / performanceScore.maxScore) * 100
@@ -1267,6 +1182,29 @@ export function calculateScores(
 		),
 		userExperience: Math.round((uxScore.score / uxScore.maxScore) * 100),
 	};
+
+	// Objective performance index excludes governance/transparency scoring.
+	const objectiveWeightTotal =
+		weights.performance +
+		weights.bundleStrategy +
+		weights.networkImpact +
+		weights.userExperience;
+
+	const performanceIndex = Math.round(
+		(categoryScores.performance * weights.performance +
+			categoryScores.bundleStrategy * weights.bundleStrategy +
+			categoryScores.networkImpact * weights.networkImpact +
+			categoryScores.userExperience * weights.userExperience) /
+			objectiveWeightTotal
+	);
+	const governanceIndex = categoryScores.transparency;
+	const combinedIndex = Math.round(
+		performanceIndex * (1 - weights.transparency) +
+			governanceIndex * weights.transparency
+	);
+
+	// totalScore is now the objective performance index so transparency cannot mask regressions.
+	const totalScore = performanceIndex;
 
 	// Create score categories
 	const categories = [
@@ -1374,6 +1312,11 @@ export function calculateScores(
 	return {
 		totalScore,
 		grade: getScoreGrade(totalScore),
+		indexes: {
+			performanceIndex,
+			governanceIndex,
+			combinedIndex,
+		},
 		categoryScores,
 		categories,
 		insights,
@@ -1392,6 +1335,21 @@ export function printScores(scores: BenchmarkScores): void {
 
 	// Add overall score
 	overallTable.push(["Overall", `${scores.totalScore}/100`, scores.grade]);
+	overallTable.push([
+		"Performance Index",
+		`${scores.indexes.performanceIndex}/100`,
+		"objective",
+	]);
+	overallTable.push([
+		"Governance Index",
+		`${scores.indexes.governanceIndex}/100`,
+		"governance",
+	]);
+	overallTable.push([
+		"Combined Index",
+		`${scores.indexes.combinedIndex}/100`,
+		"optional",
+	]);
 
 	// Add category scores
 	for (const category of scores.categories) {

@@ -9,18 +9,20 @@ import type { BenchmarkScores } from "../types";
 import { DEFAULT_DOM_SIZE } from "../utils/constants";
 import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
+import {
+	ConfigValidationError,
+	formatConfigIssues,
+	loadValidatedConfigSync,
+} from "../utils";
 import { calculateScores, printScores } from "../utils/scoring";
 import type { RawBenchmarkDetail } from "./results";
 
 type BenchmarkOutput = {
+	schemaVersion?: number;
 	app: string;
 	results: RawBenchmarkDetail[];
 	scores?: BenchmarkScores;
-	metadata?: {
-		timestamp: string;
-		iterations: number;
-		languages?: string[];
-	};
+	metadata?: Record<string, unknown>;
 };
 
 async function findResultsFiles(dir: string): Promise<string[]> {
@@ -51,43 +53,13 @@ async function loadConfigForApp(
 	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
-		const configContent = await readFile(configPath, "utf-8");
-		const config = JSON.parse(configContent);
-
-		return {
-			name: config.name || appName,
-			iterations: config.iterations || 0,
-			techStack: config.techStack || {
-				languages: [],
-				frameworks: [],
-				bundler: "unknown",
-				bundleType: "unknown",
-				packageManager: "unknown",
-				typescript: false,
-			},
-			source: config.source || {
-				license: "unknown",
-				isOpenSource: false,
-				github: false,
-				npm: false,
-			},
-			includes: config.includes || { backend: [], components: [] },
-			company: config.company || undefined,
-			tags: config.tags || [],
-			cookieBanner: config.cookieBanner || {
-				serviceName: "Unknown",
-				selectors: [],
-				serviceHosts: [],
-				waitForVisibility: false,
-				measureViewportCoverage: false,
-				expectedLayoutShift: false,
-			},
-			internationalization: config.internationalization || {
-				detection: "none",
-				stringLoading: "bundled",
-			},
-		};
+		return loadValidatedConfigSync(configPath);
 	} catch (error) {
+		if (error instanceof ConfigValidationError) {
+			logger.error(`Invalid config for ${appName}`);
+			logger.error(formatConfigIssues(error.issues));
+			return null;
+		}
 		logger.debug(`Could not load config for ${appName}:`, error);
 		return null;
 	}
@@ -115,10 +87,16 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 
 	// Load all results
 	const allResults: Record<string, BenchmarkOutput> = {};
+	const nonV2Files: string[] = [];
 	for (const file of resultsFiles) {
 		try {
 			const content = await readFile(file, "utf-8");
 			const data: BenchmarkOutput = JSON.parse(content);
+
+			if (data.schemaVersion !== 2) {
+				nonV2Files.push(file);
+				continue;
+			}
 
 			if (data.app && data.results) {
 				allResults[data.app] = data;
@@ -126,6 +104,12 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 		} catch (error) {
 			logger.debug(`Failed to load ${file}:`, error);
 		}
+	}
+
+	if (nonV2Files.length > 0) {
+		throw new Error(
+			`Found ${nonV2Files.length} non-v2 results files. Run \"cookiebench migrate-results\" first.`
+		);
 	}
 
 	if (Object.keys(allResults).length === 0) {
@@ -195,8 +179,7 @@ async function displayAppScores(
 
 	// Show metadata if available
 	if (result.metadata) {
-		logger.debug(`Iterations: ${result.metadata.iterations}`);
-		logger.debug(`Timestamp: ${result.metadata.timestamp}`);
+		logger.debug(`Metadata available for ${appName}`);
 	}
 
 	// If scores are already calculated and stored, use them
@@ -220,7 +203,9 @@ async function displayAppScores(
 	const config = await loadConfigForApp(logger, appName, projectRoot);
 
 	if (!config) {
-		logger.warn(`Could not load config for ${appName}, using default values`);
+		throw new Error(
+			`Cannot score ${appName} because benchmark config validation failed`
+		);
 	}
 
 	// Create app data for transparency scoring
@@ -329,6 +314,14 @@ async function displayAppScores(
 				}
 				return thirdPartyHosts.size;
 			})(),
+			scriptLoadTime:
+				appResults.reduce(
+					(a, b) =>
+						a +
+						b.timing.scripts.bundled.loadEnd +
+						b.timing.scripts.thirdParty.loadEnd,
+					0
+				) / appResults.length,
 		},
 		{
 			cookieBannerDetected: appResults.some(

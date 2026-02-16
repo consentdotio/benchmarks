@@ -44,5 +44,15 @@
     "website": "https://c15t.com",
     "avatar": "https://zxlypdluowixfd7j.public.blob.vercel-storage.com/c15t-icon-z6gQxO0ogxWgY51dluWPhNfAoPyELT.png"
   },
-  "tags": ["c15t"]
+  "tags": ["c15t"],
+  "runProfile": {
+    "cacheMode": "cold",
+    "networkProfile": "none",
+    "cpuSlowdownMultiplier": 1
+  },
+  "measurement": {
+    "minSuccessfulIterations": 16,
+    "maxFailureRate": 0.2,
+    "stabilityThresholdCv": 15
+  }
 }

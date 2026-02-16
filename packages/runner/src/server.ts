@@ -52,18 +52,21 @@ export async function buildAndServeNextApp(
 	logger.debug("Server command:", [
 		...pm.args,
 		"start",
-		"--",
+		...(pm.requiresScriptArgSeparator ? ["--"] : []),
 		"--port",
 		port.toString(),
 	]);
-	const serverProcess = spawn(
-		pm.command,
-		[...pm.args, "start", "--", "--port", port.toString()],
-		{
-			cwd,
-			stdio: ["inherit", "pipe", "inherit"],
-		}
-	);
+	const startArgs = [
+		...pm.args,
+		"start",
+		...(pm.requiresScriptArgSeparator ? ["--"] : []),
+		"--port",
+		port.toString(),
+	];
+	const serverProcess = spawn(pm.command, startArgs, {
+		cwd,
+		stdio: ["inherit", "pipe", "inherit"],
+	});
 
 	// Wait for server to be ready
 	const url = `http://localhost:${port}`;

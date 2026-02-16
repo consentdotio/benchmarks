@@ -9,45 +9,65 @@ const STABILITY_THRESHOLD = 15;
  * Calculate statistical metrics for an array of numbers (inspired by Mitata's approach)
  */
 export function calculateStatistics(values: number[]): {
+	sampleCount: number;
 	mean: number;
+	p50: number;
 	median: number;
 	stddev: number;
+	cv: number;
 	min: number;
 	max: number;
 	p95: number;
 	p99: number;
+	ci95Low: number;
+	ci95High: number;
 } {
 	if (values.length === 0) {
 		return {
+			sampleCount: 0,
 			mean: 0,
+			p50: 0,
 			median: 0,
 			stddev: 0,
+			cv: 0,
 			min: 0,
 			max: 0,
 			p95: 0,
 			p99: 0,
+			ci95Low: 0,
+			ci95High: 0,
 		};
 	}
 
 	const sorted = [...values].sort((a, b) => a - b);
+	const sampleCount = values.length;
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;
 	const variance =
 		values.reduce((acc, val) => acc + (val - mean) ** 2, 0) / values.length;
 	const stddev = Math.sqrt(variance);
 	const median = getMedian(sorted);
+	const p50 = getPercentile(sorted, 50);
 	const p95 = getPercentile(sorted, PERCENTILE_95);
 	const p99 = getPercentile(sorted, PERCENTILE_99);
+	const cv = calculateCoefficientOfVariation(values);
+	const ci95Delta =
+		sampleCount > 0 ? 1.96 * (stddev / Math.sqrt(sampleCount)) : 0;
 
 	const lastIndex = sorted.length - 1;
 	const maxValue = lastIndex >= 0 ? sorted[lastIndex] : 0;
 	return {
+		sampleCount,
 		mean,
+		p50,
 		median,
 		stddev,
+		cv,
 		min: sorted[0],
 		max: maxValue,
 		p95,
 		p99,
+		ci95Low: mean - ci95Delta,
+		ci95High: mean + ci95Delta,
 	};
 }
 

@@ -10,6 +10,11 @@ export type {
 export type BenchmarkScores = {
 	totalScore: number;
 	grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+	indexes: {
+		performanceIndex: number;
+		governanceIndex: number;
+		combinedIndex: number;
+	};
 	categoryScores: {
 		performance: number;
 		bundleStrategy: number;

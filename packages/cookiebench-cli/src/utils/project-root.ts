@@ -5,7 +5,9 @@ export function findProjectRoot(startDir = process.cwd()): string {
 	let currentDir = startDir;
 
 	while (currentDir !== dirname(currentDir)) {
-		const hasWorkspaceFile = existsSync(join(currentDir, "pnpm-workspace.yaml"));
+		const hasWorkspaceFile = existsSync(
+			join(currentDir, "pnpm-workspace.yaml")
+		);
 		const hasBenchmarksDir = existsSync(join(currentDir, "benchmarks"));
 		const hasPackagesDir = existsSync(join(currentDir, "packages"));
 

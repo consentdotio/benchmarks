@@ -4,6 +4,7 @@ import { cancel, isCancel, select } from "@clack/prompts";
 import { HALF_SECOND } from "@consentio/shared";
 import { benchmarkCommand } from "./commands/benchmark";
 import { dbCommand } from "./commands/db";
+import { migrateResultsCommand } from "./commands/migrate-results";
 import { resultsCommand } from "./commands/results";
 import { saveCommand } from "./commands/save";
 import { scoresCommand } from "./commands/scores";
@@ -24,6 +25,70 @@ function onCancel() {
 	process.exit(0);
 }
 
+function parseBenchmarkArgs(args: string[]): {
+	appPath?: string;
+	traceMode?: "off" | "on-failure" | "all";
+	profile?: "none" | "slow4g" | "fast3g";
+	cacheMode?: "cold" | "warm" | "mixed";
+} {
+	const parsed: {
+		appPath?: string;
+		traceMode?: "off" | "on-failure" | "all";
+		profile?: "none" | "slow4g" | "fast3g";
+		cacheMode?: "cold" | "warm" | "mixed";
+	} = {};
+
+	let index = 0;
+	while (index < args.length) {
+		const token = args[index];
+		if (!token.startsWith("--") && !parsed.appPath) {
+			parsed.appPath = token;
+			index += 1;
+			continue;
+		}
+
+		if (token === "--trace") {
+			const value = args[index + 1];
+			if (value === "off" || value === "on-failure" || value === "all") {
+				parsed.traceMode = value;
+				index += 2;
+				continue;
+			}
+			throw new Error(
+				"Invalid --trace value. Expected one of: off, on-failure, all"
+			);
+		}
+
+		if (token === "--profile") {
+			const value = args[index + 1];
+			if (value === "none" || value === "slow4g" || value === "fast3g") {
+				parsed.profile = value;
+				index += 2;
+				continue;
+			}
+			throw new Error(
+				"Invalid --profile value. Expected one of: none, slow4g, fast3g"
+			);
+		}
+
+		if (token === "--cache-mode") {
+			const value = args[index + 1];
+			if (value === "cold" || value === "warm" || value === "mixed") {
+				parsed.cacheMode = value;
+				index += 2;
+				continue;
+			}
+			throw new Error(
+				"Invalid --cache-mode value. Expected one of: cold, warm, mixed"
+			);
+		}
+
+		throw new Error(`Unknown benchmark option: ${token}`);
+	}
+
+	return parsed;
+}
+
 async function main() {
 	logger.clear();
 	await setTimeout(HALF_SECOND);
@@ -42,14 +107,23 @@ async function main() {
 	if (command) {
 		// Direct command execution
 		switch (command) {
-			case "benchmark":
-				await benchmarkCommand(logger, args[1]);
+			case "benchmark": {
+				const parsed = parseBenchmarkArgs(args.slice(1));
+				await benchmarkCommand(logger, parsed.appPath, {
+					traceMode: parsed.traceMode,
+					profile: parsed.profile,
+					cacheMode: parsed.cacheMode,
+				});
 				break;
+			}
 			case "results":
 				await resultsCommand(logger, args[1]);
 				break;
 			case "scores":
 				await scoresCommand(logger, args[1]);
+				break;
+			case "migrate-results":
+				await migrateResultsCommand(logger, args[1]);
 				break;
 			case "save":
 				if (!isAdmin) {
@@ -67,7 +141,12 @@ async function main() {
 				break;
 			default: {
 				logger.error(`Unknown command: ${command}`);
-				const availableCommands = ["benchmark", "results", "scores"];
+				const availableCommands = [
+					"benchmark",
+					"results",
+					"scores",
+					"migrate-results",
+				];
 				if (isAdmin) {
 					availableCommands.push("save", "db");
 				}
@@ -93,6 +172,11 @@ async function main() {
 				value: "scores",
 				label: "Scores",
 				hint: "View score-focused benchmark output",
+			},
+			{
+				value: "migrate-results",
+				label: "Migrate Results",
+				hint: "Upgrade results.json files to schemaVersion 2",
 			},
 		];
 
@@ -129,6 +213,9 @@ async function main() {
 				break;
 			case "scores":
 				await scoresCommand(logger);
+				break;
+			case "migrate-results":
+				await migrateResultsCommand(logger);
 				break;
 			case "save":
 				await saveCommand(logger);

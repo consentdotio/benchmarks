@@ -17,6 +17,12 @@ export {
 // Re-export local constants
 
 export * from "./constants";
+export {
+	ConfigValidationError,
+	formatConfigIssues,
+	loadValidatedConfigSync,
+	validateBenchmarkConfig,
+} from "./config-validation";
 export { findProjectRoot, resolveBenchmarkPath } from "./project-root";
 
 export function readConfig(configPath?: string): Config | null {

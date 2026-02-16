@@ -1,38 +1,42 @@
 import type { ChildProcess } from "node:child_process";
 import type { BundleType } from "@consentio/benchmark";
 
-// Re-export common types from benchmark package
 export type {
 	BundleType,
 	BundleStrategy,
+	CacheMode,
 	Config,
 	CookieBannerConfig,
 	CookieBannerData,
 	CookieBannerMetrics,
 	CoreWebVitals,
+	MeasurementConfig,
 	NetworkMetrics,
+	NetworkProfile,
 	NetworkRequest,
 	PerfumeMetrics,
 	ResourceTimingData,
+	RunProfile,
 } from "@consentio/benchmark";
 
-// Server types
 export type ServerInfo = {
 	serverProcess: ChildProcess;
 	url: string;
 };
 
-// Benchmark result types
 export type BenchmarkDetails = {
 	duration: number;
 	size: {
 		total: number;
 		bundled: number;
 		thirdParty: number;
+		cookieServices: number;
 		scripts: {
 			total: number;
 			initial: number;
 			dynamic: number;
+			thirdParty: number;
+			cookieServices: number;
 		};
 		styles: number;
 		images: number;
@@ -48,7 +52,6 @@ export type BenchmarkDetails = {
 		largestContentfulPaint: number;
 		timeToInteractive: number;
 		cumulativeLayoutShift: number;
-		// Enhanced metrics from Perfume.js
 		timeToFirstByte: number | null;
 		firstInputDelay: number | null;
 		interactionToNextPaint: number | null;
@@ -77,9 +80,7 @@ export type BenchmarkDetails = {
 			selector: string | null;
 			serviceName: string;
 			visibilityTime: number | null;
-			/** DOM presence time (ms). Alias for renderStart; explicit for downstream consumers. */
 			domPresenceTime: number;
-			/** User-visible time (ms). Alias for visibilityTime; used for scoring. */
 			userVisibleTime: number;
 			viewportCoverage: number;
 		};
@@ -126,6 +127,9 @@ export type BenchmarkDetails = {
 			startTime: number;
 			isThirdParty: boolean;
 			isDynamic: boolean;
+			isCookieService: boolean;
+			dnsTime: number;
+			connectionTime: number;
 		}>;
 		styles: Array<{
 			name: string;
@@ -133,6 +137,7 @@ export type BenchmarkDetails = {
 			duration: number;
 			startTime: number;
 			isThirdParty: boolean;
+			isCookieService: boolean;
 		}>;
 		images: Array<{
 			name: string;
@@ -140,6 +145,7 @@ export type BenchmarkDetails = {
 			duration: number;
 			startTime: number;
 			isThirdParty: boolean;
+			isCookieService: boolean;
 		}>;
 		fonts: Array<{
 			name: string;
@@ -147,6 +153,7 @@ export type BenchmarkDetails = {
 			duration: number;
 			startTime: number;
 			isThirdParty: boolean;
+			isCookieService: boolean;
 		}>;
 		other: Array<{
 			name: string;
@@ -154,14 +161,74 @@ export type BenchmarkDetails = {
 			duration: number;
 			startTime: number;
 			isThirdParty: boolean;
+			isCookieService: boolean;
 			type: string;
 		}>;
 	};
 	dom?: {
 		size?: number;
 	};
-	cookieBanner: EnhancedCookieBannerTiming;
-	thirdParty: ThirdPartyMetrics;
+	cookieBanner: {
+		detected: boolean;
+		selector: string | null;
+		serviceName: string;
+		visibilityTime: number | null;
+		domPresenceTime: number;
+		userVisibleTime: number;
+		viewportCoverage: number;
+	};
+	thirdParty: {
+		cookieServices: {
+			hosts: string[];
+			totalSize: number;
+			resourceCount: number;
+			dnsLookupTime: number;
+			connectionTime: number;
+			downloadTime: number;
+		};
+		totalImpact: number;
+	};
+};
+
+export type MetricStatistics = {
+	sampleCount: number;
+	mean: number;
+	p50: number;
+	median: number;
+	stddev: number;
+	cv: number;
+	min: number;
+	max: number;
+	p95: number;
+	p99: number;
+	ci95Low: number;
+	ci95High: number;
+};
+
+export type BenchmarkStatistics = {
+	fcp: MetricStatistics;
+	lcp: MetricStatistics;
+	tti: MetricStatistics;
+	tbt: MetricStatistics;
+	cls: MetricStatistics;
+	ttfb: MetricStatistics;
+	bannerVisibleTime: MetricStatistics;
+};
+
+export type BenchmarkQuality = {
+	requestedIterations: number;
+	successfulIterations: number;
+	failedIterations: number;
+	failureRate: number;
+	minSuccessfulIterations: number;
+	maxFailureRate: number;
+	stabilityThresholdCv: number;
+	stable: boolean;
+	unstableMetrics: string[];
+};
+
+export type BenchmarkEnvironment = {
+	chromiumVersion: string;
 };
 
 export type BenchmarkResult = {
@@ -198,12 +265,9 @@ export type BenchmarkResult = {
 		largestContentfulPaint: number;
 		timeToInteractive: number;
 		totalBlockingTime: number;
-		speedIndex: number;
 		timeToFirstByte: number;
-		firstInputDelay: number;
 		interactionToNextPaint: number;
 		cumulativeLayoutShift: number;
-		domSize: number;
 		totalRequests: number;
 		totalSize: number;
 		jsSize: number;
@@ -214,40 +278,14 @@ export type BenchmarkResult = {
 		thirdPartyRequests: number;
 		thirdPartySize: number;
 		thirdPartyDomains: number;
-		thirdPartyCookies: number;
-		thirdPartyLocalStorage: number;
-		thirdPartySessionStorage: number;
-		thirdPartyIndexedDB: number;
-		thirdPartyCache: number;
-		thirdPartyServiceWorkers: number;
-		thirdPartyWebWorkers: number;
-		thirdPartyWebSockets: number;
-		thirdPartyBeacons: number;
-		thirdPartyFetch: number;
-		thirdPartyXHR: number;
-		thirdPartyScripts: number;
-		thirdPartyStyles: number;
-		thirdPartyImages: number;
-		thirdPartyFonts: number;
-		thirdPartyMedia: number;
-		thirdPartyOther: number;
-		thirdPartyTiming: {
-			total: number;
-			blocking: number;
-			dns: number;
-			connect: number;
-			ssl: number;
-			send: number;
-			wait: number;
-			receive: number;
-		};
-		cookieBannerTiming: {
-			firstPaint: number;
-			firstContentfulPaint: number;
-			domContentLoaded: number;
-			load: number;
-		};
+		cookieBannerVisibleTime: number;
+		cookieBannerDomPresenceTime: number;
+		cookieBannerCoverage: number;
+		scriptLoadTime: number;
 	};
+	statistics: BenchmarkStatistics;
+	quality: BenchmarkQuality;
+	environment: BenchmarkEnvironment;
 	scores?: {
 		totalScore: number;
 		grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
@@ -257,6 +295,11 @@ export type BenchmarkResult = {
 			networkImpact: number;
 			transparency: number;
 			userExperience: number;
+		};
+		indexes?: {
+			performanceIndex: number;
+			governanceIndex: number;
+			combinedIndex: number;
 		};
 		categories: Array<{
 			name: string;
@@ -277,26 +320,4 @@ export type BenchmarkResult = {
 		insights: string[];
 		recommendations: string[];
 	};
-};
-
-type EnhancedCookieBannerTiming = {
-	detected: boolean;
-	selector: string | null;
-	serviceName: string;
-	visibilityTime: number | null;
-	domPresenceTime: number;
-	userVisibleTime: number;
-	viewportCoverage: number;
-};
-
-type ThirdPartyMetrics = {
-	cookieServices: {
-		hosts: string[];
-		totalSize: number;
-		resourceCount: number;
-		dnsLookupTime: number;
-		connectionTime: number;
-		downloadTime: number;
-	};
-	totalImpact: number;
 };

@@ -15,22 +15,60 @@ import {
 	chromium,
 	type Browser,
 	type BrowserContext,
+	type BrowserContextOptions,
 	type Page,
 } from "@playwright/test";
 import { PerformanceMetricsCollector } from "playwright-performance-metrics";
 import { PerformanceAggregator } from "./performance-aggregator";
-import type { BenchmarkDetails, BenchmarkResult } from "./types";
+import type {
+	BenchmarkDetails,
+	BenchmarkQuality,
+	BenchmarkResult,
+	BenchmarkStatistics,
+} from "./types";
 
 const execFileAsync = promisify(execFile);
 
-// Constants
-const WARMUP_ITERATIONS = 1; // Number of warmup runs before actual benchmarking
-const MAX_RETRIES = 2; // Maximum retries for failed iterations
-const ITERATION_TIMEOUT_MS = 120_000; // 2 minutes timeout per iteration
-const CLEANUP_DELAY_MS = 500; // Delay between iterations for cleanup
-const NAVIGATION_TIMEOUT_MS = 60_000; // 60 second timeout for navigation
-const RETRY_DELAY_MULTIPLIER = 2; // Multiplier for retry delay
-const MILLISECONDS_TO_SECONDS = 1000; // Conversion factor for time calculations
+const WARMUP_ITERATIONS = 1;
+const MAX_RETRIES = 2;
+const ITERATION_TIMEOUT_MS = 120_000;
+const CLEANUP_DELAY_MS = 500;
+const NAVIGATION_TIMEOUT_MS = 60_000;
+const RETRY_DELAY_MULTIPLIER = 2;
+const MILLISECONDS_TO_SECONDS = 1000;
+const FCP_LCP_MIN_STDDEV_MS = 8;
+const FCP_LCP_MIN_P95_P50_SPREAD_MS = 15;
+const TTI_MIN_STDDEV_MS = 30;
+const TTI_MIN_P95_P50_SPREAD_MS = 60;
+const TBT_MIN_STDDEV_MS = 15;
+const TBT_MIN_P95_P50_SPREAD_MS = 25;
+const BANNER_VISIBLE_MIN_P95_P50_SPREAD_MS = 250;
+const BANNER_VISIBLE_MIN_RELATIVE_SPREAD = 0.2;
+const CLS_MIN_STDDEV = 0.005;
+const CLS_MIN_P95_P50_SPREAD = 0.01;
+
+type TraceMode = "off" | "on-failure" | "all";
+
+const NETWORK_PROFILES: Record<
+	Config["runProfile"]["networkProfile"],
+	{
+		latency: number;
+		downloadThroughput: number;
+		uploadThroughput: number;
+	} | null
+> = {
+	none: null,
+	slow4g: {
+		latency: 150,
+		downloadThroughput: (1.6 * 1024 * 1024) / 8,
+		uploadThroughput: (750 * 1024) / 8,
+	},
+	fast3g: {
+		latency: 562,
+		downloadThroughput: (1.6 * 1024 * 1024) / 8,
+		uploadThroughput: (750 * 1024) / 8,
+	},
+};
 
 export class BenchmarkRunner {
 	private readonly config: Config;
@@ -40,34 +78,39 @@ export class BenchmarkRunner {
 	private readonly resourceTimingCollector: ResourceTimingCollector;
 	private readonly perfumeCollector: PerfumeCollector;
 	private readonly performanceAggregator: PerformanceAggregator;
-	private readonly saveTrace: boolean;
+	private readonly traceMode: TraceMode;
 	private readonly traceDir?: string;
+	private warmContext: BrowserContext | null = null;
 
 	constructor(
 		config: Config,
 		logger: Logger,
-		options?: { saveTrace?: boolean; traceDir?: string }
+		options?: { traceMode?: TraceMode; traceDir?: string }
 	) {
 		this.config = config;
 		this.logger = logger;
 		this.cookieBannerCollector = new CookieBannerCollector(config, logger);
 		this.networkMonitor = new NetworkMonitor(config, logger);
-		this.resourceTimingCollector = new ResourceTimingCollector(logger);
+		this.resourceTimingCollector = new ResourceTimingCollector(logger, config);
 		this.perfumeCollector = new PerfumeCollector(logger);
 		this.performanceAggregator = new PerformanceAggregator(logger);
-		this.saveTrace = options?.saveTrace ?? false;
+		this.traceMode = options?.traceMode ?? "on-failure";
 		this.traceDir = options?.traceDir;
 		this.validateConfig();
 	}
 
-	/**
-	 * Validate configuration before running benchmarks
-	 */
 	private validateConfig(): void {
 		if (!this.config.iterations || this.config.iterations < 1) {
 			throw new Error(
 				`Invalid iterations: ${this.config.iterations}. Must be at least 1.`
 			);
+		}
+
+		if (!this.config.runProfile) {
+			throw new Error("Missing required runProfile configuration");
+		}
+		if (!this.config.measurement) {
+			throw new Error("Missing required measurement configuration");
 		}
 
 		const hasSelectors =
@@ -95,9 +138,80 @@ export class BenchmarkRunner {
 		}
 	}
 
-	/**
-	 * Run a single benchmark iteration with timeout and error handling
-	 */
+	private getContextOptions(): BrowserContextOptions {
+		if (!this.config.remote?.enabled) {
+			return {};
+		}
+
+		const extraHTTPHeaders = this.config.remote.headers;
+		if (extraHTTPHeaders && Object.keys(extraHTTPHeaders).length > 0) {
+			return { extraHTTPHeaders };
+		}
+		return {};
+	}
+
+	private shouldUseWarmCache(iterationIndex: number): boolean {
+		const cacheMode = this.config.runProfile.cacheMode;
+		if (cacheMode === "warm") {
+			return iterationIndex > 0;
+		}
+		if (cacheMode === "mixed") {
+			return iterationIndex % 2 === 1;
+		}
+		return false;
+	}
+
+	private withCacheBuster(url: string, label: string): string {
+		try {
+			const parsed = new URL(url);
+			parsed.searchParams.set("cb", `${Date.now()}-${label}`);
+			return parsed.toString();
+		} catch {
+			return `${url}${url.includes("?") ? "&" : "?"}cb=${Date.now()}-${label}`;
+		}
+	}
+
+	private getIterationUrl(
+		baseUrl: string,
+		iterationIndex: number,
+		isWarmup: boolean,
+		useWarmCache: boolean
+	): string {
+		const cacheMode = this.config.runProfile.cacheMode;
+		const shouldBustCache =
+			cacheMode === "cold" || (!useWarmCache && cacheMode === "mixed");
+		if (!shouldBustCache) {
+			return baseUrl;
+		}
+		const label = isWarmup
+			? `warmup-${iterationIndex}`
+			: `iter-${iterationIndex}`;
+		return this.withCacheBuster(baseUrl, label);
+	}
+
+	private async applyRunProfile(page: Page): Promise<void> {
+		const cdpSession = await page.context().newCDPSession(page);
+		const networkProfile =
+			NETWORK_PROFILES[this.config.runProfile.networkProfile];
+		const cpuSlowdown = this.config.runProfile.cpuSlowdownMultiplier;
+
+		if (networkProfile) {
+			await cdpSession.send("Network.enable");
+			await cdpSession.send("Network.emulateNetworkConditions", {
+				offline: false,
+				latency: networkProfile.latency,
+				downloadThroughput: networkProfile.downloadThroughput,
+				uploadThroughput: networkProfile.uploadThroughput,
+			});
+		}
+
+		if (cpuSlowdown > 1) {
+			await cdpSession.send("Emulation.setCPUThrottlingRate", {
+				rate: cpuSlowdown,
+			});
+		}
+	}
+
 	async runSingleBenchmark(
 		page: Page,
 		url: string,
@@ -117,16 +231,14 @@ export class BenchmarkRunner {
 			this.config.techStack?.bundleType
 		);
 
-		// Initialize collectors
 		const collector = new PerformanceMetricsCollector();
 		const cookieBannerMetrics = this.cookieBannerCollector.initializeMetrics();
 
-		// Setup monitoring and detection
+		await this.applyRunProfile(page);
 		await this.networkMonitor.setupMonitoring(page, url);
 		await this.cookieBannerCollector.setupDetection(page);
 		await this.perfumeCollector.setupPerfume(page);
 
-		// Navigate to the page with timeout
 		this.logger.debug(`Navigating to: ${url}`);
 		try {
 			await page.goto(url, {
@@ -139,45 +251,21 @@ export class BenchmarkRunner {
 			);
 		}
 
-		// Wait for the specified element
 		await this.waitForElement(page);
-
-		// Wait for network to be idle
-		this.logger.debug("Waiting for network idle...");
 		await page.waitForLoadState("networkidle");
 
-		// Collect core web vitals from playwright-performance-metrics (primary source)
-		this.logger.debug("Collecting core web vitals...");
 		const coreWebVitals = await collector.collectMetrics(page, {
 			timeout: BENCHMARK_CONSTANTS.METRICS_TIMEOUT,
 			retryTimeout: BENCHMARK_CONSTANTS.METRICS_RETRY_TIMEOUT,
 		});
 
-		this.logger.debug("Core web vitals collected:", {
-			fcp: coreWebVitals.paint?.firstContentfulPaint,
-			lcp: coreWebVitals.largestContentfulPaint,
-			cls: coreWebVitals.cumulativeLayoutShift,
-			tbt: coreWebVitals.totalBlockingTime,
-		});
-
-		// Collect Perfume.js metrics (supplementary - TTFB, navigation timing, network info)
-		this.logger.debug("Collecting Perfume.js supplementary metrics...");
 		const perfumeMetrics = await this.perfumeCollector.collectMetrics(page);
-		this.logger.debug("Perfume.js metrics:", perfumeMetrics);
-
-		// Collect cookie banner specific metrics
 		const cookieBannerData =
 			await this.cookieBannerCollector.collectMetrics(page);
-		this.logger.debug("Cookie banner metrics:", cookieBannerData);
-
-		// Collect detailed resource timing data
 		const resourceMetrics = await this.resourceTimingCollector.collect(page);
-
-		// Get network metrics
 		const networkRequests = this.networkMonitor.getNetworkRequests();
 		const networkMetrics = this.networkMonitor.getMetrics();
 
-		// Aggregate all metrics
 		const finalMetrics = this.performanceAggregator.aggregateMetrics({
 			coreWebVitals,
 			cookieBannerData,
@@ -189,100 +277,35 @@ export class BenchmarkRunner {
 			perfumeMetrics,
 		});
 
-		// Log results
 		this.performanceAggregator.logResults(
 			finalMetrics,
 			cookieBannerMetrics,
 			this.config
 		);
 
-		// Cleanup
 		await collector.cleanup();
 		this.networkMonitor.reset();
 
 		return finalMetrics;
 	}
 
-	/**
-	 * Run a single benchmark iteration with retry logic
-	 */
-	private async runSingleBenchmarkWithRetry(
-		browser: Browser,
-		url: string,
-		isWarmup: boolean,
-		iterationNumber?: number
-	): Promise<BenchmarkDetails> {
-		let lastError: Error | null = null;
-
-		for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-			const context = await browser.newContext();
-			const page = await context.newPage();
-
-			try {
-				if (attempt > 0) {
-					this.logger.warn(
-						`Retrying iteration (attempt ${attempt + 1}/${MAX_RETRIES + 1})...`
-					);
-				}
-
-				if (this.saveTrace && !isWarmup) {
-					await context.tracing.start({
-						screenshots: true,
-						snapshots: true,
-					});
-				}
-
-				const result = await Promise.race([
-					this.runSingleBenchmark(page, url, isWarmup),
-					new Promise<BenchmarkDetails>((_, reject) =>
-						setTimeout(
-							() => reject(new Error("Iteration timeout")),
-							ITERATION_TIMEOUT_MS
-						)
-					),
-				]);
-				if (this.saveTrace && !isWarmup && iterationNumber) {
-					await this.persistTrace(context, iterationNumber);
-				}
-				await context.close();
-				return result;
-			} catch (error) {
-				lastError = error instanceof Error ? error : new Error(String(error));
-				this.logger.debug(
-					`Iteration attempt ${attempt + 1} failed:`,
-					lastError.message
-				);
-				await context.close();
-
-				if (attempt < MAX_RETRIES) {
-					// Wait before retry
-					const retryDelay = CLEANUP_DELAY_MS * RETRY_DELAY_MULTIPLIER;
-					await new Promise((resolve) => setTimeout(resolve, retryDelay));
-				}
-			}
-		}
-
-		throw new Error(
-			`Failed to complete benchmark after ${MAX_RETRIES + 1} attempts: ${lastError?.message}`
-		);
-	}
-
 	private async persistTrace(
 		context: BrowserContext,
-		iterationNumber: number
+		iterationNumber: number,
+		suffix: string
 	): Promise<void> {
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		const traceZipPath = this.traceDir
-			? join(this.traceDir, `Trace-${timestamp}.zip`)
+			? join(this.traceDir, `Trace-${timestamp}-${suffix}.zip`)
 			: join(
 					process.cwd(),
-					`trace-${this.config.name}-iteration-${iterationNumber}.zip`
+					`trace-${this.config.name}-iteration-${iterationNumber}-${suffix}.zip`
 				);
 		const traceJsonPath = this.traceDir
-			? join(this.traceDir, `Trace-${timestamp}.json`)
+			? join(this.traceDir, `Trace-${timestamp}-${suffix}.json`)
 			: join(
 					process.cwd(),
-					`trace-${this.config.name}-iteration-${iterationNumber}.json`
+					`trace-${this.config.name}-iteration-${iterationNumber}-${suffix}.json`
 				);
 		await context.tracing.stop({ path: traceZipPath });
 
@@ -318,46 +341,236 @@ export class BenchmarkRunner {
 		}
 	}
 
-	/**
-	 * Cleanup resources between iterations
-	 */
+	private async runSingleBenchmarkWithRetry(
+		browser: Browser,
+		url: string,
+		isWarmup: boolean,
+		iterationNumber: number,
+		useWarmCache: boolean
+	): Promise<BenchmarkDetails> {
+		let lastError: Error | null = null;
+
+		for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+			let context: BrowserContext;
+			let ownsContext = false;
+
+			if (useWarmCache) {
+				if (!this.warmContext) {
+					this.warmContext = await browser.newContext(this.getContextOptions());
+				}
+				context = this.warmContext;
+			} else {
+				context = await browser.newContext(this.getContextOptions());
+				ownsContext = true;
+			}
+
+			const page = await context.newPage();
+			const shouldTrace = this.traceMode !== "off" && !isWarmup;
+			if (shouldTrace) {
+				await context.tracing.start({
+					screenshots: true,
+					snapshots: true,
+				});
+			}
+
+			try {
+				if (attempt > 0) {
+					this.logger.warn(
+						`Retrying iteration (attempt ${attempt + 1}/${MAX_RETRIES + 1})...`
+					);
+				}
+
+				const result = await Promise.race([
+					this.runSingleBenchmark(page, url, isWarmup),
+					new Promise<BenchmarkDetails>((_, reject) =>
+						setTimeout(
+							() => reject(new Error("Iteration timeout")),
+							ITERATION_TIMEOUT_MS
+						)
+					),
+				]);
+
+				if (shouldTrace) {
+					if (this.traceMode === "all") {
+						await this.persistTrace(context, iterationNumber, "success");
+					} else {
+						await context.tracing.stop();
+					}
+				}
+
+				await page.close();
+				if (ownsContext) {
+					await context.close();
+				}
+				return result;
+			} catch (error) {
+				lastError = error instanceof Error ? error : new Error(String(error));
+				this.logger.debug(
+					`Iteration attempt ${attempt + 1} failed:`,
+					lastError.message
+				);
+
+				if (
+					shouldTrace &&
+					(this.traceMode === "on-failure" || this.traceMode === "all")
+				) {
+					await this.persistTrace(
+						context,
+						iterationNumber,
+						`failed-attempt-${attempt + 1}`
+					);
+				} else if (shouldTrace) {
+					await context.tracing.stop();
+				}
+
+				await page.close();
+				if (ownsContext) {
+					await context.close();
+				}
+
+				if (attempt < MAX_RETRIES) {
+					const retryDelay = CLEANUP_DELAY_MS * RETRY_DELAY_MULTIPLIER;
+					await new Promise((resolve) => setTimeout(resolve, retryDelay));
+				}
+			}
+		}
+
+		throw new Error(
+			`Failed to complete benchmark after ${MAX_RETRIES + 1} attempts: ${lastError?.message}`
+		);
+	}
+
 	private async cleanupBetweenIterations(): Promise<void> {
-		// Small delay to allow cleanup
 		await new Promise((resolve) => setTimeout(resolve, CLEANUP_DELAY_MS));
 
-		// Force garbage collection if available (Node.js with --expose-gc)
 		if (global.gc) {
 			global.gc();
 		}
 	}
 
-	/**
-	 * Run multiple benchmark iterations with warmup and error handling
-	 */
+	private buildQualitySummary(
+		results: BenchmarkDetails[],
+		statistics: BenchmarkStatistics
+	): BenchmarkQuality {
+		const requestedIterations = this.config.iterations;
+		const successfulIterations = results.length;
+		const failedIterations = requestedIterations - successfulIterations;
+		const failureRate =
+			requestedIterations > 0 ? failedIterations / requestedIterations : 0;
+		const minSuccessfulIterations =
+			this.config.measurement.minSuccessfulIterations;
+		const maxFailureRate = this.config.measurement.maxFailureRate;
+		const stabilityThresholdCv = this.config.measurement.stabilityThresholdCv;
+		const isMetricUnstable = (
+			stats: BenchmarkStatistics[keyof BenchmarkStatistics],
+			options: {
+				minStddev: number;
+				minP95P50Spread: number;
+				minRelativeSpread?: number;
+				useStddev?: boolean;
+			}
+		): boolean => {
+			const spread = Math.max(0, stats.p95 - stats.p50);
+			const relativeSpread =
+				stats.p50 > 0 ? spread / stats.p50 : Number.POSITIVE_INFINITY;
+			const stddevUnstable =
+				options.useStddev === false ? false : stats.stddev >= options.minStddev;
+			const spreadUnstable =
+				spread >= options.minP95P50Spread &&
+				(options.minRelativeSpread === undefined ||
+					relativeSpread >= options.minRelativeSpread);
+
+			return (
+				stats.cv > stabilityThresholdCv && (stddevUnstable || spreadUnstable)
+			);
+		};
+
+		const cvMetrics: Array<{ metric: string; unstable: boolean }> = [
+			{
+				metric: "fcp",
+				unstable: isMetricUnstable(statistics.fcp, {
+					minStddev: FCP_LCP_MIN_STDDEV_MS,
+					minP95P50Spread: FCP_LCP_MIN_P95_P50_SPREAD_MS,
+				}),
+			},
+			{
+				metric: "lcp",
+				unstable: isMetricUnstable(statistics.lcp, {
+					minStddev: FCP_LCP_MIN_STDDEV_MS,
+					minP95P50Spread: FCP_LCP_MIN_P95_P50_SPREAD_MS,
+				}),
+			},
+			{
+				metric: "tti",
+				unstable: isMetricUnstable(statistics.tti, {
+					minStddev: TTI_MIN_STDDEV_MS,
+					minP95P50Spread: TTI_MIN_P95_P50_SPREAD_MS,
+				}),
+			},
+			{
+				metric: "tbt",
+				unstable: isMetricUnstable(statistics.tbt, {
+					minStddev: TBT_MIN_STDDEV_MS,
+					minP95P50Spread: TBT_MIN_P95_P50_SPREAD_MS,
+				}),
+			},
+			{
+				metric: "cls",
+				unstable: isMetricUnstable(statistics.cls, {
+					minStddev: CLS_MIN_STDDEV,
+					minP95P50Spread: CLS_MIN_P95_P50_SPREAD,
+				}),
+			},
+			{
+				metric: "bannerVisibleTime",
+				unstable: isMetricUnstable(statistics.bannerVisibleTime, {
+					minStddev: 0,
+					minP95P50Spread: BANNER_VISIBLE_MIN_P95_P50_SPREAD_MS,
+					minRelativeSpread: BANNER_VISIBLE_MIN_RELATIVE_SPREAD,
+					useStddev: false,
+				}),
+			},
+		];
+		const unstableMetrics = cvMetrics
+			.filter(({ unstable }) => unstable)
+			.map(({ metric }) => metric);
+
+		return {
+			requestedIterations,
+			successfulIterations,
+			failedIterations,
+			failureRate,
+			minSuccessfulIterations,
+			maxFailureRate,
+			stabilityThresholdCv,
+			stable: unstableMetrics.length === 0,
+			unstableMetrics,
+		};
+	}
+
 	async runBenchmarks(serverUrl: string): Promise<BenchmarkResult> {
 		const browser = await chromium.launch({
-			headless: true, // Keep headless mode for stability
+			headless: true,
 			args: ["--remote-debugging-port=9222"],
 		});
+		const chromiumVersion = browser.version();
 		const results: BenchmarkDetails[] = [];
 		const startTime = Date.now();
 
 		try {
-			// Warmup runs (discarded, used to stabilize the environment)
 			if (WARMUP_ITERATIONS > 0) {
 				this.logger.info(
 					`Running ${WARMUP_ITERATIONS} warmup iteration(s) to stabilize environment...`
 				);
-				const warmupContext = await browser.newContext();
+				const warmupContext = await browser.newContext(
+					this.getContextOptions()
+				);
 				const warmupPage = await warmupContext.newPage();
 
 				for (let i = 0; i < WARMUP_ITERATIONS; i += 1) {
+					const warmupUrl = this.getIterationUrl(serverUrl, i, true, false);
 					try {
-						await this.runSingleBenchmark(
-							warmupPage,
-							`${serverUrl}?t=${Date.now()}&warmup=true`,
-							true
-						);
+						await this.runSingleBenchmark(warmupPage, warmupUrl, true);
 						this.logger.debug(`Warmup iteration ${i + 1} completed`);
 					} catch (error) {
 						this.logger.debug(
@@ -372,7 +585,6 @@ export class BenchmarkRunner {
 				this.logger.info("Warmup complete. Starting actual benchmarks...");
 			}
 
-			// Actual benchmark iterations
 			for (let i = 0; i < this.config.iterations; i += 1) {
 				const iterationStartTime = Date.now();
 				const elapsedTimeSeconds = Math.round(
@@ -381,18 +593,28 @@ export class BenchmarkRunner {
 				const avgTimePerIteration = i > 0 ? elapsedTimeSeconds / i : 0;
 				const remainingIterations = this.config.iterations - i - 1;
 				const estimatedRemaining = avgTimePerIteration * remainingIterations;
+				const useWarmCache = this.shouldUseWarmCache(i);
+				const iterationUrl = this.getIterationUrl(
+					serverUrl,
+					i,
+					false,
+					useWarmCache
+				);
 
 				this.logger.info(
 					`Running iteration ${i + 1}/${this.config.iterations}${estimatedRemaining > 0 ? ` (est. ${Math.round(estimatedRemaining)}s remaining)` : ""}...`
+				);
+				this.logger.debug(
+					`Cache mode ${this.config.runProfile.cacheMode}; warm cache ${useWarmCache ? "enabled" : "disabled"}`
 				);
 
 				try {
 					const result = await this.runSingleBenchmarkWithRetry(
 						browser,
-						// Add a timestamp to the URL to avoid caching
-						`${serverUrl}?t=${Date.now()}`,
+						iterationUrl,
 						false,
-						i + 1
+						i + 1,
+						useWarmCache
 					);
 					results.push(result);
 
@@ -408,7 +630,7 @@ export class BenchmarkRunner {
 					this.logger.error(
 						`Failed to complete iteration ${i + 1}: ${errorMessage}`
 					);
-					throw error;
+					// Continue so quality gates can evaluate failure rate.
 				} finally {
 					await this.cleanupBetweenIterations();
 				}
@@ -419,13 +641,11 @@ export class BenchmarkRunner {
 					"All benchmark iterations failed. Check logs for details."
 				);
 			}
-
-			if (results.length < this.config.iterations) {
-				this.logger.warn(
-					`Only ${results.length}/${this.config.iterations} iterations completed successfully. Results may be less reliable.`
-				);
-			}
 		} finally {
+			if (this.warmContext) {
+				await this.warmContext.close();
+				this.warmContext = null;
+			}
 			await browser.close();
 		}
 
@@ -437,8 +657,28 @@ export class BenchmarkRunner {
 		);
 
 		const averages = this.performanceAggregator.calculateAverages(results);
+		const statistics =
+			this.performanceAggregator.getStatisticalSummary(results);
+		const quality = this.buildQualitySummary(results, statistics);
 
-		// Log statistical summary after all iterations
+		if (quality.successfulIterations < quality.minSuccessfulIterations) {
+			throw new Error(
+				`Run failed quality gate: only ${quality.successfulIterations}/${quality.requestedIterations} iterations succeeded (minimum ${quality.minSuccessfulIterations})`
+			);
+		}
+
+		if (quality.failureRate > quality.maxFailureRate) {
+			throw new Error(
+				`Run failed quality gate: failure rate ${(quality.failureRate * 100).toFixed(1)}% exceeds ${(quality.maxFailureRate * 100).toFixed(1)}%`
+			);
+		}
+
+		if (!quality.stable) {
+			this.logger.warn(
+				`Run is unstable for metrics: ${quality.unstableMetrics.join(", ")}`
+			);
+		}
+
 		if (results.length > 1) {
 			this.performanceAggregator.logStatisticalSummary(results);
 		}
@@ -453,13 +693,14 @@ export class BenchmarkRunner {
 			tags: this.config.tags,
 			details: results,
 			average: averages,
+			statistics,
+			quality,
+			environment: {
+				chromiumVersion,
+			},
 		};
 	}
 
-	/**
-	 * Wait for the specified element based on config
-	 * Falls back to first cookie banner selector if no explicit wait condition is set
-	 */
 	private async waitForElement(page: Page): Promise<void> {
 		if (this.config.testId) {
 			this.logger.debug(`Waiting for testId: ${this.config.testId}`);
@@ -471,7 +712,6 @@ export class BenchmarkRunner {
 			this.logger.debug("Running custom wait function");
 			await this.config.custom(page);
 		} else {
-			// Fallback: use first cookie banner selector if available
 			const firstSelector = this.config.cookieBanner?.selectors?.[0];
 			if (firstSelector) {
 				this.logger.debug(
@@ -479,7 +719,6 @@ export class BenchmarkRunner {
 				);
 				await page.waitForSelector(firstSelector);
 			}
-			// If no selector found, continue without waiting (will rely on networkidle)
 		}
 	}
 }

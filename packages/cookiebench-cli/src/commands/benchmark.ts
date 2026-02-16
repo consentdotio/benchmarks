@@ -1,4 +1,8 @@
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { cpus } from "node:os";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import {
@@ -15,21 +19,34 @@ import {
 	BenchmarkRunner,
 	buildAndServeNextApp,
 	cleanupServer,
+	type Config,
 	type ServerInfo,
 } from "@consentio/runner";
 import color from "picocolors";
 import {
+	ConfigValidationError,
 	DEFAULT_DOM_SIZE,
 	DEFAULT_ITERATIONS,
 	findProjectRoot,
+	formatConfigIssues,
 	HALF_SECOND,
+	loadValidatedConfigSync,
 	PERCENTAGE_DIVISOR,
-	readConfig,
 	resolveBenchmarkPath,
 	SEPARATOR_WIDTH,
 } from "../utils";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores, printScores } from "../utils/scoring";
+
+type TraceMode = "off" | "on-failure" | "all";
+
+const require = createRequire(import.meta.url);
+
+type BenchmarkCommandOptions = {
+	traceMode?: TraceMode;
+	profile?: Config["runProfile"]["networkProfile"];
+	cacheMode?: Config["runProfile"]["cacheMode"];
+};
 
 /**
  * Calculate average from array
@@ -45,6 +62,13 @@ function calculateAverage(values: number[]): number {
  * Calculate timing metrics from benchmark results
  */
 function calculateTimingMetrics(details: BenchmarkResult["details"]) {
+	const validTtfb = details
+		.map((d) => d.timing.timeToFirstByte)
+		.filter((value): value is number => value !== null && value > 0);
+	const validInp = details
+		.map((d) => d.timing.interactionToNextPaint)
+		.filter((value): value is number => value !== null && value > 0);
+
 	return {
 		fcp: calculateAverage(details.map((d) => d.timing.firstContentfulPaint)),
 		lcp: calculateAverage(details.map((d) => d.timing.largestContentfulPaint)),
@@ -53,6 +77,10 @@ function calculateTimingMetrics(details: BenchmarkResult["details"]) {
 			details.map((d) => d.timing.mainThreadBlocking.total)
 		),
 		tti: calculateAverage(details.map((d) => d.timing.timeToInteractive)),
+		timeToFirstByte:
+			validTtfb.length > 0 ? calculateAverage(validTtfb) : undefined,
+		interactionToNextPaint:
+			validInp.length > 0 ? calculateAverage(validInp) : null,
 	};
 }
 
@@ -122,38 +150,29 @@ function calculateNetworkMetrics(details: BenchmarkResult["details"]) {
 		})
 	);
 
+	const scriptLoadTime = calculateAverage(
+		details.map(
+			(d) =>
+				d.timing.scripts.bundled.loadEnd + d.timing.scripts.thirdParty.loadEnd
+		)
+	);
+
 	return {
 		totalRequests,
 		thirdPartyRequests,
 		thirdPartySize,
 		thirdPartyDomains,
+		scriptLoadTime,
 	};
 }
 
 /**
  * Calculate cookie banner metrics from benchmark results.
- *
- * Aggregates cookie banner metrics across all iterations and computes average
- * user-visible time (ms) for scoring. Uses bannerVisibilityTime (user-perceived
- * visibility with opacity > 0.5) rather than bannerRenderTime (technical render
- * time) so scores reflect actual user experience.
- *
- * Scoring methodology:
- * - Requires consistent detection across ALL iterations for positive score
- * - Uses average of visibilityTime across iterations
- * - Applies penalties for inconsistent detection
- * - Calculates viewport coverage percentage
- *
- * @param details Array of benchmark details from all iterations
- * @param logger Logger instance for warnings
- * @returns Aggregated cookie banner metrics for scoring
- * @see METHODOLOGY.md for detailed explanation of render time vs visibility time
  */
 function calculateCookieBannerMetrics(
 	details: BenchmarkResult["details"],
 	logger: CliLogger
 ) {
-	// Require consistent detection across ALL iterations for true positive
 	const allDetected = details.every((r) => r.cookieBanner.detected);
 	if (!allDetected) {
 		logger.warn(
@@ -161,15 +180,10 @@ function calculateCookieBannerMetrics(
 		);
 	}
 
-	// Calculate user-visible time (ms) for scoring
 	const detectionSuccess = details.some((r) => r.cookieBanner.detected);
 	let cookieBannerVisibleTimeMs: number | null = null;
 
 	if (detectionSuccess) {
-		/**
-		 * Use user-visible time (opacity-based) for scoring, not DOM presence time.
-		 * Prefer userVisibleTime when present (runner output), else visibilityTime.
-		 */
 		const timingValues = details.map(
 			(r) => r.cookieBanner.userVisibleTime ?? r.cookieBanner.visibilityTime
 		);
@@ -193,7 +207,6 @@ function calculateCookieBannerMetrics(
 		);
 	}
 
-	// Calculate coverage
 	let cookieBannerCoverage = 0;
 	if (allDetected) {
 		cookieBannerCoverage =
@@ -227,6 +240,65 @@ function calculatePerformanceMetrics(details: BenchmarkResult["details"]) {
 	};
 }
 
+function loadConfig(logger: CliLogger, configPath: string): Config {
+	try {
+		return loadValidatedConfigSync(configPath);
+	} catch (error) {
+		if (error instanceof ConfigValidationError) {
+			logger.error(error.message);
+			logger.error(formatConfigIssues(error.issues));
+			throw error;
+		}
+		throw error;
+	}
+}
+
+function getGitContext(projectRoot: string): {
+	sha: string | null;
+	dirty: boolean;
+} {
+	try {
+		const sha = execSync("git rev-parse HEAD", {
+			cwd: projectRoot,
+			encoding: "utf-8",
+		}).trim();
+		const dirty =
+			execSync("git status --porcelain", {
+				cwd: projectRoot,
+				encoding: "utf-8",
+			}).trim().length > 0;
+
+		return { sha, dirty };
+	} catch {
+		return { sha: null, dirty: false };
+	}
+}
+
+function detectPlaywrightVersion(): string {
+	try {
+		const pkg = require("@playwright/test/package.json") as {
+			version?: string;
+		};
+		return pkg.version ?? "unknown";
+	} catch {
+		return "unknown";
+	}
+}
+
+function resolveTraceMode(traceMode?: TraceMode): TraceMode {
+	if (!traceMode) {
+		return "on-failure";
+	}
+	if (
+		traceMode === "off" ||
+		traceMode === "on-failure" ||
+		traceMode === "all"
+	) {
+		return traceMode;
+	}
+	throw new Error(`Invalid trace mode: ${traceMode}`);
+}
+
 /**
  * Find all benchmark directories
  */
@@ -254,27 +326,55 @@ async function runSingleBenchmark(
 	logger: CliLogger,
 	appPath: string,
 	showScores = true,
-	iterationsOverride?: number
+	iterationsOverride?: number,
+	options?: BenchmarkCommandOptions
 ): Promise<boolean> {
 	const configPath = appPath ? join(appPath, "config.json") : undefined;
-	const config = readConfig(configPath);
-	if (!config) {
-		logger.error(
-			`Failed to read config.json for ${appPath || "current directory"}`
-		);
+	if (!configPath) {
+		logger.error("Missing benchmark config path");
 		return false;
 	}
 
-	// Override iterations if provided
+	const config = loadConfig(logger, configPath);
+
 	if (iterationsOverride !== undefined && iterationsOverride > 0) {
+		const originalIterations = config.iterations;
+		const originalMinimumSuccessfulIterations =
+			config.measurement.minSuccessfulIterations;
+
 		config.iterations = iterationsOverride;
+
+		const successRatio =
+			originalIterations > 0
+				? originalMinimumSuccessfulIterations / originalIterations
+				: 1;
+		const scaledMinimumSuccessfulIterations = Math.ceil(
+			iterationsOverride * successRatio
+		);
+		config.measurement.minSuccessfulIterations = Math.max(
+			1,
+			Math.min(iterationsOverride, scaledMinimumSuccessfulIterations)
+		);
+
+		logger.debug(
+			`Adjusted measurement.minSuccessfulIterations from ${originalMinimumSuccessfulIterations} to ${config.measurement.minSuccessfulIterations} for ${iterationsOverride} iteration(s)`
+		);
 	}
+
+	if (options?.profile) {
+		config.runProfile.networkProfile = options.profile;
+	}
+	if (options?.cacheMode) {
+		config.runProfile.cacheMode = options.cacheMode;
+	}
+
+	const traceMode = resolveTraceMode(options?.traceMode);
+	const runStartedAtUtc = new Date().toISOString();
 
 	try {
 		let serverInfo: ServerInfo | null = null;
 		let benchmarkUrl: string;
 
-		// Check if remote benchmarking is enabled
 		if (config.remote?.enabled && config.remote.url) {
 			logger.info(`🌐 Running remote benchmark against: ${config.remote.url}`);
 			benchmarkUrl = config.remote.url;
@@ -285,28 +385,30 @@ async function runSingleBenchmark(
 		}
 
 		const cwd = appPath || process.cwd();
+		let tracesDir: string | undefined;
 
-		// Create traces directory if it doesn't exist
-		const tracesDir = join(cwd, "traces");
-		try {
-			await mkdir(tracesDir, { recursive: true });
-		} catch (error: unknown) {
-			// Ignore EEXIST - directory already exists
-			if (
-				error &&
-				typeof error === "object" &&
-				"code" in error &&
-				error.code !== "EEXIST"
-			) {
-				throw error;
+		if (traceMode !== "off") {
+			tracesDir = join(cwd, "traces");
+			try {
+				await mkdir(tracesDir, { recursive: true });
+			} catch (error: unknown) {
+				if (
+					error &&
+					typeof error === "object" &&
+					"code" in error &&
+					error.code !== "EEXIST"
+				) {
+					throw error;
+				}
 			}
+			logger.info(`📊 Tracing mode: ${traceMode} (${tracesDir})`);
+		} else {
+			logger.info("📊 Tracing mode: off");
 		}
-		logger.info(`📊 Tracing enabled - traces will be saved to: ${tracesDir}`);
 
 		try {
-			// Create benchmark runner and run benchmarks with trace saving enabled
 			const runner = new BenchmarkRunner(config, logger, {
-				saveTrace: true,
+				traceMode,
 				traceDir: tracesDir,
 			});
 			const result = await runner.runBenchmarks(benchmarkUrl);
@@ -316,7 +418,6 @@ async function runSingleBenchmark(
 				return false;
 			}
 
-			// Create app data for transparency scoring
 			const appData = {
 				name: config.name,
 				baseline: config.baseline ?? false,
@@ -326,7 +427,6 @@ async function runSingleBenchmark(
 				tags: config.tags ? JSON.stringify(config.tags) : null,
 			};
 
-			// Calculate all metrics using helper functions
 			const timingMetrics = calculateTimingMetrics(result.details);
 			const sizeMetrics = calculateSizeMetrics(result.details);
 			const networkMetrics = calculateNetworkMetrics(result.details);
@@ -336,7 +436,6 @@ async function runSingleBenchmark(
 			);
 			const performanceMetrics = calculatePerformanceMetrics(result.details);
 
-			// Calculate scores
 			const scores = calculateScores(
 				timingMetrics,
 				sizeMetrics,
@@ -344,11 +443,22 @@ async function runSingleBenchmark(
 				cookieBannerMetrics,
 				performanceMetrics,
 				config.baseline ?? false,
-				appData
+				appData,
+				result.details[0]?.timing.networkInformation
 			);
 
-			// Format results for results.json
+			const projectRoot = findProjectRoot();
+			const gitContext = getGitContext(projectRoot);
+			const cpuInfo = cpus();
+			const configHash = createHash("sha256")
+				.update(JSON.stringify(config))
+				.digest("hex");
+			const runCompletedAtUtc = new Date().toISOString();
+
 			const resultsData = {
+				$schema:
+					"./node_modules/@cookiebench/benchmark-schema/results.schema.json",
+				schemaVersion: 2,
 				app: config.name,
 				techStack: config.techStack,
 				source: config.source,
@@ -359,20 +469,38 @@ async function runSingleBenchmark(
 				results: result.details,
 				scores,
 				metadata: {
-					timestamp: new Date().toISOString(),
-					iterations: config.iterations,
-					languages: config.techStack.languages,
+					generatedAtUtc: runCompletedAtUtc,
+					runStartedAtUtc,
+					runCompletedAtUtc,
+					iterationsRequested: config.iterations,
+					iterationsSuccessful: result.details.length,
 					isRemote: config.remote?.enabled ?? false,
 					url: config.remote?.enabled ? config.remote.url : undefined,
+					traceMode,
+					runProfile: config.runProfile,
+					measurement: config.measurement,
+					quality: result.quality,
+					statistics: result.statistics,
+					environment: {
+						nodeVersion: process.version,
+						platform: process.platform,
+						arch: process.arch,
+						cpuModel: cpuInfo[0]?.model ?? "unknown",
+						cpuCores: cpuInfo.length,
+						playwrightVersion: detectPlaywrightVersion(),
+						chromiumVersion: result.environment.chromiumVersion,
+						gitSha: gitContext.sha,
+						gitDirty: gitContext.dirty,
+						configHash,
+					},
+					baselineRole: config.baseline ? "reference" : "candidate",
 				},
 			};
 
-			// Write results to file
 			const outputPath = join(cwd, "results.json");
 			await writeFile(outputPath, JSON.stringify(resultsData, null, 2));
 			logger.success(`Benchmark results saved to ${outputPath}`);
 
-			// Print scores if requested
 			if (showScores && scores) {
 				logger.info("📊 Benchmark Scores:");
 				printScores(scores);
@@ -380,7 +508,6 @@ async function runSingleBenchmark(
 
 			return true;
 		} finally {
-			// Only cleanup server if we started one
 			if (serverInfo) {
 				cleanupServer(serverInfo);
 			}
@@ -400,27 +527,31 @@ async function runSingleBenchmark(
  */
 export async function benchmarkCommand(
 	logger: CliLogger,
-	appPath?: string
+	appPath?: string,
+	options?: BenchmarkCommandOptions
 ): Promise<void> {
 	const projectRoot = findProjectRoot();
 
-	// If a specific app path is provided, run that benchmark directly
 	if (appPath) {
 		const resolvedAppPath = resolveBenchmarkPath(projectRoot, appPath);
-		const success = await runSingleBenchmark(logger, resolvedAppPath, true);
+		const success = await runSingleBenchmark(
+			logger,
+			resolvedAppPath,
+			true,
+			undefined,
+			options
+		);
 		if (!success) {
 			throw new Error(`Benchmark failed for ${appPath}`);
 		}
 		return;
 	}
 
-	// Otherwise, show multi-select for available benchmarks
 	logger.clear();
 	await setTimeout(HALF_SECOND);
 
 	intro(`${color.bgMagenta(color.white(" benchmark "))}`);
 
-	// Find available benchmarks
 	const availableBenchmarks = await findBenchmarkDirs(logger, projectRoot);
 
 	if (availableBenchmarks.length === 0) {
@@ -435,7 +566,6 @@ export async function benchmarkCommand(
 		`Found ${availableBenchmarks.length} benchmark(s): ${color.cyan(availableBenchmarks.join(", "))}`
 	);
 
-	// Ask user to select benchmarks
 	const selectedBenchmarks = await multiselect({
 		message: "Select benchmarks to run (use space to toggle):",
 		options: availableBenchmarks.map((name) => ({
@@ -456,24 +586,19 @@ export async function benchmarkCommand(
 		return;
 	}
 
-	// Load configs to get default iterations
 	const benchmarkConfigs = new Map<string, number>();
 	for (const benchmarkName of selectedBenchmarks) {
 		const benchmarkPath = join(projectRoot, "benchmarks", benchmarkName);
 		const configPath = join(benchmarkPath, "config.json");
-		const config = readConfig(configPath);
-		if (config) {
-			benchmarkConfigs.set(benchmarkName, config.iterations);
-		}
+		const config = loadConfig(logger, configPath);
+		benchmarkConfigs.set(benchmarkName, config.iterations);
 	}
 
-	// Find the most common iteration count or first one
 	const defaultIterations =
 		benchmarkConfigs.size > 0
 			? Array.from(benchmarkConfigs.values())[0]
 			: DEFAULT_ITERATIONS;
 
-	// Show iteration counts for selected benchmarks
 	const iterationsList = Array.from(selectedBenchmarks)
 		.map((name) => {
 			const iterations = benchmarkConfigs.get(name) ?? "?";
@@ -483,14 +608,13 @@ export async function benchmarkCommand(
 
 	logger.info(`Config iterations: ${color.dim(iterationsList)}`);
 
-	// Ask for iterations override
 	const iterationsInput = await text({
 		message: "Number of iterations (press Enter to use config values):",
 		placeholder: `Default: ${defaultIterations}`,
 		defaultValue: "",
 		validate: (value) => {
 			if (!value || value === "") {
-				return; // Empty is valid (use defaults)
+				return;
 			}
 			const num = Number.parseInt(value, 10);
 			if (Number.isNaN(num) || num < 1) {
@@ -504,7 +628,6 @@ export async function benchmarkCommand(
 		return;
 	}
 
-	// Parse iterations - if empty string, use undefined to let each benchmark use its config
 	const iterationsOverride =
 		iterationsInput === "" ? undefined : Number.parseInt(iterationsInput, 10);
 
@@ -516,7 +639,6 @@ export async function benchmarkCommand(
 		logger.info("Using iteration counts from each benchmark config");
 	}
 
-	// Ask if user wants to see results panel after completion
 	const showResults = await confirm({
 		message: "Show results panel after completion?",
 		initialValue: true,
@@ -527,7 +649,6 @@ export async function benchmarkCommand(
 		return;
 	}
 
-	// Run selected benchmarks sequentially
 	const results: Array<{ name: string; success: boolean }> = [];
 
 	for (let i = 0; i < selectedBenchmarks.length; i += 1) {
@@ -541,8 +662,9 @@ export async function benchmarkCommand(
 		const success = await runSingleBenchmark(
 			logger,
 			benchmarkPath,
-			false, // Don't show inline scores anymore
-			iterationsOverride
+			false,
+			iterationsOverride,
+			options
 		);
 
 		results.push({ name: benchmarkName, success });
@@ -553,35 +675,29 @@ export async function benchmarkCommand(
 			);
 		}
 
-		// Add spacing between benchmarks
 		if (i < selectedBenchmarks.length - 1) {
 			logger.message(`\n${"─".repeat(SEPARATOR_WIDTH)}\n`);
 		}
 	}
 
-	// Summary
 	logger.message("\n");
 	outro(
 		`${color.bold("Summary:")} ${results.filter((r) => r.success).length}/${results.length} benchmarks completed successfully`
 	);
 
-	// Show failed benchmarks if any
 	const failed = results.filter((r) => !r.success);
 	if (failed.length > 0) {
 		logger.warn(`Failed benchmarks: ${failed.map((r) => r.name).join(", ")}`);
 	}
 
-	// Show results panel if requested
 	if (showResults === true && results.some((r) => r.success)) {
 		logger.message(`\n${"═".repeat(SEPARATOR_WIDTH)}\n`);
 		logger.info("Loading results panel...\n");
 
-		// Get successful benchmark names
 		const successfulBenchmarks = results
 			.filter((r) => r.success)
 			.map((r) => r.name);
 
-		// Dynamically import and run the results command with specific benchmarks
 		try {
 			const { resultsCommand } = await import("./results.js");
 			await resultsCommand(logger, successfulBenchmarks);

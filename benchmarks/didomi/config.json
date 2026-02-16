@@ -45,5 +45,15 @@
   "includes": {
     "backend": ["proprietary"],
     "components": ["javascript", "react"]
+  },
+  "runProfile": {
+    "cacheMode": "cold",
+    "networkProfile": "none",
+    "cpuSlowdownMultiplier": 1
+  },
+  "measurement": {
+    "minSuccessfulIterations": 16,
+    "maxFailureRate": 0.2,
+    "stabilityThresholdCv": 15
   }
 }

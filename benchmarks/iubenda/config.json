@@ -22,7 +22,7 @@
   },
   "techStack": {
     "bundler": "unknown",
-    "bundleType": "iffe",
+    "bundleType": "iife",
     "frameworks": [],
     "languages": ["javascript"],
     "packageManager": "unknown",
@@ -41,5 +41,15 @@
   "includes": {
     "backend": ["proprietary"],
     "components": ["javascript"]
+  },
+  "runProfile": {
+    "cacheMode": "cold",
+    "networkProfile": "none",
+    "cpuSlowdownMultiplier": 1
+  },
+  "measurement": {
+    "minSuccessfulIterations": 16,
+    "maxFailureRate": 0.2,
+    "stabilityThresholdCv": 15
   }
 }

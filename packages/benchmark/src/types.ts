@@ -10,7 +10,22 @@ export type CookieBannerConfig = {
 	serviceName: string;
 };
 
-export type BundleType = "esm" | "cjs" | "iffe" | "bundled";
+export type BundleType = "esm" | "cjs" | "iife" | "iffe" | "bundled";
+export type CacheMode = "cold" | "warm" | "mixed";
+export type NetworkProfile = "none" | "slow4g" | "fast3g";
+
+export type RunProfile = {
+	cacheMode: CacheMode;
+	networkProfile: NetworkProfile;
+	cpuSlowdownMultiplier: number;
+};
+
+export type MeasurementConfig = {
+	minSuccessfulIterations: number;
+	maxFailureRate: number;
+	stabilityThresholdCv: number;
+	networkMonitorMode?: "passive" | "route-debug";
+};
 
 export type Config = {
 	name: string;
@@ -20,6 +35,8 @@ export type Config = {
 	iterations: number;
 	baseline?: boolean;
 	custom?: (page: Page) => Promise<void>;
+	runProfile: RunProfile;
+	measurement: MeasurementConfig;
 	remote?: {
 		enabled?: boolean;
 		url?: string;

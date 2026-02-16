@@ -4,16 +4,16 @@ import type { BundleStrategy, Config } from "./types";
 export function determineBundleStrategy(config: Config): BundleStrategy {
 	const bundleType = config.techStack?.bundleType;
 	const rawBundleType = bundleType as string | string[] | undefined;
-	const legacyIifeType = "iife";
+	const legacyIffeType = "iffe";
 
 	const isIIFE =
 		rawBundleType === BUNDLE_TYPES.IIFE ||
 		rawBundleType === BUNDLE_TYPES.IFFE ||
-		rawBundleType === legacyIifeType ||
+		rawBundleType === legacyIffeType ||
 		(Array.isArray(rawBundleType) &&
 			(rawBundleType.includes(BUNDLE_TYPES.IIFE) ||
 				rawBundleType.includes(BUNDLE_TYPES.IFFE) ||
-				rawBundleType.includes(legacyIifeType)));
+				rawBundleType.includes(legacyIffeType)));
 
 	const isModuleBundleType =
 		rawBundleType === BUNDLE_TYPES.ESM ||
@@ -27,7 +27,7 @@ export function determineBundleStrategy(config: Config): BundleStrategy {
 			rawBundleType.includes(BUNDLE_TYPES.BUNDLED) ||
 			rawBundleType.includes(BUNDLE_TYPES.IIFE) ||
 			rawBundleType.includes(BUNDLE_TYPES.IFFE) ||
-			rawBundleType.includes(legacyIifeType));
+			rawBundleType.includes(legacyIffeType));
 
 	const isBundled = !isIIFE && (isModuleBundleType || isArrayWithModules);
 

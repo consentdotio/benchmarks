@@ -10,17 +10,20 @@ import type {
 	ResourceTimingData,
 } from "@consentio/benchmark";
 import { PERCENTAGE_MULTIPLIER, TTI_BUFFER_MS } from "@consentio/shared";
-import {
-	calculateCoefficientOfVariation,
-	calculateStatistics,
-	calculateTrimmedMean,
-	isStable,
-} from "./statistics";
-import type { BenchmarkDetails, BenchmarkResult } from "./types";
+import { calculateStatistics, calculateTrimmedMean } from "./statistics";
+import type {
+	BenchmarkDetails,
+	BenchmarkResult,
+	BenchmarkStatistics,
+} from "./types";
 
-const VARIABILITY_WARNING_THRESHOLD = 20; // Coefficient of variation threshold for warnings
-const STABILITY_THRESHOLD = 15; // Coefficient of variation threshold for stability checks
-const TRIM_PERCENT = 10; // Percentage to trim from each end for trimmed mean
+const VARIABILITY_WARNING_THRESHOLD = 20;
+const STABILITY_THRESHOLD = 15;
+const TRIM_PERCENT = 10;
+const FCP_LCP_MIN_STDDEV_MS = 8;
+const FCP_LCP_MIN_P95_P50_SPREAD_MS = 15;
+const TTI_MIN_STDDEV_MS = 30;
+const TTI_MIN_P95_P50_SPREAD_MS = 60;
 
 type AggregateMetricsParams = {
 	coreWebVitals: CoreWebVitals;
@@ -39,9 +42,7 @@ export class PerformanceAggregator {
 	constructor(logger: Logger) {
 		this.logger = logger;
 	}
-	/**
-	 * Calculate Time to Interactive based on core web vitals and cookie banner interaction
-	 */
+
 	calculateTTI(
 		coreWebVitals: CoreWebVitals,
 		cookieBannerData: CookieBannerData | null
@@ -52,22 +53,9 @@ export class PerformanceAggregator {
 				coreWebVitals.domCompleteTiming || 0,
 				cookieBannerData?.bannerInteractiveTime || 0
 			) + TTI_BUFFER_MS
-		); // Add buffer for true interactivity
+		);
 	}
 
-	/**
-	 * Build cookie banner timing metrics.
-	 *
-	 * Uses bannerVisibilityTime (opacity-based, user-perceived) as the primary
-	 * visibility metric for scoring. This accounts for CSS animations and ensures
-	 * scores reflect actual user experience. Falls back to interactiveTime if
-	 * visibilityTime is not available.
-	 *
-	 * @param cookieBannerData Collected banner metrics from browser
-	 * @param config Benchmark configuration
-	 * @returns Cookie banner timing object with render, visibility, and interactive times
-	 * @see METHODOLOGY.md for detailed explanation of visibility time vs render time
-	 */
 	private buildCookieBannerTiming(
 		cookieBannerData: CookieBannerData | null,
 		config: Config
@@ -93,33 +81,65 @@ export class PerformanceAggregator {
 		};
 	}
 
-	/**
-	 * Build third party metrics
-	 */
 	private buildThirdPartyMetrics(
-		networkImpact: { totalImpact: number; totalDownloadTime: number },
-		networkMetrics: NetworkMetrics,
+		networkImpact: {
+			totalImpact: number;
+			totalDownloadTime: number;
+			thirdPartyImpact: number;
+			thirdPartyDownloadTime: number;
+		},
+		resourceMetrics: ResourceTimingData,
 		config: Config
 	) {
+		const cookieServiceResources = [
+			...resourceMetrics.resources.scripts,
+			...resourceMetrics.resources.styles,
+			...resourceMetrics.resources.images,
+			...resourceMetrics.resources.fonts,
+			...resourceMetrics.resources.other,
+		].filter((resource) => resource.isCookieService);
+
+		const cookieServicesTotalSizeFromResourceTiming =
+			cookieServiceResources.reduce((acc, resource) => acc + resource.size, 0);
+		const cookieServicesDownloadTimeFromResourceTiming =
+			cookieServiceResources.reduce(
+				(acc, resource) => acc + resource.duration,
+				0
+			);
+
+		const cookieServicesTotalSize =
+			cookieServicesTotalSizeFromResourceTiming > 0
+				? cookieServicesTotalSizeFromResourceTiming
+				: networkImpact.thirdPartyImpact;
+		const cookieServicesDownloadTime =
+			cookieServicesDownloadTimeFromResourceTiming > 0
+				? cookieServicesDownloadTimeFromResourceTiming
+				: networkImpact.thirdPartyDownloadTime;
+		const totalImpact =
+			networkImpact.totalImpact > 0
+				? networkImpact.totalImpact
+				: cookieServicesTotalSize;
+		const totalDownloadTime =
+			networkImpact.totalDownloadTime > 0
+				? networkImpact.totalDownloadTime
+				: cookieServicesDownloadTime;
+
 		return {
 			dnsLookupTime: 0,
 			connectionTime: 0,
-			downloadTime: networkImpact.totalDownloadTime,
-			totalImpact: networkImpact.totalImpact,
+			downloadTime: totalDownloadTime,
+			totalImpact,
 			cookieServices: {
 				hosts: config.cookieBanner?.serviceHosts || [],
-				totalSize: networkMetrics.bannerBundleSize,
-				resourceCount: networkMetrics.bannerNetworkRequests,
+				totalSize: cookieServicesTotalSize,
+				resourceCount: cookieServiceResources.length,
 				dnsLookupTime: 0,
 				connectionTime: 0,
-				downloadTime: networkImpact.totalDownloadTime,
+				downloadTime: cookieServicesDownloadTime,
 			},
 		};
 	}
 
-	/**
-	 * Build main thread blocking metrics
-	 */
 	private buildMainThreadBlockingMetrics(
 		coreWebVitals: CoreWebVitals,
 		cookieBannerMetrics: CookieBannerMetrics
@@ -140,9 +160,6 @@ export class PerformanceAggregator {
 		};
 	}
 
-	/**
-	 * Merge all collected metrics into final benchmark details
-	 */
 	aggregateMetrics(params: AggregateMetricsParams): BenchmarkDetails {
 		const {
 			coreWebVitals,
@@ -157,10 +174,40 @@ export class PerformanceAggregator {
 
 		const tti = this.calculateTTI(coreWebVitals, cookieBannerData);
 		const networkImpact = this.calculateNetworkImpact(networkRequests);
+		const thirdPartyMetrics = this.buildThirdPartyMetrics(
+			networkImpact,
+			resourceMetrics,
+			config
+		);
+		const resolvedThirdPartySize =
+			resourceMetrics.size.thirdParty > 0
+				? resourceMetrics.size.thirdParty
+				: networkImpact.thirdPartyImpact > 0
+					? networkImpact.thirdPartyImpact
+					: thirdPartyMetrics.cookieServices.totalSize;
+		const resolvedThirdPartyScriptSize =
+			resourceMetrics.size.scripts.thirdParty > 0
+				? resourceMetrics.size.scripts.thirdParty
+				: resolvedThirdPartySize;
 
 		return {
 			duration: resourceMetrics.duration,
-			size: resourceMetrics.size,
+			size: {
+				...resourceMetrics.size,
+				thirdParty: resolvedThirdPartySize,
+				cookieServices:
+					resourceMetrics.size.cookieServices ||
+					thirdPartyMetrics.cookieServices.totalSize,
+				scripts: {
+					...resourceMetrics.size.scripts,
+					thirdParty: resolvedThirdPartyScriptSize,
+					cookieServices:
+						resourceMetrics.size.scripts.cookieServices ||
+						resourceMetrics.resources.scripts
+							.filter((resource) => resource.isCookieService)
+							.reduce((acc, resource) => acc + resource.size, 0),
+				},
+			},
 			timing: {
 				navigationStart: resourceMetrics.timing.navigationStart,
 				domContentLoaded: resourceMetrics.timing.domContentLoaded,
@@ -184,11 +231,7 @@ export class PerformanceAggregator {
 				},
 				networkInformation: perfumeMetrics?.networkInformation ?? undefined,
 				cookieBanner: this.buildCookieBannerTiming(cookieBannerData, config),
-				thirdParty: this.buildThirdPartyMetrics(
-					networkImpact,
-					networkMetrics,
-					config
-				),
+				thirdParty: thirdPartyMetrics,
 				mainThreadBlocking: this.buildMainThreadBlockingMetrics(
 					coreWebVitals,
 					cookieBannerMetrics
@@ -215,58 +258,103 @@ export class PerformanceAggregator {
 			thirdParty: {
 				cookieServices: {
 					hosts: config.cookieBanner?.serviceHosts || [],
-					totalSize: networkMetrics.bannerBundleSize,
-					resourceCount: networkMetrics.bannerNetworkRequests,
+					totalSize: thirdPartyMetrics.cookieServices.totalSize,
+					resourceCount: thirdPartyMetrics.cookieServices.resourceCount,
 					dnsLookupTime: 0,
 					connectionTime: 0,
-					downloadTime: networkImpact.totalDownloadTime,
+					downloadTime: thirdPartyMetrics.cookieServices.downloadTime,
 				},
-				totalImpact: networkImpact.totalImpact,
+				totalImpact:
+					networkImpact.thirdPartyImpact ||
+					networkMetrics.bannerBundleSize ||
+					resolvedThirdPartySize ||
+					0,
 			},
 		};
 	}
 
-	/**
-	 * Calculate network impact metrics
-	 */
 	private calculateNetworkImpact(networkRequests: NetworkRequest[]): {
 		totalImpact: number;
 		totalDownloadTime: number;
+		thirdPartyImpact: number;
+		thirdPartyDownloadTime: number;
 	} {
 		const totalImpact = networkRequests.reduce((acc, req) => acc + req.size, 0);
 		const totalDownloadTime = networkRequests.reduce(
 			(acc, req) => acc + req.duration,
 			0
 		);
+		const thirdPartyImpact = networkRequests
+			.filter((request) => request.isThirdParty)
+			.reduce((acc, request) => acc + request.size, 0);
+		const thirdPartyDownloadTime = networkRequests
+			.filter((request) => request.isThirdParty)
+			.reduce((acc, request) => acc + request.duration, 0);
 
-		return { totalImpact, totalDownloadTime };
+		return {
+			totalImpact,
+			totalDownloadTime,
+			thirdPartyImpact,
+			thirdPartyDownloadTime,
+		};
 	}
 
-	/**
-	 * Calculate average metrics from multiple benchmark results using Mitata statistics
-	 * Uses trimmed mean (10% trim) for robustness against outliers
-	 * Logs stability warnings for metrics with high variability
-	 */
+	private hasMeaningfulVariability(
+		values: number[],
+		cvThreshold: number,
+		minStddev: number,
+		minP95P50Spread: number
+	): { unstable: boolean; cv: number } {
+		const stats = calculateStatistics(values);
+		const absoluteSpread = Math.max(0, stats.p95 - stats.p50);
+		const unstable =
+			stats.cv > cvThreshold &&
+			(stats.stddev >= minStddev || absoluteSpread >= minP95P50Spread);
+		return { unstable, cv: stats.cv };
+	}
+
+	private calculateAverageThirdPartyDomainCount(
+		results: BenchmarkDetails[]
+	): number {
+		const domainCounts = results.map((result) => {
+			const hosts = new Set<string>();
+			for (const resource of [
+				...result.resources.scripts,
+				...result.resources.styles,
+				...result.resources.images,
+				...result.resources.fonts,
+				...result.resources.other,
+			]) {
+				if (!resource.isThirdParty) {
+					continue;
+				}
+				try {
+					hosts.add(new URL(resource.name).hostname);
+				} catch {
+					// Ignore malformed URLs from resource timing
+				}
+			}
+			return hosts.size;
+		});
+		return calculateTrimmedMean(domainCounts, TRIM_PERCENT);
+	}
+
 	calculateAverages(results: BenchmarkDetails[]): BenchmarkResult["average"] {
 		if (results.length === 0) {
 			throw new Error("Cannot calculate averages from empty results array");
 		}
 
-		// Extract metric arrays for statistical analysis
 		const fcpValues = results.map((r) => r.timing.firstContentfulPaint);
 		const lcpValues = results.map((r) => r.timing.largestContentfulPaint);
 		const ttiValues = results.map((r) => r.timing.timeToInteractive);
 		const tbtValues = results.map((r) => r.timing.mainThreadBlocking.total);
+		const clsValues = results.map((r) => r.timing.cumulativeLayoutShift);
 		const ttfbValues = results
 			.map((r) => r.timing.timeToFirstByte)
 			.filter((value): value is number => value !== null && value > 0);
-		const fidValues = results
-			.map((r) => r.timing.firstInputDelay || 0)
-			.filter((v) => v > 0);
 		const inpValues = results
-			.map((r) => r.timing.interactionToNextPaint || 0)
-			.filter((v) => v > 0);
-		const clsValues = results.map((r) => r.timing.cumulativeLayoutShift);
+			.map((r) => r.timing.interactionToNextPaint)
+			.filter((value): value is number => value !== null && value > 0);
 		const totalSizeValues = results.map((r) => r.size.total);
 		const jsSizeValues = results.map((r) => r.size.scripts.total);
 		const cssSizeValues = results.map((r) => r.size.styles);
@@ -281,26 +369,59 @@ export class PerformanceAggregator {
 				r.resources.fonts.length +
 				r.resources.other.length
 		);
-		const domContentLoadedValues = results.map(
-			(r) => r.timing.domContentLoaded
+		const thirdPartyRequestValues = results.map(
+			(r) =>
+				r.resources.scripts.filter((resource) => resource.isThirdParty).length +
+				r.resources.styles.filter((resource) => resource.isThirdParty).length +
+				r.resources.images.filter((resource) => resource.isThirdParty).length +
+				r.resources.fonts.filter((resource) => resource.isThirdParty).length +
+				r.resources.other.filter((resource) => resource.isThirdParty).length
 		);
-		const loadValues = results.map((r) => r.timing.load);
+		const thirdPartySizeValues = results.map((r) => r.size.thirdParty);
+		const bannerVisibleValues = results.map(
+			(r) =>
+				r.cookieBanner.userVisibleTime ?? r.cookieBanner.visibilityTime ?? 0
+		);
+		const bannerDomValues = results.map((r) => r.cookieBanner.domPresenceTime);
+		const bannerCoverageValues = results.map(
+			(r) => r.cookieBanner.viewportCoverage
+		);
+		const scriptLoadValues = results.map(
+			(r) =>
+				r.timing.scripts.bundled.loadEnd + r.timing.scripts.thirdParty.loadEnd
+		);
 
-		// Use trimmed mean for better robustness against outliers (10% trim)
-		// Log stability warnings for critical metrics
-		if (!isStable(fcpValues, VARIABILITY_WARNING_THRESHOLD)) {
+		const fcpVariability = this.hasMeaningfulVariability(
+			fcpValues,
+			VARIABILITY_WARNING_THRESHOLD,
+			FCP_LCP_MIN_STDDEV_MS,
+			FCP_LCP_MIN_P95_P50_SPREAD_MS
+		);
+		if (fcpVariability.unstable) {
 			this.logger.warn(
-				`First Contentful Paint shows high variability (CV: ${calculateCoefficientOfVariation(fcpValues).toFixed(1)}%)`
+				`First Contentful Paint shows high variability (CV: ${fcpVariability.cv.toFixed(1)}%)`
 			);
 		}
-		if (!isStable(lcpValues, VARIABILITY_WARNING_THRESHOLD)) {
+		const lcpVariability = this.hasMeaningfulVariability(
+			lcpValues,
+			VARIABILITY_WARNING_THRESHOLD,
+			FCP_LCP_MIN_STDDEV_MS,
+			FCP_LCP_MIN_P95_P50_SPREAD_MS
+		);
+		if (lcpVariability.unstable) {
 			this.logger.warn(
-				`Largest Contentful Paint shows high variability (CV: ${calculateCoefficientOfVariation(lcpValues).toFixed(1)}%)`
+				`Largest Contentful Paint shows high variability (CV: ${lcpVariability.cv.toFixed(1)}%)`
 			);
 		}
-		if (!isStable(ttiValues, VARIABILITY_WARNING_THRESHOLD)) {
+		const ttiVariability = this.hasMeaningfulVariability(
+			ttiValues,
+			VARIABILITY_WARNING_THRESHOLD,
+			TTI_MIN_STDDEV_MS,
+			TTI_MIN_P95_P50_SPREAD_MS
+		);
+		if (ttiVariability.unstable) {
 			this.logger.warn(
-				`Time to Interactive shows high variability (CV: ${calculateCoefficientOfVariation(ttiValues).toFixed(1)}%)`
+				`Time to Interactive shows high variability (CV: ${ttiVariability.cv.toFixed(1)}%)`
 			);
 		}
 
@@ -309,21 +430,15 @@ export class PerformanceAggregator {
 			largestContentfulPaint: calculateTrimmedMean(lcpValues, TRIM_PERCENT),
 			timeToInteractive: calculateTrimmedMean(ttiValues, TRIM_PERCENT),
 			totalBlockingTime: calculateTrimmedMean(tbtValues, TRIM_PERCENT),
-			speedIndex: 0, // Default value
 			timeToFirstByte:
 				ttfbValues.length > 0
 					? calculateTrimmedMean(ttfbValues, TRIM_PERCENT)
-					: 0,
-			firstInputDelay:
-				fidValues.length > 0
-					? calculateTrimmedMean(fidValues, TRIM_PERCENT)
 					: 0,
 			interactionToNextPaint:
 				inpValues.length > 0
 					? calculateTrimmedMean(inpValues, TRIM_PERCENT)
 					: 0,
 			cumulativeLayoutShift: calculateTrimmedMean(clsValues, TRIM_PERCENT),
-			domSize: 0, // Default value
 			totalRequests: calculateTrimmedMean(totalRequestsValues, TRIM_PERCENT),
 			totalSize: calculateTrimmedMean(totalSizeValues, TRIM_PERCENT),
 			jsSize: calculateTrimmedMean(jsSizeValues, TRIM_PERCENT),
@@ -331,73 +446,54 @@ export class PerformanceAggregator {
 			imageSize: calculateTrimmedMean(imageSizeValues, TRIM_PERCENT),
 			fontSize: calculateTrimmedMean(fontSizeValues, TRIM_PERCENT),
 			otherSize: calculateTrimmedMean(otherSizeValues, TRIM_PERCENT),
-			thirdPartyRequests: 0, // Default value
-			thirdPartySize: 0, // Default value
-			thirdPartyDomains: 0, // Default value
-			thirdPartyCookies: 0, // Default value
-			thirdPartyLocalStorage: 0, // Default value
-			thirdPartySessionStorage: 0, // Default value
-			thirdPartyIndexedDB: 0, // Default value
-			thirdPartyCache: 0, // Default value
-			thirdPartyServiceWorkers: 0, // Default value
-			thirdPartyWebWorkers: 0, // Default value
-			thirdPartyWebSockets: 0, // Default value
-			thirdPartyBeacons: 0, // Default value
-			thirdPartyFetch: 0, // Default value
-			thirdPartyXHR: 0, // Default value
-			thirdPartyScripts: 0, // Default value
-			thirdPartyStyles: 0, // Default value
-			thirdPartyImages: 0, // Default value
-			thirdPartyFonts: 0, // Default value
-			thirdPartyMedia: 0, // Default value
-			thirdPartyOther: 0, // Default value
-			thirdPartyTiming: {
-				total: 0,
-				blocking: 0,
-				dns: 0,
-				connect: 0,
-				ssl: 0,
-				send: 0,
-				wait: 0,
-				receive: 0,
-			},
-			cookieBannerTiming: {
-				firstPaint: 0,
-				firstContentfulPaint: calculateTrimmedMean(fcpValues, TRIM_PERCENT),
-				domContentLoaded: calculateTrimmedMean(
-					domContentLoadedValues,
-					TRIM_PERCENT
-				),
-				load: calculateTrimmedMean(loadValues, TRIM_PERCENT),
-			},
+			thirdPartyRequests: calculateTrimmedMean(
+				thirdPartyRequestValues,
+				TRIM_PERCENT
+			),
+			thirdPartySize: calculateTrimmedMean(thirdPartySizeValues, TRIM_PERCENT),
+			thirdPartyDomains: this.calculateAverageThirdPartyDomainCount(results),
+			cookieBannerVisibleTime: calculateTrimmedMean(
+				bannerVisibleValues,
+				TRIM_PERCENT
+			),
+			cookieBannerDomPresenceTime: calculateTrimmedMean(
+				bannerDomValues,
+				TRIM_PERCENT
+			),
+			cookieBannerCoverage: calculateTrimmedMean(
+				bannerCoverageValues,
+				TRIM_PERCENT
+			),
+			scriptLoadTime: calculateTrimmedMean(scriptLoadValues, TRIM_PERCENT),
 		};
 	}
 
-	/**
-	 * Get statistical summary for a set of benchmark results
-	 */
-	getStatisticalSummary(results: BenchmarkDetails[]): {
-		fcp: ReturnType<typeof calculateStatistics>;
-		lcp: ReturnType<typeof calculateStatistics>;
-		tti: ReturnType<typeof calculateStatistics>;
-		tbt: ReturnType<typeof calculateStatistics>;
-	} {
+	getStatisticalSummary(results: BenchmarkDetails[]): BenchmarkStatistics {
 		const fcpValues = results.map((r) => r.timing.firstContentfulPaint);
 		const lcpValues = results.map((r) => r.timing.largestContentfulPaint);
 		const ttiValues = results.map((r) => r.timing.timeToInteractive);
 		const tbtValues = results.map((r) => r.timing.mainThreadBlocking.total);
+		const clsValues = results.map((r) => r.timing.cumulativeLayoutShift);
+		const ttfbValues = results
+			.map((r) => r.timing.timeToFirstByte)
+			.filter((value): value is number => value !== null && value > 0);
+		const bannerVisibleValues = results
+			.map(
+				(r) => r.cookieBanner.userVisibleTime ?? r.cookieBanner.visibilityTime
+			)
+			.filter((value): value is number => value !== null && value > 0);
 
 		return {
 			fcp: calculateStatistics(fcpValues),
 			lcp: calculateStatistics(lcpValues),
 			tti: calculateStatistics(ttiValues),
 			tbt: calculateStatistics(tbtValues),
+			cls: calculateStatistics(clsValues),
+			ttfb: calculateStatistics(ttfbValues),
+			bannerVisibleTime: calculateStatistics(bannerVisibleValues),
 		};
 	}
 
-	/**
-	 * Log comprehensive benchmark results with statistical information
-	 */
 	logResults(
 		finalMetrics: BenchmarkDetails,
 		cookieBannerMetrics: CookieBannerMetrics,
@@ -417,11 +513,7 @@ export class PerformanceAggregator {
 			tti: finalMetrics.timing.timeToInteractive,
 			tbt: finalMetrics.timing.mainThreadBlocking.total,
 			bannerDetected: finalMetrics.cookieBanner.detected,
-			bannerRenderTime: Math.max(
-				0,
-				finalMetrics.timing.cookieBanner.renderEnd -
-					finalMetrics.timing.cookieBanner.renderStart
-			),
+			bannerVisibleTime: finalMetrics.cookieBanner.userVisibleTime,
 			bannerLayoutShift: finalMetrics.timing.cookieBanner.layoutShift,
 			bannerNetworkImpact: finalMetrics.thirdParty.totalImpact,
 			bundleStrategy,
@@ -431,9 +523,6 @@ export class PerformanceAggregator {
 		});
 	}
 
-	/**
-	 * Log statistical summary for multiple benchmark runs
-	 */
 	logStatisticalSummary(results: BenchmarkDetails[]): void {
 		if (results.length === 0) {
 			return;
@@ -443,30 +532,47 @@ export class PerformanceAggregator {
 
 		this.logger.info("📊 Statistical Summary:");
 		this.logger.info(
-			`  FCP: ${summary.fcp.mean.toFixed(0)}ms (median: ${summary.fcp.median.toFixed(0)}ms, stddev: ${summary.fcp.stddev.toFixed(0)}ms)`
+			`  FCP mean ${summary.fcp.mean.toFixed(0)}ms | p50 ${summary.fcp.p50.toFixed(0)}ms | p95 ${summary.fcp.p95.toFixed(0)}ms | CV ${summary.fcp.cv.toFixed(1)}%`
 		);
 		this.logger.info(
-			`  LCP: ${summary.lcp.mean.toFixed(0)}ms (median: ${summary.lcp.median.toFixed(0)}ms, stddev: ${summary.lcp.stddev.toFixed(0)}ms)`
+			`  LCP mean ${summary.lcp.mean.toFixed(0)}ms | p50 ${summary.lcp.p50.toFixed(0)}ms | p95 ${summary.lcp.p95.toFixed(0)}ms | CV ${summary.lcp.cv.toFixed(1)}%`
 		);
 		this.logger.info(
-			`  TTI: ${summary.tti.mean.toFixed(0)}ms (median: ${summary.tti.median.toFixed(0)}ms, stddev: ${summary.tti.stddev.toFixed(0)}ms)`
+			`  TTI mean ${summary.tti.mean.toFixed(0)}ms | p50 ${summary.tti.p50.toFixed(0)}ms | p95 ${summary.tti.p95.toFixed(0)}ms | CV ${summary.tti.cv.toFixed(1)}%`
 		);
 		this.logger.info(
-			`  TBT: ${summary.tbt.mean.toFixed(0)}ms (median: ${summary.tbt.median.toFixed(0)}ms, stddev: ${summary.tbt.stddev.toFixed(0)}ms)`
+			`  TBT mean ${summary.tbt.mean.toFixed(0)}ms | p50 ${summary.tbt.p50.toFixed(0)}ms | p95 ${summary.tbt.p95.toFixed(0)}ms | CV ${summary.tbt.cv.toFixed(1)}%`
+		);
+		this.logger.info(
+			`  FCP CI95 [${summary.fcp.ci95Low.toFixed(0)}, ${summary.fcp.ci95High.toFixed(0)}] ms`
 		);
 
-		// Log stability indicators
-		const fcpValues = results.map((r) => r.timing.firstContentfulPaint);
-		const lcpValues = results.map((r) => r.timing.largestContentfulPaint);
-		const ttiValues = results.map((r) => r.timing.timeToInteractive);
+		const fcpStable = !this.hasMeaningfulVariability(
+			results.map((r) => r.timing.firstContentfulPaint),
+			STABILITY_THRESHOLD,
+			FCP_LCP_MIN_STDDEV_MS,
+			FCP_LCP_MIN_P95_P50_SPREAD_MS
+		).unstable;
+		const lcpStable = !this.hasMeaningfulVariability(
+			results.map((r) => r.timing.largestContentfulPaint),
+			STABILITY_THRESHOLD,
+			FCP_LCP_MIN_STDDEV_MS,
+			FCP_LCP_MIN_P95_P50_SPREAD_MS
+		).unstable;
+		const ttiStable = !this.hasMeaningfulVariability(
+			results.map((r) => r.timing.timeToInteractive),
+			STABILITY_THRESHOLD,
+			TTI_MIN_STDDEV_MS,
+			TTI_MIN_P95_P50_SPREAD_MS
+		).unstable;
 
-		if (isStable(fcpValues, STABILITY_THRESHOLD)) {
+		if (fcpStable) {
 			this.logger.info("  ✓ FCP is stable");
 		}
-		if (isStable(lcpValues, STABILITY_THRESHOLD)) {
+		if (lcpStable) {
 			this.logger.info("  ✓ LCP is stable");
 		}
-		if (isStable(ttiValues, STABILITY_THRESHOLD)) {
+		if (ttiStable) {
 			this.logger.info("  ✓ TTI is stable");
 		}
 	}
