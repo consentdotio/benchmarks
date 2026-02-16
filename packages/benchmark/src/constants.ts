@@ -1,5 +1,5 @@
 import {
-	BYTES_TO_KB,
+	KILOBYTE,
 	ONE_SECOND,
 	PERCENTAGE_MULTIPLIER,
 	TTI_BUFFER_MS,
@@ -49,7 +49,7 @@ export const BENCHMARK_CONSTANTS = {
 	 * Conversion factor: bytes to kilobytes.
 	 * Used for displaying resource sizes in KB.
 	 */
-	BYTES_TO_KB, // Convert bytes to kilobytes
+	BYTES_TO_KB: KILOBYTE, // Convert bytes to kilobytes
 	/**
 	 * Wait time for Perfume.js metrics to be collected.
 	 * Perfume.js reports metrics asynchronously, so we wait before collection.
@@ -75,7 +75,6 @@ export const BENCHMARK_CONSTANTS = {
 
 export const BUNDLE_TYPES = {
 	IIFE: "iife",
-	IFFE: "iffe",
 	ESM: "esm",
 	CJS: "cjs",
 	BUNDLED: "bundled",

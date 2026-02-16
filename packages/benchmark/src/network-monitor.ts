@@ -158,11 +158,27 @@ export class NetworkMonitor {
 		};
 
 		const handleRequestFinished = async (request: Request) => {
-			await commitRequest(request, await request.response());
+			try {
+				await commitRequest(request, await request.response());
+			} catch (error) {
+				this.logger.warn(
+					`Failed to commit finished request ${request.url()}: ${
+						error instanceof Error ? error.message : String(error)
+					}`
+				);
+			}
 		};
 
 		const handleRequestFailed = async (request: Request) => {
-			await commitRequest(request, await request.response());
+			try {
+				await commitRequest(request, await request.response());
+			} catch (error) {
+				this.logger.warn(
+					`Failed to commit failed request ${request.url()}: ${
+						error instanceof Error ? error.message : String(error)
+					}`
+				);
+			}
 		};
 
 		if (monitorMode === "route-debug") {
@@ -198,11 +214,11 @@ export class NetworkMonitor {
 	}
 
 	getNetworkRequests(): NetworkRequest[] {
-		return this.networkRequests;
+		return [...this.networkRequests];
 	}
 
 	getMetrics(): NetworkMetrics {
-		return this.metrics;
+		return { ...this.metrics };
 	}
 
 	calculateNetworkImpact(): {

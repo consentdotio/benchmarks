@@ -34,5 +34,12 @@ export function resolveBenchmarkPath(
 		return directPath;
 	}
 
-	return join(projectRoot, "benchmarks", appPath);
+	const fallbackPath = join(projectRoot, "benchmarks", appPath);
+	if (existsSync(join(fallbackPath, "config.json"))) {
+		return fallbackPath;
+	}
+
+	throw new Error(
+		`Could not resolve benchmark path for "${appPath}". Expected config.json in ${directPath} or ${fallbackPath}.`
+	);
 }

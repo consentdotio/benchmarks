@@ -179,12 +179,14 @@ export class PerformanceAggregator {
 			resourceMetrics,
 			config
 		);
-		const resolvedThirdPartySize =
-			resourceMetrics.size.thirdParty > 0
-				? resourceMetrics.size.thirdParty
-				: networkImpact.thirdPartyImpact > 0
-					? networkImpact.thirdPartyImpact
-					: thirdPartyMetrics.cookieServices.totalSize;
+		let resolvedThirdPartySize: number;
+		if (resourceMetrics.size.thirdParty > 0) {
+			resolvedThirdPartySize = resourceMetrics.size.thirdParty;
+		} else if (networkImpact.thirdPartyImpact > 0) {
+			resolvedThirdPartySize = networkImpact.thirdPartyImpact;
+		} else {
+			resolvedThirdPartySize = thirdPartyMetrics.cookieServices.totalSize;
+		}
 		const resolvedThirdPartyScriptSize =
 			resourceMetrics.size.scripts.thirdParty > 0
 				? resourceMetrics.size.scripts.thirdParty
@@ -273,7 +275,7 @@ export class PerformanceAggregator {
 		};
 	}
 
-	private calculateNetworkImpact(networkRequests: NetworkRequest[]): {
+	calculateNetworkImpact(networkRequests: NetworkRequest[]): {
 		totalImpact: number;
 		totalDownloadTime: number;
 		thirdPartyImpact: number;
@@ -299,7 +301,7 @@ export class PerformanceAggregator {
 		};
 	}
 
-	private hasMeaningfulVariability(
+	hasMeaningfulVariability(
 		values: number[],
 		cvThreshold: number,
 		minStddev: number,

@@ -1,4 +1,4 @@
-import { BYTES_TO_KB, KILOBYTE, PERCENTAGE_MULTIPLIER } from "../constants";
+import { KILOBYTE, PERCENTAGE_MULTIPLIER } from "../constants";
 
 /**
  * Convert bytes to kilobytes
@@ -6,7 +6,7 @@ import { BYTES_TO_KB, KILOBYTE, PERCENTAGE_MULTIPLIER } from "../constants";
  * @returns Size in kilobytes
  */
 export function bytesToKB(bytes: number): number {
-	return bytes / BYTES_TO_KB;
+	return bytes / KILOBYTE;
 }
 
 /**

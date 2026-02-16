@@ -164,8 +164,19 @@ export class PerfumeCollector {
 	 */
 	async collectMetrics(page: Page): Promise<PerfumeMetrics | null> {
 		try {
-			// Wait a bit for metrics to be collected
-			await page.waitForTimeout(BENCHMARK_CONSTANTS.PERFUME_METRICS_WAIT);
+			// Wait until Perfume metrics are available instead of relying on a fixed sleep.
+			await page
+				.waitForFunction(
+					() => {
+						const win = window as WindowWithPerfumeMetrics;
+						const perfumeData = win.__perfumeMetrics;
+						return Boolean(perfumeData && Object.keys(perfumeData).length > 0);
+					},
+					{ timeout: BENCHMARK_CONSTANTS.PERFUME_METRICS_WAIT }
+				)
+				.catch(() => {
+					// Continue with best-effort collection if metrics are delayed.
+				});
 
 			const rawMetrics = await page.evaluate(() => {
 				const win = window as WindowWithPerfumeMetrics;
@@ -239,15 +250,15 @@ export class PerfumeCollector {
 			};
 
 			const metrics: PerfumeMetrics = {
-				firstPaint: rawMetrics.fp?.value || 0,
-				firstContentfulPaint: rawMetrics.FCP?.value || 0,
-				largestContentfulPaint: rawMetrics.LCP?.value || 0,
-				cumulativeLayoutShift: rawMetrics.CLS?.value || 0,
-				totalBlockingTime: rawMetrics.TBT?.value || 0,
+				firstPaint: rawMetrics.fp?.value ?? 0,
+				firstContentfulPaint: rawMetrics.FCP?.value ?? 0,
+				largestContentfulPaint: rawMetrics.LCP?.value ?? 0,
+				cumulativeLayoutShift: rawMetrics.CLS?.value ?? 0,
+				totalBlockingTime: rawMetrics.TBT?.value ?? 0,
 				firstInputDelay: rawMetrics.FID?.value ?? null,
 				interactionToNextPaint: rawMetrics.INP?.value ?? null,
 				timeToFirstByte:
-					rawMetrics.TTFB?.value || navigationTiming?.timeToFirstByte || 0,
+					rawMetrics.TTFB?.value ?? navigationTiming?.timeToFirstByte ?? 0,
 				navigationTiming: navigationTiming || defaultNavigationTiming,
 				networkInformation,
 			};

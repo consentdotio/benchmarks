@@ -1,6 +1,8 @@
 // Constants for statistics calculations
+const PERCENTILE_50 = 50;
 const PERCENTILE_95 = 95;
 const PERCENTILE_99 = 99;
+const Z_SCORE_95_CI = 1.96;
 const DEFAULT_TRIM_PERCENT = 10;
 const PERCENTAGE_CONVERSION = 100;
 const STABILITY_THRESHOLD = 15;
@@ -43,15 +45,18 @@ export function calculateStatistics(values: number[]): {
 	const sampleCount = values.length;
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;
 	const variance =
-		values.reduce((acc, val) => acc + (val - mean) ** 2, 0) / values.length;
+		values.length > 1
+			? values.reduce((acc, val) => acc + (val - mean) ** 2, 0) /
+				(values.length - 1)
+			: 0;
 	const stddev = Math.sqrt(variance);
 	const median = getMedian(sorted);
-	const p50 = getPercentile(sorted, 50);
+	const p50 = getPercentile(sorted, PERCENTILE_50);
 	const p95 = getPercentile(sorted, PERCENTILE_95);
 	const p99 = getPercentile(sorted, PERCENTILE_99);
 	const cv = calculateCoefficientOfVariation(values);
 	const ci95Delta =
-		sampleCount > 0 ? 1.96 * (stddev / Math.sqrt(sampleCount)) : 0;
+		sampleCount > 0 ? Z_SCORE_95_CI * (stddev / Math.sqrt(sampleCount)) : 0;
 
 	const lastIndex = sorted.length - 1;
 	const maxValue = lastIndex >= 0 ? sorted[lastIndex] : 0;
@@ -144,11 +149,15 @@ export function calculateCoefficientOfVariation(values: number[]): number {
 
 	const mean = values.reduce((a, b) => a + b, 0) / values.length;
 	const variance =
-		values.reduce((acc, val) => acc + (val - mean) ** 2, 0) / values.length;
+		values.length > 1
+			? values.reduce((acc, val) => acc + (val - mean) ** 2, 0) /
+				(values.length - 1)
+			: 0;
 	const stddev = Math.sqrt(variance);
 
 	if (mean === 0) {
-		return 0;
+		// CV is undefined when mean is zero; return NaN so callers can handle this explicitly.
+		return Number.NaN;
 	}
 
 	return (stddev / mean) * PERCENTAGE_CONVERSION;

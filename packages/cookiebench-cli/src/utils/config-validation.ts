@@ -91,15 +91,17 @@ function assertNumber(
 	issues: ValidationIssue[],
 	path: string,
 	value: unknown,
-	validator?: (num: number) => boolean,
-	hint?: string
+	options?: { validator?: (num: number) => boolean; hint?: string }
 ): value is number {
 	if (typeof value !== "number" || Number.isNaN(value)) {
 		issues.push({ path, message: "Expected number" });
 		return false;
 	}
-	if (validator && !validator(value)) {
-		issues.push({ path, message: hint ?? "Invalid numeric value" });
+	if (options?.validator && !options.validator(value)) {
+		issues.push({
+			path,
+			message: options.hint ?? "Invalid numeric value",
+		});
 		return false;
 	}
 	return true;
@@ -138,9 +140,9 @@ function normalizeBundleType(
 	bundleType: Config["techStack"]["bundleType"]
 ): Config["techStack"]["bundleType"] {
 	if (Array.isArray(bundleType)) {
-		return bundleType.map((value) => (value === "iffe" ? "iife" : value));
+		return bundleType.map((value) => (value === "iife" ? "iife" : value));
 	}
-	return bundleType === "iffe" ? "iife" : bundleType;
+	return bundleType === "iife" ? "iife" : bundleType;
 }
 
 export function validateBenchmarkConfig(config: unknown): {
@@ -159,13 +161,10 @@ export function validateBenchmarkConfig(config: unknown): {
 	assertNoUnknownKeys(issues, "config", config, ROOT_KEYS);
 
 	assertString(issues, "name", config.name);
-	assertNumber(
-		issues,
-		"iterations",
-		config.iterations,
-		(value) => Number.isInteger(value) && value >= 1,
-		"Expected integer >= 1"
-	);
+	assertNumber(issues, "iterations", config.iterations, {
+		validator: (value) => Number.isInteger(value) && value >= 1,
+		hint: "Expected integer >= 1",
+	});
 
 	if (config.url !== undefined) {
 		assertString(issues, "url", config.url);
@@ -181,13 +180,7 @@ export function validateBenchmarkConfig(config: unknown): {
 	}
 
 	// runProfile
-	if (!isRecord(config.runProfile)) {
-		issues.push({
-			path: "runProfile",
-			message:
-				"Missing required object (expected cacheMode, networkProfile, cpuSlowdownMultiplier)",
-		});
-	} else {
+	if (isRecord(config.runProfile)) {
 		const runProfile = config.runProfile;
 		assertNoUnknownKeys(
 			issues,
@@ -196,45 +189,44 @@ export function validateBenchmarkConfig(config: unknown): {
 			new Set(["cacheMode", "networkProfile", "cpuSlowdownMultiplier"])
 		);
 
-		if (assertString(issues, "runProfile.cacheMode", runProfile.cacheMode)) {
-			if (!CACHE_MODES.has(runProfile.cacheMode)) {
-				issues.push({
-					path: "runProfile.cacheMode",
-					message: `Unsupported value "${runProfile.cacheMode}"`,
-				});
-			}
+		if (
+			assertString(issues, "runProfile.cacheMode", runProfile.cacheMode) &&
+			!CACHE_MODES.has(runProfile.cacheMode)
+		) {
+			issues.push({
+				path: "runProfile.cacheMode",
+				message: `Unsupported value "${runProfile.cacheMode}"`,
+			});
 		}
 		if (
 			assertString(
 				issues,
 				"runProfile.networkProfile",
 				runProfile.networkProfile
-			)
+			) &&
+			!NETWORK_PROFILES.has(runProfile.networkProfile)
 		) {
-			if (!NETWORK_PROFILES.has(runProfile.networkProfile)) {
-				issues.push({
-					path: "runProfile.networkProfile",
-					message: `Unsupported value "${runProfile.networkProfile}"`,
-				});
-			}
+			issues.push({
+				path: "runProfile.networkProfile",
+				message: `Unsupported value "${runProfile.networkProfile}"`,
+			});
 		}
 		assertNumber(
 			issues,
 			"runProfile.cpuSlowdownMultiplier",
 			runProfile.cpuSlowdownMultiplier,
-			(value) => value >= 1,
-			"Expected number >= 1"
+			{ validator: (value) => value >= 1, hint: "Expected number >= 1" }
 		);
+	} else {
+		issues.push({
+			path: "runProfile",
+			message:
+				"Missing required object (expected cacheMode, networkProfile, cpuSlowdownMultiplier)",
+		});
 	}
 
 	// measurement
-	if (!isRecord(config.measurement)) {
-		issues.push({
-			path: "measurement",
-			message:
-				"Missing required object (expected minSuccessfulIterations, maxFailureRate, stabilityThresholdCv)",
-		});
-	} else {
+	if (isRecord(config.measurement)) {
 		const measurement = config.measurement;
 		assertNoUnknownKeys(
 			issues,
@@ -251,30 +243,37 @@ export function validateBenchmarkConfig(config: unknown): {
 			issues,
 			"measurement.minSuccessfulIterations",
 			measurement.minSuccessfulIterations,
-			(value) => Number.isInteger(value) && value >= 1,
-			"Expected integer >= 1"
+			{
+				validator: (value) => Number.isInteger(value) && value >= 1,
+				hint: "Expected integer >= 1",
+			}
 		);
 		assertNumber(
 			issues,
 			"measurement.maxFailureRate",
 			measurement.maxFailureRate,
-			(value) => value >= 0 && value <= 1,
-			"Expected number between 0 and 1"
+			{
+				validator: (value) => value >= 0 && value <= 1,
+				hint: "Expected number between 0 and 1",
+			}
 		);
 		assertNumber(
 			issues,
 			"measurement.stabilityThresholdCv",
 			measurement.stabilityThresholdCv,
-			(value) => value >= 0,
-			"Expected number >= 0"
+			{ validator: (value) => value >= 0, hint: "Expected number >= 0" }
 		);
+	} else {
+		issues.push({
+			path: "measurement",
+			message:
+				"Missing required object (expected minSuccessfulIterations, maxFailureRate, stabilityThresholdCv)",
+		});
 	}
 
 	// remote
 	if (config.remote !== undefined) {
-		if (!isRecord(config.remote)) {
-			issues.push({ path: "remote", message: "Expected object" });
-		} else {
+		if (isRecord(config.remote)) {
 			const remote = config.remote;
 			assertNoUnknownKeys(
 				issues,
@@ -283,11 +282,15 @@ export function validateBenchmarkConfig(config: unknown): {
 				new Set(["enabled", "url", "headers"])
 			);
 
-			const enabled =
-				remote.enabled === undefined
-					? false
-					: assertBoolean(issues, "remote.enabled", remote.enabled) &&
-						remote.enabled;
+			let enabled = false;
+			if (remote.enabled !== undefined) {
+				const isValidEnabled = assertBoolean(
+					issues,
+					"remote.enabled",
+					remote.enabled
+				);
+				enabled = Boolean(remote.enabled && isValidEnabled);
+			}
 
 			if (enabled) {
 				assertString(issues, "remote.url", remote.url);
@@ -296,12 +299,7 @@ export function validateBenchmarkConfig(config: unknown): {
 			}
 
 			if (remote.headers !== undefined) {
-				if (!isRecord(remote.headers)) {
-					issues.push({
-						path: "remote.headers",
-						message: "Expected object map of string:string",
-					});
-				} else {
+				if (isRecord(remote.headers)) {
 					for (const [header, headerValue] of Object.entries(remote.headers)) {
 						if (typeof headerValue !== "string") {
 							issues.push({
@@ -310,15 +308,20 @@ export function validateBenchmarkConfig(config: unknown): {
 							});
 						}
 					}
+				} else {
+					issues.push({
+						path: "remote.headers",
+						message: "Expected object map of string:string",
+					});
 				}
 			}
+		} else {
+			issues.push({ path: "remote", message: "Expected object" });
 		}
 	}
 
 	// cookieBanner
-	if (!isRecord(config.cookieBanner)) {
-		issues.push({ path: "cookieBanner", message: "Missing required object" });
-	} else {
+	if (isRecord(config.cookieBanner)) {
 		const cookieBanner = config.cookieBanner;
 		assertNoUnknownKeys(
 			issues,
@@ -355,15 +358,12 @@ export function validateBenchmarkConfig(config: unknown): {
 			cookieBanner.expectedLayoutShift
 		);
 		assertString(issues, "cookieBanner.serviceName", cookieBanner.serviceName);
+	} else {
+		issues.push({ path: "cookieBanner", message: "Missing required object" });
 	}
 
 	// internationalization
-	if (!isRecord(config.internationalization)) {
-		issues.push({
-			path: "internationalization",
-			message: "Missing required object",
-		});
-	} else {
+	if (isRecord(config.internationalization)) {
 		const internationalization = config.internationalization;
 		assertNoUnknownKeys(
 			issues,
@@ -399,12 +399,15 @@ export function validateBenchmarkConfig(config: unknown): {
 				message: `Unsupported value "${internationalization.stringLoading}"`,
 			});
 		}
+	} else {
+		issues.push({
+			path: "internationalization",
+			message: "Missing required object",
+		});
 	}
 
 	// techStack
-	if (!isRecord(config.techStack)) {
-		issues.push({ path: "techStack", message: "Missing required object" });
-	} else {
+	if (isRecord(config.techStack)) {
 		const techStack = config.techStack;
 		assertNoUnknownKeys(
 			issues,
@@ -422,19 +425,20 @@ export function validateBenchmarkConfig(config: unknown): {
 		assertString(issues, "techStack.bundler", techStack.bundler);
 
 		if (typeof techStack.bundleType === "string") {
-			const normalized =
-				techStack.bundleType === "iffe" ? "iife" : techStack.bundleType;
-			if (!BUNDLE_TYPES.has(normalized)) {
+			if (!BUNDLE_TYPES.has(techStack.bundleType)) {
 				issues.push({
 					path: "techStack.bundleType",
 					message: `Unsupported value "${techStack.bundleType}"`,
 				});
 			}
 		} else if (Array.isArray(techStack.bundleType)) {
+			const normalizedBundleTypes = (techStack.bundleType as unknown[]).map(
+				(value) => (value === "iife" ? "iife" : value)
+			);
 			assertStringArray(
 				issues,
 				"techStack.bundleType",
-				techStack.bundleType as unknown[],
+				normalizedBundleTypes,
 				BUNDLE_TYPES
 			);
 		} else {
@@ -457,12 +461,12 @@ export function validateBenchmarkConfig(config: unknown): {
 		);
 		assertString(issues, "techStack.packageManager", techStack.packageManager);
 		assertBoolean(issues, "techStack.typescript", techStack.typescript);
+	} else {
+		issues.push({ path: "techStack", message: "Missing required object" });
 	}
 
 	// source
-	if (!isRecord(config.source)) {
-		issues.push({ path: "source", message: "Missing required object" });
-	} else {
+	if (isRecord(config.source)) {
 		const source = config.source;
 		assertNoUnknownKeys(
 			issues,
@@ -490,12 +494,12 @@ export function validateBenchmarkConfig(config: unknown): {
 		if (source.website !== undefined) {
 			assertString(issues, "source.website", source.website);
 		}
+	} else {
+		issues.push({ path: "source", message: "Missing required object" });
 	}
 
 	// includes
-	if (!isRecord(config.includes)) {
-		issues.push({ path: "includes", message: "Missing required object" });
-	} else {
+	if (isRecord(config.includes)) {
 		const includes = config.includes;
 		assertNoUnknownKeys(
 			issues,
@@ -503,26 +507,28 @@ export function validateBenchmarkConfig(config: unknown): {
 			includes,
 			new Set(["backend", "components"])
 		);
-		if (includes.backend !== undefined && includes.backend !== false) {
-			if (typeof includes.backend !== "string") {
-				assertStringArray(
-					issues,
-					"includes.backend",
-					includes.backend as unknown[]
-				);
-			}
+		if (
+			includes.backend !== undefined &&
+			includes.backend !== false &&
+			typeof includes.backend !== "string"
+		) {
+			assertStringArray(
+				issues,
+				"includes.backend",
+				includes.backend as unknown[]
+			);
 		}
 		assertStringArray(
 			issues,
 			"includes.components",
 			includes.components as unknown[]
 		);
+	} else {
+		issues.push({ path: "includes", message: "Missing required object" });
 	}
 
 	if (config.company !== undefined) {
-		if (!isRecord(config.company)) {
-			issues.push({ path: "company", message: "Expected object" });
-		} else {
+		if (isRecord(config.company)) {
 			const company = config.company;
 			assertNoUnknownKeys(
 				issues,
@@ -533,6 +539,8 @@ export function validateBenchmarkConfig(config: unknown): {
 			assertString(issues, "company.name", company.name);
 			assertString(issues, "company.website", company.website);
 			assertString(issues, "company.avatar", company.avatar);
+		} else {
+			issues.push({ path: "company", message: "Expected object" });
 		}
 	}
 

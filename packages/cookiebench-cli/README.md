@@ -374,7 +374,7 @@ The tool calculates scores across five categories:
 1. **Performance** (30%): FCP, LCP, CLS, TTI, TBT
 2. **Bundle Strategy** (25%): Bundle size, loading approach, execution time
 3. **Network Impact** (20%): Third-party requests, cookie service overhead
-4. **Transparency** (15%): Open source status, documentation, licensing
+4. **Transparency** (15%): Open-source status, documentation, licensing
 5. **User Experience** (10%): Banner timing, coverage, layout shifts
 
 ## Development

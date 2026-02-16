@@ -10,7 +10,7 @@ export type CookieBannerConfig = {
 	serviceName: string;
 };
 
-export type BundleType = "esm" | "cjs" | "iife" | "iffe" | "bundled";
+export type BundleType = "esm" | "cjs" | "iife" | "bundled";
 export type CacheMode = "cold" | "warm" | "mixed";
 export type NetworkProfile = "none" | "slow4g" | "fast3g";
 

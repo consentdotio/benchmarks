@@ -14,7 +14,38 @@
       "type": "string"
     },
     "results": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "duration",
+          "size",
+          "timing",
+          "resources",
+          "cookieBanner",
+          "thirdParty"
+        ],
+        "properties": {
+          "duration": {
+            "type": "number"
+          },
+          "size": {
+            "type": "object"
+          },
+          "timing": {
+            "type": "object"
+          },
+          "resources": {
+            "type": "object"
+          },
+          "cookieBanner": {
+            "type": "object"
+          },
+          "thirdParty": {
+            "type": "object"
+          }
+        }
+      }
     },
     "scores": {
       "type": "object"
@@ -36,13 +67,16 @@
       ],
       "properties": {
         "generatedAtUtc": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "runStartedAtUtc": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "runCompletedAtUtc": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "iterationsRequested": {
           "type": "integer"

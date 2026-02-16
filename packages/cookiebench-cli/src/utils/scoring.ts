@@ -155,9 +155,7 @@ function isOpenSourceSolution(
 	if (
 		lowerTags.includes("open source") ||
 		lowerTags.includes("opensource") ||
-		lowerTags.includes("oss") ||
-		lowerTags.includes("free") ||
-		lowerTags.includes("community")
+		lowerTags.includes("oss")
 	) {
 		return true;
 	}
@@ -192,7 +190,7 @@ function parseTechStack(techStackJson: string): TechStackData {
 			bundler: techStack.bundler || "unknown",
 			bundleType: techStack.bundleType || "unknown",
 			packageManager: techStack.packageManager || "unknown",
-			typescript: techStack.typescript,
+			typescript: techStack.typescript ?? false,
 		};
 	} catch {
 		return {
@@ -506,6 +504,7 @@ function calculateBundleScore(
 // Calculate network impact score (out of 100)
 function calculateNetworkScore(
 	metrics: MetricsData,
+	// Reserved for future resource-based scoring.
 	_resourceData: ResourceData[]
 ): {
 	score: number;
@@ -1025,7 +1024,7 @@ function getScoreGrade(score: number): BenchmarkScores["grade"] {
 function getCategoryStatus(
 	score: number,
 	maxScore: number
-): "excellent" | "good" | "fair" | "poor" {
+): "excellent" | "good" | "fair" | "poor" | "critical" {
 	const percentage = (score / maxScore) * 100;
 	if (percentage >= 90) {
 		return "excellent";
@@ -1036,7 +1035,10 @@ function getCategoryStatus(
 	if (percentage >= 60) {
 		return "fair";
 	}
-	return "poor";
+	if (percentage >= 40) {
+		return "poor";
+	}
+	return "critical";
 }
 
 // Main scoring function with CLI-compatible interface
@@ -1355,7 +1357,7 @@ export function printScores(scores: BenchmarkScores): void {
 	for (const category of scores.categories) {
 		overallTable.push([
 			category.name,
-			`${category.score}/100`,
+			`${category.score}/${category.maxScore}`,
 			category.status,
 		]);
 	}
@@ -1372,7 +1374,7 @@ export function printScores(scores: BenchmarkScores): void {
 			detailsTable.push([
 				category.name,
 				detail.name,
-				`${detail.score}/100`,
+				`${detail.score}/${detail.maxScore}`,
 				detail.reason,
 			]);
 		}

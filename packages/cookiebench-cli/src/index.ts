@@ -41,7 +41,7 @@ function parseBenchmarkArgs(args: string[]): {
 	let index = 0;
 	while (index < args.length) {
 		const token = args[index];
-		if (!token.startsWith("--") && !parsed.appPath) {
+		if (!(token.startsWith("--") || parsed.appPath)) {
 			parsed.appPath = token;
 			index += 1;
 			continue;

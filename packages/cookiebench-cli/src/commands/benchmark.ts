@@ -80,7 +80,7 @@ function calculateTimingMetrics(details: BenchmarkResult["details"]) {
 		timeToFirstByte:
 			validTtfb.length > 0 ? calculateAverage(validTtfb) : undefined,
 		interactionToNextPaint:
-			validInp.length > 0 ? calculateAverage(validInp) : null,
+			validInp.length > 0 ? calculateAverage(validInp) : undefined,
 	};
 }
 
@@ -322,20 +322,28 @@ async function findBenchmarkDirs(
 /**
  * Run a single benchmark for a specific app
  */
-async function runSingleBenchmark(
-	logger: CliLogger,
-	appPath: string,
-	showScores = true,
-	iterationsOverride?: number,
-	options?: BenchmarkCommandOptions
-): Promise<boolean> {
+async function runSingleBenchmark(options: {
+	logger: CliLogger;
+	appPath: string;
+	showScores?: boolean;
+	iterationsOverride?: number;
+	commandOptions?: BenchmarkCommandOptions;
+}): Promise<boolean> {
+	const {
+		logger,
+		appPath,
+		showScores = true,
+		iterationsOverride,
+		commandOptions,
+	} = options;
 	const configPath = appPath ? join(appPath, "config.json") : undefined;
 	if (!configPath) {
 		logger.error("Missing benchmark config path");
 		return false;
 	}
 
-	const config = loadConfig(logger, configPath);
+	const loadedConfig = loadConfig(logger, configPath);
+	const config = structuredClone(loadedConfig);
 
 	if (iterationsOverride !== undefined && iterationsOverride > 0) {
 		const originalIterations = config.iterations;
@@ -361,14 +369,14 @@ async function runSingleBenchmark(
 		);
 	}
 
-	if (options?.profile) {
-		config.runProfile.networkProfile = options.profile;
+	if (commandOptions?.profile) {
+		config.runProfile.networkProfile = commandOptions.profile;
 	}
-	if (options?.cacheMode) {
-		config.runProfile.cacheMode = options.cacheMode;
+	if (commandOptions?.cacheMode) {
+		config.runProfile.cacheMode = commandOptions.cacheMode;
 	}
 
-	const traceMode = resolveTraceMode(options?.traceMode);
+	const traceMode = resolveTraceMode(commandOptions?.traceMode);
 	const runStartedAtUtc = new Date().toISOString();
 
 	try {
@@ -392,12 +400,11 @@ async function runSingleBenchmark(
 			try {
 				await mkdir(tracesDir, { recursive: true });
 			} catch (error: unknown) {
-				if (
-					error &&
-					typeof error === "object" &&
-					"code" in error &&
-					error.code !== "EEXIST"
-				) {
+				const code =
+					error && typeof error === "object" && "code" in error
+						? (error as { code?: string }).code
+						: undefined;
+				if (code !== "EEXIST") {
 					throw error;
 				}
 			}
@@ -534,13 +541,12 @@ export async function benchmarkCommand(
 
 	if (appPath) {
 		const resolvedAppPath = resolveBenchmarkPath(projectRoot, appPath);
-		const success = await runSingleBenchmark(
+		const success = await runSingleBenchmark({
 			logger,
-			resolvedAppPath,
-			true,
-			undefined,
-			options
-		);
+			appPath: resolvedAppPath,
+			showScores: true,
+			commandOptions: options,
+		});
 		if (!success) {
 			throw new Error(`Benchmark failed for ${appPath}`);
 		}
@@ -659,13 +665,13 @@ export async function benchmarkCommand(
 			`\n${color.bold(color.cyan(`[${i + 1}/${selectedBenchmarks.length}]`))} Running benchmark: ${color.bold(benchmarkName)}`
 		);
 
-		const success = await runSingleBenchmark(
+		const success = await runSingleBenchmark({
 			logger,
-			benchmarkPath,
-			false,
+			appPath: benchmarkPath,
+			showScores: false,
 			iterationsOverride,
-			options
-		);
+			commandOptions: options,
+		});
 
 		results.push({ name: benchmarkName, success });
 

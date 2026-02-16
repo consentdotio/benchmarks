@@ -65,7 +65,7 @@ export async function buildAndServeNextApp(
 	];
 	const serverProcess = spawn(pm.command, startArgs, {
 		cwd,
-		stdio: ["inherit", "pipe", "inherit"],
+		stdio: ["inherit", "inherit", "inherit"],
 	});
 
 	// Wait for server to be ready

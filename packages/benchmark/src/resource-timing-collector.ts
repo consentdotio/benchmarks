@@ -167,7 +167,8 @@ export class ResourceTimingCollector {
 				}
 
 				const hostnameRegistrableDomain = getRegistrableDomain(hostname);
-				const firstPartyRegistrableDomain = getRegistrableDomain(firstPartyHost);
+				const firstPartyRegistrableDomain =
+					getRegistrableDomain(firstPartyHost);
 				return (
 					Boolean(hostnameRegistrableDomain) &&
 					hostnameRegistrableDomain === firstPartyRegistrableDomain
@@ -192,8 +193,18 @@ export class ResourceTimingCollector {
 			const scriptEntries = resourceEntries.filter(
 				(entry) => entry.initiatorType === "script"
 			);
+			const isCssResource = (resourceName: string): boolean => {
+				try {
+					const url = new URL(resourceName);
+					return url.pathname.toLowerCase().endsWith(".css");
+				} catch {
+					const withoutFragment = resourceName.split("#")[0] || resourceName;
+					const withoutQuery = withoutFragment.split("?")[0] || withoutFragment;
+					return withoutQuery.toLowerCase().endsWith(".css");
+				}
+			};
 			const styleEntries = resourceEntries.filter(
-				(entry) => entry.initiatorType === "link" && entry.name.endsWith(".css")
+				(entry) => entry.initiatorType === "link" && isCssResource(entry.name)
 			);
 			const imageEntries = resourceEntries.filter(
 				(entry) => entry.initiatorType === "img"

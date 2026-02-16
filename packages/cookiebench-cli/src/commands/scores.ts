@@ -45,11 +45,11 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 	return files;
 }
 
-async function loadConfigForApp(
+function loadConfigForApp(
 	logger: CliLogger,
 	appName: string,
 	projectRoot: string
-): Promise<Config | null> {
+): Config | null {
 	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
@@ -108,7 +108,7 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 
 	if (nonV2Files.length > 0) {
 		throw new Error(
-			`Found ${nonV2Files.length} non-v2 results files. Run \"cookiebench migrate-results\" first.`
+			`Found ${nonV2Files.length} non-v2 results files. Run "cookiebench migrate-results" first.`
 		);
 	}
 
@@ -170,7 +170,7 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 	logger.outro("Done!");
 }
 
-async function displayAppScores(
+function displayAppScores(
 	logger: CliLogger,
 	appName: string,
 	result: BenchmarkOutput
@@ -200,7 +200,7 @@ async function displayAppScores(
 		return;
 	}
 	const projectRoot = findProjectRoot();
-	const config = await loadConfigForApp(logger, appName, projectRoot);
+	const config = loadConfigForApp(logger, appName, projectRoot);
 
 	if (!config) {
 		throw new Error(
@@ -327,14 +327,24 @@ async function displayAppScores(
 			cookieBannerDetected: appResults.some(
 				(r) => r.timing.cookieBanner.detected
 			),
-			cookieBannerVisibleTimeMs:
-				appResults.reduce(
-					(a, b) =>
-						a +
-						(b.timing.cookieBanner.userVisibleTime ??
-							b.timing.cookieBanner.visibilityTime),
-					0
-				) / appResults.length,
+			cookieBannerVisibleTimeMs: (() => {
+				const validTimes = appResults
+					.map(
+						(iteration) =>
+							iteration.timing.cookieBanner.userVisibleTime ??
+							iteration.timing.cookieBanner.visibilityTime
+					)
+					.filter(
+						(time): time is number =>
+							typeof time === "number" && Number.isFinite(time)
+					);
+				if (validTimes.length === 0) {
+					return 0;
+				}
+				return (
+					validTimes.reduce((sum, time) => sum + time, 0) / validTimes.length
+				);
+			})(),
 			cookieBannerCoverage:
 				appResults.reduce(
 					(a, b) => a + b.timing.cookieBanner.viewportCoverage,

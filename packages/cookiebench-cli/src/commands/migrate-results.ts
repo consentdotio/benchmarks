@@ -1,10 +1,22 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import {
+	copyFile,
+	readdir,
+	readFile,
+	rename,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import color from "picocolors";
 import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
 
 type GenericRecord = Record<string, unknown>;
+
+const BYTES_PER_KB = 1024;
+const SIZE_HEURISTIC_LOW_THRESHOLD_BYTES = 100_000;
+const MAJORITY_THRESHOLD = 0.5;
+const SIZE_HEURISTIC_MAX_KB = 200_000;
+const SIZE_HEURISTIC_MEAN_KB = 50_000;
 
 async function findResultsFiles(dir: string): Promise<string[]> {
 	const files: string[] = [];
@@ -110,7 +122,10 @@ function migrateDetail(
 	return migrated;
 }
 
-function migrateV1ToV2(rawData: GenericRecord): GenericRecord {
+function migrateV1ToV2(
+	rawData: GenericRecord,
+	logger: CliLogger
+): GenericRecord {
 	const details = Array.isArray(rawData.results)
 		? (rawData.results as GenericRecord[])
 		: [];
@@ -122,17 +137,49 @@ function migrateV1ToV2(rawData: GenericRecord): GenericRecord {
 		})
 		.filter((value) => value > 0);
 
-	// v1 historically stored KB values (typically in low thousands). v2 stores bytes.
-	const likelyKbData =
-		totalSizeCandidates.length > 0 &&
-		Math.max(...totalSizeCandidates) < 100_000;
-	const multiplier = likelyKbData ? 1024 : 1;
+	const metadata = (rawData.metadata as GenericRecord | undefined) ?? {};
+	const explicitSizeUnit =
+		typeof metadata.sizeUnit === "string"
+			? metadata.sizeUnit.toLowerCase()
+			: undefined;
+
+	let multiplier = 1;
+	if (explicitSizeUnit === "kb" || explicitSizeUnit === "kilobytes") {
+		multiplier = BYTES_PER_KB;
+	} else if (explicitSizeUnit === "bytes" || explicitSizeUnit === "b") {
+		multiplier = 1;
+	} else if (totalSizeCandidates.length > 0) {
+		const count = totalSizeCandidates.length;
+		const min = Math.min(...totalSizeCandidates);
+		const max = Math.max(...totalSizeCandidates);
+		const mean =
+			totalSizeCandidates.reduce((acc, value) => acc + value, 0) / count;
+		const lowCount = totalSizeCandidates.filter(
+			(value) => value < SIZE_HEURISTIC_LOW_THRESHOLD_BYTES
+		).length;
+		const majorityLow = lowCount / count > MAJORITY_THRESHOLD;
+		const likelyKbData =
+			majorityLow &&
+			max < SIZE_HEURISTIC_MAX_KB &&
+			mean < SIZE_HEURISTIC_MEAN_KB;
+
+		if (likelyKbData) {
+			multiplier = BYTES_PER_KB;
+		}
+
+		logger.warn(
+			`Using size unit heuristic for migration (count=${count}, min=${Math.round(
+				min
+			)}, max=${Math.round(max)}, mean=${Math.round(mean)}). Assumed ${
+				multiplier === BYTES_PER_KB ? "KB->bytes" : "bytes"
+			}.`
+		);
+	}
 
 	const migratedDetails = details.map((detail) =>
 		migrateDetail(detail, multiplier)
 	);
 	const now = new Date().toISOString();
-	const metadata = (rawData.metadata as GenericRecord | undefined) ?? {};
 	const timestamp =
 		typeof metadata.timestamp === "string" ? metadata.timestamp : now;
 	const requestedIterations =
@@ -259,8 +306,21 @@ export async function migrateResultsCommand(
 				continue;
 			}
 
-			const migrated = migrateV1ToV2(parsed);
-			await writeFile(file, JSON.stringify(migrated, null, 2));
+			const migrated = migrateV1ToV2(parsed, logger);
+			const backupPath = `${file}.bak-${Date.now()}`;
+			const tempPath = `${file}.tmp-${process.pid}-${Date.now()}`;
+			await copyFile(file, backupPath);
+			try {
+				await writeFile(tempPath, JSON.stringify(migrated, null, 2));
+				await rename(tempPath, file);
+			} catch (error) {
+				try {
+					await rename(backupPath, file);
+				} catch {
+					// Best effort restore
+				}
+				throw error;
+			}
 			logger.info(`Migrated ${file}`);
 			migratedCount += 1;
 		} catch (error) {

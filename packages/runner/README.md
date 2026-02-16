@@ -48,9 +48,11 @@ import {
   cleanupServer,
   readConfig,
 } from '@consentio/runner';
+import { createLogger } from '@c15t/logger';
 
 const config = readConfig();
-const serverInfo = await buildAndServeNextApp('./my-next-app');
+const logger = createLogger({ level: 'info' });
+const serverInfo = await buildAndServeNextApp(logger, './my-next-app');
 
 try {
   const runner = new BenchmarkRunner(config);
@@ -94,7 +96,7 @@ const results = await runner.runBenchmarks(config.remote.url);
 
 ### Server Management
 
-- `buildAndServeNextApp(appPath?: string)`: Build and serve a Next.js app
+- `buildAndServeNextApp(logger: Logger, appPath?: string)`: Build and serve a Next.js app
 - `cleanupServer(serverInfo: ServerInfo)`: Stop the server process
 
 ### Utilities
@@ -147,4 +149,3 @@ See the [types file](./src/types.ts) for complete type definitions.
 ## License
 
 MIT
-

@@ -40,15 +40,28 @@ export async function displayIntro(
 	}
 
 	// Display the figlet text with cyan/teal gradient
+	const canUseAnsiColors =
+		Boolean(color.isColorSupported) &&
+		!process.env.NO_COLOR &&
+		process.stdout.isTTY;
+
 	const customColor = {
-		cyan10: (text: string) => `\x1b[38;2;10;80;90m${text}\x1b[0m`,
-		cyan20: (text: string) => `\x1b[38;2;15;100;110m${text}\x1b[0m`,
-		cyan30: (text: string) => `\x1b[38;2;20;120;130m${text}\x1b[0m`,
-		cyan40: (text: string) => `\x1b[38;2;25;150;170m${text}\x1b[0m`,
-		cyan50: (text: string) => `\x1b[38;2;30;170;190m${text}\x1b[0m`,
-		cyan75: (text: string) => `\x1b[38;2;34;211;230m${text}\x1b[0m`,
-		cyan90: (text: string) => `\x1b[38;2;45;225;245m${text}\x1b[0m`,
-		cyan100: (text: string) => `\x1b[38;2;65;235;255m${text}\x1b[0m`,
+		cyan10: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;10;80;90m${text}\x1b[0m` : text,
+		cyan20: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;15;100;110m${text}\x1b[0m` : text,
+		cyan30: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;20;120;130m${text}\x1b[0m` : text,
+		cyan40: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;25;150;170m${text}\x1b[0m` : text,
+		cyan50: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;30;170;190m${text}\x1b[0m` : text,
+		cyan75: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;34;211;230m${text}\x1b[0m` : text,
+		cyan90: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;45;225;245m${text}\x1b[0m` : text,
+		cyan100: (text: string) =>
+			canUseAnsiColors ? `\x1b[38;2;65;235;255m${text}\x1b[0m` : text,
 	};
 
 	const lines = figletText.split("\n");

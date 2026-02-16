@@ -1,6 +1,7 @@
+/// <reference types="node" />
 import { execFile } from "node:child_process";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { Logger } from "@c15t/logger";
 import type { Config } from "@consentio/benchmark";
@@ -46,8 +47,18 @@ const BANNER_VISIBLE_MIN_P95_P50_SPREAD_MS = 250;
 const BANNER_VISIBLE_MIN_RELATIVE_SPREAD = 0.2;
 const CLS_MIN_STDDEV = 0.005;
 const CLS_MIN_P95_P50_SPREAD = 0.01;
+const PERCENT_FACTOR = 100;
 
 type TraceMode = "off" | "on-failure" | "all";
+
+const BYTES_PER_KIB = 1024;
+const BITS_PER_BYTE = 8;
+const SLOW4G_LATENCY_MS = 60;
+const SLOW4G_DOWNLOAD_MBPS = 10;
+const SLOW4G_UPLOAD_MBPS = 3;
+const FAST3G_LATENCY_MS = 120;
+const FAST3G_DOWNLOAD_MBPS = 1.6;
+const FAST3G_UPLOAD_KBPS = 750;
 
 const NETWORK_PROFILES: Record<
 	Config["runProfile"]["networkProfile"],
@@ -59,14 +70,17 @@ const NETWORK_PROFILES: Record<
 > = {
 	none: null,
 	slow4g: {
-		latency: 150,
-		downloadThroughput: (1.6 * 1024 * 1024) / 8,
-		uploadThroughput: (750 * 1024) / 8,
+		latency: SLOW4G_LATENCY_MS,
+		downloadThroughput:
+			(SLOW4G_DOWNLOAD_MBPS * BYTES_PER_KIB * BYTES_PER_KIB) / BITS_PER_BYTE,
+		uploadThroughput:
+			(SLOW4G_UPLOAD_MBPS * BYTES_PER_KIB * BYTES_PER_KIB) / BITS_PER_BYTE,
 	},
 	fast3g: {
-		latency: 562,
-		downloadThroughput: (1.6 * 1024 * 1024) / 8,
-		uploadThroughput: (750 * 1024) / 8,
+		latency: FAST3G_LATENCY_MS,
+		downloadThroughput:
+			(FAST3G_DOWNLOAD_MBPS * BYTES_PER_KIB * BYTES_PER_KIB) / BITS_PER_BYTE,
+		uploadThroughput: (FAST3G_UPLOAD_KBPS * BYTES_PER_KIB) / BITS_PER_BYTE,
 	},
 };
 
@@ -81,6 +95,7 @@ export class BenchmarkRunner {
 	private readonly traceMode: TraceMode;
 	private readonly traceDir?: string;
 	private warmContext: BrowserContext | null = null;
+	private warnedMissingManualGc = false;
 
 	constructor(
 		config: Config,
@@ -294,23 +309,38 @@ export class BenchmarkRunner {
 		iterationNumber: number,
 		suffix: string
 	): Promise<void> {
+		const sanitizeComponent = (value: string): string =>
+			value.replace(/[^\w.-]/g, "_");
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const safeSuffix = sanitizeComponent(suffix);
+		const safeConfigName = sanitizeComponent(this.config.name);
+		const baseDir = resolve(this.traceDir || process.cwd());
+		if (baseDir.includes("\0")) {
+			throw new Error("Invalid trace directory path");
+		}
 		const traceZipPath = this.traceDir
-			? join(this.traceDir, `Trace-${timestamp}-${suffix}.zip`)
-			: join(
-					process.cwd(),
-					`trace-${this.config.name}-iteration-${iterationNumber}-${suffix}.zip`
+			? resolve(baseDir, `Trace-${timestamp}-${safeSuffix}.zip`)
+			: resolve(
+					baseDir,
+					`trace-${safeConfigName}-iteration-${iterationNumber}-${safeSuffix}.zip`
 				);
 		const traceJsonPath = this.traceDir
-			? join(this.traceDir, `Trace-${timestamp}-${suffix}.json`)
-			: join(
-					process.cwd(),
-					`trace-${this.config.name}-iteration-${iterationNumber}-${suffix}.json`
+			? resolve(baseDir, `Trace-${timestamp}-${safeSuffix}.json`)
+			: resolve(
+					baseDir,
+					`trace-${safeConfigName}-iteration-${iterationNumber}-${safeSuffix}.json`
 				);
+		const ensureWithinBase = (pathValue: string): void => {
+			if (!pathValue.startsWith(`${baseDir}${sep}`)) {
+				throw new Error(`Refusing to write trace outside ${baseDir}`);
+			}
+		};
+		ensureWithinBase(traceZipPath);
+		ensureWithinBase(traceJsonPath);
 		await context.tracing.stop({ path: traceZipPath });
 
 		try {
-			const tempDir = this.traceDir || process.cwd();
+			const tempDir = baseDir;
 			await execFileAsync("unzip", [
 				"-o",
 				traceZipPath,
@@ -319,7 +349,8 @@ export class BenchmarkRunner {
 				"trace.trace",
 			]);
 
-			const traceFilePath = join(tempDir, "trace.trace");
+			const traceFilePath = resolve(tempDir, "trace.trace");
+			ensureWithinBase(traceFilePath);
 			const traceContent = readFileSync(traceFilePath, "utf-8");
 			writeFileSync(traceJsonPath, traceContent, "utf-8");
 			try {
@@ -341,13 +372,14 @@ export class BenchmarkRunner {
 		}
 	}
 
-	private async runSingleBenchmarkWithRetry(
-		browser: Browser,
-		url: string,
-		isWarmup: boolean,
-		iterationNumber: number,
-		useWarmCache: boolean
-	): Promise<BenchmarkDetails> {
+	private async runSingleBenchmarkWithRetry(options: {
+		browser: Browser;
+		url: string;
+		isWarmup: boolean;
+		iterationNumber: number;
+		useWarmCache: boolean;
+	}): Promise<BenchmarkDetails> {
+		const { browser, url, isWarmup, iterationNumber, useWarmCache } = options;
 		let lastError: Error | null = null;
 
 		for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
@@ -430,7 +462,7 @@ export class BenchmarkRunner {
 
 				if (attempt < MAX_RETRIES) {
 					const retryDelay = CLEANUP_DELAY_MS * RETRY_DELAY_MULTIPLIER;
-					await new Promise((resolve) => setTimeout(resolve, retryDelay));
+					await new Promise((done) => setTimeout(done, retryDelay));
 				}
 			}
 		}
@@ -441,10 +473,17 @@ export class BenchmarkRunner {
 	}
 
 	private async cleanupBetweenIterations(): Promise<void> {
-		await new Promise((resolve) => setTimeout(resolve, CLEANUP_DELAY_MS));
+		await new Promise((done) => setTimeout(done, CLEANUP_DELAY_MS));
 
-		if (global.gc) {
+		if (typeof global.gc === "function") {
 			global.gc();
+			return;
+		}
+		if (!this.warnedMissingManualGc) {
+			this.warnedMissingManualGc = true;
+			this.logger.warn(
+				"Manual GC unavailable. Start Node with --expose-gc to enable explicit garbage collection between iterations."
+			);
 		}
 	}
 
@@ -609,13 +648,13 @@ export class BenchmarkRunner {
 				);
 
 				try {
-					const result = await this.runSingleBenchmarkWithRetry(
+					const result = await this.runSingleBenchmarkWithRetry({
 						browser,
-						iterationUrl,
-						false,
-						i + 1,
-						useWarmCache
-					);
+						url: iterationUrl,
+						isWarmup: false,
+						iterationNumber: i + 1,
+						useWarmCache,
+					});
 					results.push(result);
 
 					const iterationDurationSeconds = Math.round(
@@ -669,7 +708,7 @@ export class BenchmarkRunner {
 
 		if (quality.failureRate > quality.maxFailureRate) {
 			throw new Error(
-				`Run failed quality gate: failure rate ${(quality.failureRate * 100).toFixed(1)}% exceeds ${(quality.maxFailureRate * 100).toFixed(1)}%`
+				`Run failed quality gate: failure rate ${(quality.failureRate * PERCENT_FACTOR).toFixed(1)}% exceeds ${(quality.maxFailureRate * PERCENT_FACTOR).toFixed(1)}%`
 			);
 		}
 

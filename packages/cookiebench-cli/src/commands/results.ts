@@ -11,7 +11,6 @@ import Table from "cli-table3";
 import color from "picocolors";
 import prettyMilliseconds from "pretty-ms";
 import type { BenchmarkScores } from "../types";
-import { isAdminUser } from "../utils/auth";
 import {
 	CLS_DECIMAL_PLACES,
 	CLS_THRESHOLD_FAIR,
@@ -224,11 +223,11 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 	return files;
 }
 
-async function loadConfigForApp(
+function loadConfigForApp(
 	logger: CliLogger,
 	appName: string,
 	projectRoot: string
-): Promise<Config> {
+): Config {
 	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
@@ -317,7 +316,7 @@ async function aggregateResults(
 
 	if (nonV2Files.length > 0) {
 		throw new Error(
-			`Found ${nonV2Files.length} non-v2 results files. Run \"cookiebench migrate-results\" first.`
+			`Found ${nonV2Files.length} non-v2 results files. Run "cookiebench migrate-results" first.`
 		);
 	}
 
@@ -369,6 +368,14 @@ function printDetailedResults(
 	scores: BenchmarkScores,
 	baseline?: RawBenchmarkDetail[]
 ) {
+	if (!results || results.length === 0) {
+		console.log(
+			`\n${color.bold(color.cyan(`━━━ ${appName.toUpperCase()} ━━━`))}`
+		);
+		console.log(color.dim("No benchmark iterations available for this app."));
+		return;
+	}
+
 	console.log(
 		`\n${color.bold(color.cyan(`━━━ ${appName.toUpperCase()} ━━━`))}`
 	);
@@ -440,11 +447,14 @@ function printDetailedResults(
 	const networkImpactSummary = isBundled
 		? formatBytesShared(avgNetworkImpact)
 		: `${formatBytesShared(avgNetworkImpact)} (${formattedThirdPartyRequests} req)`;
-	const networkImpactHint = isBundled
-		? "Bundled (no external requests)"
-		: avgNetworkImpact > 0
-			? "External requests"
-			: "External requests (size unavailable)";
+	let networkImpactHint: string;
+	if (isBundled) {
+		networkImpactHint = "Bundled (no external requests)";
+	} else if (avgNetworkImpact > 0) {
+		networkImpactHint = "External requests";
+	} else {
+		networkImpactHint = "External requests (size unavailable)";
+	}
 	const bundleStrategyHint = isBundled
 		? "Included in main bundle"
 		: "Loaded from external hosts";
@@ -888,11 +898,12 @@ export async function resultsCommand(
 
 	const projectRoot = findProjectRoot();
 	const resultsDir = join(projectRoot, "benchmarks");
-	const scopedApps = Array.isArray(appName)
-		? new Set(appName)
-		: appName && appName !== "__all__"
-			? new Set([appName])
-			: undefined;
+	let scopedApps: Set<string> | undefined;
+	if (Array.isArray(appName)) {
+		scopedApps = new Set(appName);
+	} else if (appName && appName !== "__all__") {
+		scopedApps = new Set([appName]);
+	}
 	const results = await aggregateResults(logger, resultsDir, scopedApps);
 
 	if (Object.keys(results).length === 0) {
@@ -971,7 +982,7 @@ export async function resultsCommand(
 	// Load configs for each app
 	const appConfigs: Record<string, Config> = {};
 	for (const name of Object.keys(results)) {
-		appConfigs[name] = await loadConfigForApp(logger, name, projectRoot);
+		appConfigs[name] = loadConfigForApp(logger, name, projectRoot);
 	}
 
 	// Calculate scores for each app

@@ -11,7 +11,7 @@ This package provides the core functionality for detecting and measuring cookie 
 - **Cookie Banner Detection**: Automatically detects cookie banners using configurable selectors
 - **Network Monitoring**: Tracks network requests and calculates size/timing metrics
 - **Resource Collection**: Collects detailed resource timing data from the browser
-- **Bundle Strategy Detection**: Identifies bundling approaches (IIFE, ESM, CJS, bundled)
+- **Bundle Strategy Detection**: Identifies bundling approaches (iife, ESM, CJS, bundled)
 - **Performance Metrics**: Measures layout shift, render time, and viewport coverage
 
 ## Installation
@@ -101,7 +101,7 @@ await browser.close();
 
 - `determineBundleStrategy(config: Config)`: Determine bundle strategy from config
 - `BENCHMARK_CONSTANTS`: Constants for detection intervals, timeouts, etc.
-- `BUNDLE_TYPES`: Bundle type constants (IIFE, ESM, CJS, BUNDLED)
+- `BUNDLE_TYPES`: Bundle type constants (iife, ESM, CJS, BUNDLED)
 
 ## Types
 

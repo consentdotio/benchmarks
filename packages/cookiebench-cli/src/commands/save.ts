@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { setTimeout } from "node:timers/promises";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import { cancel, confirm, intro, isCancel, multiselect } from "@clack/prompts";
 import type { Config } from "@consentio/runner";
@@ -91,12 +91,14 @@ type BenchmarkResult = {
 				maxScore: number;
 				reason: string;
 			}>;
-			status: "excellent" | "good" | "fair" | "poor";
+			status: "excellent" | "good" | "fair" | "poor" | "critical";
 		}>;
 		insights: string[];
 		recommendations: string[];
 	};
 };
+
+const SAVE_REQUEST_TIMEOUT_MS = 15_000;
 
 async function saveBenchmarkResult(
 	logger: CliLogger,
@@ -104,6 +106,11 @@ async function saveBenchmarkResult(
 ): Promise<void> {
 	const apiUrl = process.env.API_URL || "http://localhost:3000";
 	const endpoint = `${apiUrl}/api/orpc/benchmarks/save`;
+	const controller = new AbortController();
+	const timeoutId = globalThis.setTimeout(
+		() => controller.abort(),
+		SAVE_REQUEST_TIMEOUT_MS
+	);
 
 	try {
 		logger.debug(`Attempting to save ${result.name} to ${endpoint}`);
@@ -113,6 +120,7 @@ async function saveBenchmarkResult(
 			headers: {
 				"Content-Type": "application/json",
 			},
+			signal: controller.signal,
 			body: JSON.stringify(result),
 		});
 
@@ -127,6 +135,14 @@ async function saveBenchmarkResult(
 		logger.success(`Saved ${result.name} (App ID: ${responseData.appId})`);
 	} catch (error) {
 		if (error instanceof Error) {
+			const wasAborted =
+				error.name === "AbortError" ||
+				error.message.toLowerCase().includes("abort");
+			if (wasAborted) {
+				logger.error(
+					`Request timed out after 15s while saving ${result.name} to ${apiUrl}`
+				);
+			}
 			logger.error(`Failed to save ${result.name}: ${error.message}`);
 			if (error.message.includes("fetch failed")) {
 				logger.error(`Connection failed. Is the server running on ${apiUrl}?`);
@@ -135,6 +151,8 @@ async function saveBenchmarkResult(
 			logger.error(`Failed to save ${result.name}: Unknown error`);
 		}
 		throw error;
+	} finally {
+		globalThis.clearTimeout(timeoutId);
 	}
 }
 
@@ -158,11 +176,11 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 	return files;
 }
 
-async function loadConfigForApp(
+function loadConfigForApp(
 	logger: CliLogger,
 	appName: string,
 	projectRoot: string
-): Promise<Config | null> {
+): Config | null {
 	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
@@ -218,7 +236,7 @@ export async function saveCommand(
 	}
 
 	logger.clear();
-	await setTimeout(HALF_SECOND);
+	await sleep(HALF_SECOND);
 
 	intro(
 		`${color.bgBlue(color.white(" save "))} ${color.dim("Sync results to database")}`
@@ -391,7 +409,7 @@ async function saveAppToDatabase(
 	result: BenchmarkOutput,
 	projectRoot: string
 ): Promise<void> {
-	const appConfig = await loadConfigForApp(logger, appName, projectRoot);
+	const appConfig = loadConfigForApp(logger, appName, projectRoot);
 	if (!appConfig) {
 		throw new Error(
 			`Cannot save ${appName}: benchmark config validation failed`

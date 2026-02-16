@@ -311,10 +311,10 @@ export type BenchmarkResult = {
 				score: number;
 				maxScore: number;
 				weight: number;
-				status: "excellent" | "good" | "fair" | "poor";
+				status: "excellent" | "good" | "fair" | "poor" | "critical";
 				reason: string;
 			}>;
-			status: "excellent" | "good" | "fair" | "poor";
+			status: "excellent" | "good" | "fair" | "poor" | "critical";
 			reason: string;
 		}>;
 		insights: string[];

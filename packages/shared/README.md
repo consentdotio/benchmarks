@@ -14,7 +14,7 @@ This package contains common functionality that is used by multiple packages in 
 ### Constants
 
 - **Time constants**: `ONE_SECOND` (1000ms), `HALF_SECOND` (500ms), `TTI_BUFFER_MS` (1000ms)
-- **Size constants**: `BYTES_TO_KB` (1024), `KILOBYTE` (1024)
+- **Size constants**: `KILOBYTE` (1024)
 - **Percentage constants**: `PERCENTAGE_MULTIPLIER` (100), `PERCENTAGE_DIVISOR` (100)
 
 ### Utilities

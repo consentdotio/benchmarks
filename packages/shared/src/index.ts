@@ -2,7 +2,6 @@
 
 // Constants
 export {
-	BYTES_TO_KB,
 	HALF_SECOND,
 	KILOBYTE,
 	ONE_SECOND,

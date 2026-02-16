@@ -10,7 +10,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@c15t/nextjs": "1.7.1",
+    "@c15t/nextjs": "1.8.3",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"

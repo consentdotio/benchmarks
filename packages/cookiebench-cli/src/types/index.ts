@@ -6,10 +6,14 @@ export type {
 	ServerInfo,
 } from "@consentio/runner";
 
+export type ScoreLevel = "excellent" | "good" | "fair" | "poor" | "critical";
+export type ScoreStatus = ScoreLevel;
+export type ScoreGrade = Capitalize<ScoreLevel>;
+
 // CLI-specific scoring types
 export type BenchmarkScores = {
 	totalScore: number;
-	grade: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+	grade: ScoreGrade;
 	indexes: {
 		performanceIndex: number;
 		governanceIndex: number;
@@ -33,10 +37,10 @@ export type BenchmarkScores = {
 			score: number;
 			maxScore: number;
 			weight: number;
-			status: "excellent" | "good" | "fair" | "poor";
+			status: ScoreStatus;
 			reason: string;
 		}>;
-		status: "excellent" | "good" | "fair" | "poor";
+		status: ScoreStatus;
 		reason: string;
 	}>;
 	insights: string[];

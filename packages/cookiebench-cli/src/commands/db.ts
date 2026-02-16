@@ -1,14 +1,17 @@
-import { execFileSync } from "node:child_process";
+/// <reference types="node" />
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { setTimeout } from "node:timers/promises";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { cancel, confirm, intro, isCancel, select } from "@clack/prompts";
-import { ONE_SECOND } from "@consentio/shared";
 import color from "picocolors";
 import { isAdminUser } from "../utils/auth";
 import type { CliLogger } from "../utils/logger";
+import { findProjectRoot } from "../utils/project-root";
 
 const DB_PACKAGE_RELATIVE_PATH = join("packages", "db");
+const execFileAsync = promisify(execFile);
 
 function ensureDbPackage(logger: CliLogger, projectRoot: string) {
 	const dbPackagePath = join(projectRoot, DB_PACKAGE_RELATIVE_PATH);
@@ -29,25 +32,23 @@ function ensureDbPackage(logger: CliLogger, projectRoot: string) {
 	}
 }
 
-function runDrizzleCommand(
+async function runDrizzleCommand(
 	logger: CliLogger,
 	projectRoot: string,
 	command: string
-): void {
+): Promise<void> {
 	const dbPackagePath = join(projectRoot, DB_PACKAGE_RELATIVE_PATH);
 
 	try {
 		logger.step(`Running: ${color.cyan(`drizzle-kit ${command}`)}`);
-		execFileSync("pnpm", ["drizzle-kit", command], {
+		await execFileAsync("pnpm", ["drizzle-kit", command], {
 			cwd: dbPackagePath,
-			stdio: "inherit",
 		});
 	} catch (error) {
-		logger.error(`Failed to run drizzle-kit ${command}`);
 		if (error instanceof Error) {
-			logger.error(error.message);
+			throw error;
 		}
-		process.exit(1);
+		throw new Error(`Failed to run drizzle-kit ${command}`);
 	}
 }
 
@@ -59,7 +60,6 @@ export async function dbCommand(logger: CliLogger, subcommand?: string) {
 	}
 
 	logger.clear();
-	await setTimeout(ONE_SECOND);
 
 	intro(`${color.bgBlue(color.white(" database "))} ${color.dim("v0.1.0")}`);
 
@@ -148,21 +148,38 @@ async function pushCommand(logger: CliLogger, projectRoot: string) {
 		return;
 	}
 
-	runDrizzleCommand(logger, projectRoot, "push");
-	logger.success("Schema pushed successfully!");
-	logger.outro("Database is now up to date with your schema.");
+	try {
+		await runDrizzleCommand(logger, projectRoot, "push");
+		logger.success("Schema pushed successfully!");
+		logger.outro("Database is now up to date with your schema.");
+	} catch (error) {
+		logger.error("Push failed!");
+		logger.error(error instanceof Error ? error.message : String(error));
+		process.exit(1);
+	}
 }
 
-function generateCommand(logger: CliLogger, projectRoot: string) {
+async function generateCommand(
+	logger: CliLogger,
+	projectRoot: string
+): Promise<void> {
 	logger.step("Generating migration files...");
 	logger.info("This will create SQL migration files based on schema changes.");
 
-	runDrizzleCommand(logger, projectRoot, "generate");
-	logger.success("Migration files generated!");
-	logger.info(
-		"Review the generated files in packages/db/drizzle/ before applying them."
-	);
-	logger.outro(`Run ${color.cyan("cli db migrate")} to apply the migrations.`);
+	try {
+		await runDrizzleCommand(logger, projectRoot, "generate");
+		logger.success("Migration files generated!");
+		logger.info(
+			"Review the generated files in packages/db/drizzle/ before applying them."
+		);
+		logger.outro(
+			`Run ${color.cyan("cli db migrate")} to apply the migrations.`
+		);
+	} catch (error) {
+		logger.error("Migration generation failed!");
+		logger.error(error instanceof Error ? error.message : String(error));
+		process.exit(1);
+	}
 }
 
 async function migrateCommand(logger: CliLogger, projectRoot: string) {
@@ -180,7 +197,7 @@ async function migrateCommand(logger: CliLogger, projectRoot: string) {
 	}
 
 	try {
-		runDrizzleCommand(logger, projectRoot, "migrate");
+		await runDrizzleCommand(logger, projectRoot, "migrate");
 		logger.success("Migrations completed successfully!");
 		logger.outro("Database is now up to date.");
 	} catch (error) {
@@ -192,7 +209,10 @@ async function migrateCommand(logger: CliLogger, projectRoot: string) {
 	}
 }
 
-function studioCommand(logger: CliLogger, projectRoot: string) {
+async function studioCommand(
+	logger: CliLogger,
+	projectRoot: string
+): Promise<void> {
 	logger.step("Opening Drizzle Studio...");
 	logger.info(
 		"This will start a web interface to browse and edit your database."
@@ -200,29 +220,24 @@ function studioCommand(logger: CliLogger, projectRoot: string) {
 	logger.info("Press Ctrl+C to stop the studio when you're done.");
 
 	try {
-		runDrizzleCommand(logger, projectRoot, "studio");
-	} catch {
-		// Studio command might be interrupted by Ctrl+C, which is normal
-		logger.info("Studio closed.");
-	}
-}
-
-// Same project root finding logic as in db package
-function findProjectRoot(): string {
-	let currentDir = process.cwd();
-
-	while (currentDir !== dirname(currentDir)) {
-		if (
-			(existsSync(join(currentDir, "pnpm-workspace.yaml")) ||
-				existsSync(join(currentDir, "package.json"))) &&
-			existsSync(join(currentDir, "packages"))
-		) {
-			return currentDir;
+		await runDrizzleCommand(logger, projectRoot, "studio");
+	} catch (error) {
+		const signal =
+			error && typeof error === "object" && "signal" in error
+				? String((error as { signal?: string }).signal)
+				: undefined;
+		const name =
+			error && typeof error === "object" && "name" in error
+				? String((error as { name?: string }).name)
+				: undefined;
+		if (signal === "SIGINT" || name === "AbortError") {
+			logger.info("Studio closed.");
+			return;
 		}
-		currentDir = dirname(currentDir);
+		logger.error("Failed to run Drizzle Studio.");
+		logger.error(error instanceof Error ? error.message : String(error));
+		process.exit(1);
 	}
-
-	return process.cwd();
 }
 
 async function statusCommand(logger: CliLogger, projectRoot: string) {
@@ -253,7 +268,6 @@ async function statusCommand(logger: CliLogger, projectRoot: string) {
 		}
 
 		// List migration files
-		const { readdir } = await import("node:fs/promises");
 		const migrationFiles = await readdir(migrationsPath, {
 			withFileTypes: true,
 		});

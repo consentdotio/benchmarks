@@ -25,10 +25,10 @@ export function readConfig<T extends BaseConfig = BaseConfig>(
 		const configContent = readFileSync(resolvedPath, "utf-8");
 		return JSON.parse(configContent) as T;
 	} catch (error) {
-		// biome-ignore lint/suspicious/noConsole: console error is needed for debugging
-		console.error(
-			`Failed to read config at ${configPath || join(process.cwd(), "config.json")}:`,
-			error
+		process.stderr.write(
+			`Failed to read config at ${
+				configPath || join(process.cwd(), "config.json")
+			}: ${error instanceof Error ? error.message : String(error)}\n`
 		);
 		return null;
 	}
