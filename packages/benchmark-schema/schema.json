@@ -6,9 +6,15 @@
   "required": [
     "name",
     "iterations",
+    "runProfile",
+    "measurement",
     "cookieBanner",
-    "techStack"
+    "techStack",
+    "source",
+    "includes",
+    "internationalization"
   ],
+  "additionalProperties": false,
   "properties": {
     "name": {
       "type": "string",
@@ -20,9 +26,64 @@
       "default": 20,
       "description": "Number of test iterations to run"
     },
+    "runProfile": {
+      "type": "object",
+      "required": ["cacheMode", "networkProfile", "cpuSlowdownMultiplier"],
+      "additionalProperties": false,
+      "properties": {
+        "cacheMode": {
+          "type": "string",
+          "enum": ["cold", "warm", "mixed"],
+          "description": "Cache strategy used for benchmark iterations"
+        },
+        "networkProfile": {
+          "type": "string",
+          "enum": ["none", "slow4g", "fast3g"],
+          "description": "Network throttling profile"
+        },
+        "cpuSlowdownMultiplier": {
+          "type": "number",
+          "minimum": 1,
+          "description": "CPU slowdown rate where 1 means no throttling"
+        }
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "required": [
+        "minSuccessfulIterations",
+        "maxFailureRate",
+        "stabilityThresholdCv"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "minSuccessfulIterations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum successful iterations required for a valid run"
+        },
+        "maxFailureRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Maximum allowed failed iteration ratio"
+        },
+        "stabilityThresholdCv": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum coefficient of variation before metrics are unstable"
+        },
+        "networkMonitorMode": {
+          "type": "string",
+          "enum": ["passive", "route-debug"],
+          "description": "Network monitoring mode; route-debug enables request interception for diagnostics"
+        }
+      }
+    },
     "remote": {
       "type": "object",
       "description": "Configuration for remote benchmarking",
+      "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -53,10 +114,8 @@
     },
     "cookieBanner": {
       "type": "object",
-      "required": [
-        "selectors",
-        "serviceHosts"
-      ],
+      "required": ["selectors", "serviceHosts"],
+      "additionalProperties": false,
       "properties": {
         "selectors": {
           "type": "array",
@@ -95,28 +154,17 @@
     },
     "internationalization": {
       "type": "object",
-      "required": [
-        "detection",
-        "stringLoading"
-      ],
+      "required": ["detection", "stringLoading"],
+      "additionalProperties": false,
       "properties": {
         "detection": {
           "type": "string",
-          "enum": [
-            "browser",
-            "ip",
-            "manual",
-            "none"
-          ],
+          "enum": ["browser", "ip", "manual", "none"],
           "description": "Method used to determine the banner language"
         },
         "stringLoading": {
           "type": "string",
-          "enum": [
-            "bundled",
-            "server",
-            "none"
-          ],
+          "enum": ["bundled", "server", "none"],
           "description": "How the banner loads its translation strings"
         }
       }
@@ -130,6 +178,7 @@
         "languages",
         "packageManager"
       ],
+      "additionalProperties": false,
       "properties": {
         "bundler": {
           "type": "string"
@@ -138,21 +187,13 @@
           "oneOf": [
             {
               "type": "string",
-              "enum": [
-                "esm",
-                "cjs",
-                "iffe",
-                "bundled"
-              ]
+              "enum": ["esm", "cjs", "iife", "bundled"]
             },
             {
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "esm",
-                  "cjs"
-                ]
+                "enum": ["esm", "cjs", "iife", "bundled"]
               }
             }
           ]
@@ -167,10 +208,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "typescript",
-              "javascript"
-            ]
+            "enum": ["typescript", "javascript"]
           }
         },
         "packageManager": {
@@ -183,9 +221,19 @@
     },
     "source": {
       "type": "object",
+      "required": ["isOpenSource", "license"],
+      "additionalProperties": false,
       "properties": {
         "github": {
-          "type": "string"
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean",
+              "const": false
+            }
+          ]
         },
         "isOpenSource": {
           "oneOf": [
@@ -194,9 +242,7 @@
             },
             {
               "type": "string",
-              "enum": [
-                "partially"
-              ]
+              "enum": ["partially"]
             }
           ]
         },
@@ -204,7 +250,15 @@
           "type": "string"
         },
         "npm": {
-          "type": "string"
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean",
+              "const": false
+            }
+          ]
         },
         "website": {
           "type": "string",
@@ -214,6 +268,8 @@
     },
     "includes": {
       "type": "object",
+      "required": ["components"],
+      "additionalProperties": false,
       "properties": {
         "backend": {
           "oneOf": [
@@ -225,6 +281,10 @@
               "items": {
                 "type": "string"
               }
+            },
+            {
+              "type": "boolean",
+              "const": false
             }
           ]
         },
@@ -238,6 +298,7 @@
     },
     "company": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "name": {
           "type": "string"

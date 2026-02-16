@@ -1,0 +1,29 @@
+{
+  "name": "c15t-nextjs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3001",
+    "fmt": "biome format . --write",
+    "lint": "biome lint .",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@c15t/nextjs": "1.8.3",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@cookiebench/benchmark-schema": "workspace:*",
+    "@cookiebench/ts-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

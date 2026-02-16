@@ -26,5 +26,19 @@
   "includes": {
     "components": ["javascript"]
   },
-  "tags": ["baseline"]
+  "tags": ["baseline"],
+  "runProfile": {
+    "cacheMode": "cold",
+    "networkProfile": "none",
+    "cpuSlowdownMultiplier": 1
+  },
+  "measurement": {
+    "minSuccessfulIterations": 1,
+    "maxFailureRate": 0.2,
+    "stabilityThresholdCv": 15
+  },
+  "internationalization": {
+    "detection": "none",
+    "stringLoading": "none"
+  }
 }
