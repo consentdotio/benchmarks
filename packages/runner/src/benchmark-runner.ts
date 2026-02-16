@@ -408,7 +408,7 @@ export class BenchmarkRunner {
 					this.logger.error(
 						`Failed to complete iteration ${i + 1}: ${errorMessage}`
 					);
-					// Continue with remaining iterations instead of failing completely
+					throw error;
 				} finally {
 					await this.cleanupBetweenIterations();
 				}

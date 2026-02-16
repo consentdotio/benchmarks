@@ -1173,14 +1173,4 @@ export async function resultsCommand(
 	for (const name of sortedApps) {
 		printDetailedResults(name, results[name], scores[name], baselineResults);
 	}
-
-	if (isAdminUser()) {
-		logger.outro(
-			`\nDisplayed ${selectedApps.length} of ${Object.keys(results).length} benchmark(s) - Use ${color.cyan("cookiebench save")} to sync to database`
-		);
-	} else {
-		logger.outro(
-			`\nDisplayed ${selectedApps.length} of ${Object.keys(results).length} benchmark(s)`
-		);
-	}
 }
