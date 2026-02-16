@@ -14,6 +14,7 @@ node_modules
 
 # Results
 results.json
+benchmarks/**/traces
 
 # Testing
 coverage
@@ -42,4 +43,4 @@ yarn-error.log*
 
 
 test-results
-playwright-report
+.pnpm-store
