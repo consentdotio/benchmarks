@@ -52,9 +52,10 @@ export async function displayIntro(
 	};
 
 	const lines = figletText.split("\n");
+	const gradientDenominator = Math.max(1, lines.length - 1);
 	const coloredLines = lines.map((line, index) => {
 		// Calculate the position in the gradient based on line index
-		const position = index / (lines.length - 1);
+		const position = index / gradientDenominator;
 
 		if (position < 0.1) {
 			return customColor.cyan10(line);

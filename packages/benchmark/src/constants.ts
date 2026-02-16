@@ -74,7 +74,8 @@ export const BENCHMARK_CONSTANTS = {
 } as const;
 
 export const BUNDLE_TYPES = {
-	IIFE: "iife",
+	IIFE: "iffe",
+	IFFE: "iffe",
 	ESM: "esm",
 	CJS: "cjs",
 	BUNDLED: "bundled",

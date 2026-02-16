@@ -96,7 +96,8 @@ When a specific path is provided:
 - ✅ Summary report at the end
 
 **Example:**
-```
+
+```text
 ? Select benchmarks to run:
   ◼ baseline
   ◼ c15t-nextjs
@@ -110,6 +111,7 @@ When a specific path is provided:
   [Just press Enter to use config values, or type a number to override all]
 
 ? Show results panel after completion? › Yes
+
 ```
 
 ### results
@@ -167,13 +169,15 @@ Displays a detailed panel for each selected benchmark with:
 - Automatically shown after running benchmarks (if enabled)
 
 **Example:**
-```
+
+```text
 ? Select benchmarks to view (use space to toggle, all selected by default):
   ◼ baseline (benchmarks/baseline)
   ◼ c15t-nextjs (benchmarks/c15t-nextjs)
   ◼ cookieyes (benchmarks/cookieyes)
 
 ● info  Viewing results for: baseline, c15t-nextjs, cookieyes
+
 ```
 
 ### scores

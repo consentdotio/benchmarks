@@ -8,6 +8,12 @@ export type BaseConfig = Record<string, unknown>;
 
 /**
  * Read and parse a JSON config file
+ *
+ * Note: `readConfig` only applies the generic `T` type at compile time.
+ * It does not validate JSON structure at runtime. If strict runtime safety is
+ * required, validate the parsed value for the provided `configPath` before
+ * using the returned value.
+ *
  * @param configPath - Optional path to config file, defaults to ./config.json
  * @returns Parsed config object or null if file cannot be read
  */
@@ -15,12 +21,15 @@ export function readConfig<T extends BaseConfig = BaseConfig>(
 	configPath?: string
 ): T | null {
 	try {
-		const path = configPath || join(process.cwd(), "config.json");
-		const configContent = readFileSync(path, "utf-8");
+		const resolvedPath = configPath || join(process.cwd(), "config.json");
+		const configContent = readFileSync(resolvedPath, "utf-8");
 		return JSON.parse(configContent) as T;
 	} catch (error) {
 		// biome-ignore lint/suspicious/noConsole: console error is needed for debugging
-		console.error("Failed to read config.json:", error);
+		console.error(
+			`Failed to read config at ${configPath || join(process.cwd(), "config.json")}:`,
+			error
+		);
 		return null;
 	}
 }

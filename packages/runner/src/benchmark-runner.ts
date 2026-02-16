@@ -1,5 +1,5 @@
-import { exec } from "node:child_process";
-import { readFileSync, unlink, writeFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { Logger } from "@c15t/logger";
@@ -11,12 +11,17 @@ import {
 	PerfumeCollector,
 	ResourceTimingCollector,
 } from "@consentio/benchmark";
-import { chromium, type Page } from "@playwright/test";
+import {
+	chromium,
+	type Browser,
+	type BrowserContext,
+	type Page,
+} from "@playwright/test";
 import { PerformanceMetricsCollector } from "playwright-performance-metrics";
 import { PerformanceAggregator } from "./performance-aggregator";
 import type { BenchmarkDetails, BenchmarkResult } from "./types";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Constants
 const WARMUP_ITERATIONS = 1; // Number of warmup runs before actual benchmarking
@@ -117,7 +122,7 @@ export class BenchmarkRunner {
 		const cookieBannerMetrics = this.cookieBannerCollector.initializeMetrics();
 
 		// Setup monitoring and detection
-		await this.networkMonitor.setupMonitoring(page);
+		await this.networkMonitor.setupMonitoring(page, url);
 		await this.cookieBannerCollector.setupDetection(page);
 		await this.perfumeCollector.setupPerfume(page);
 
@@ -202,13 +207,17 @@ export class BenchmarkRunner {
 	 * Run a single benchmark iteration with retry logic
 	 */
 	private async runSingleBenchmarkWithRetry(
-		page: Page,
+		browser: Browser,
 		url: string,
-		isWarmup: boolean
+		isWarmup: boolean,
+		iterationNumber?: number
 	): Promise<BenchmarkDetails> {
 		let lastError: Error | null = null;
 
 		for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+			const context = await browser.newContext();
+			const page = await context.newPage();
+
 			try {
 				if (attempt > 0) {
 					this.logger.warn(
@@ -216,7 +225,14 @@ export class BenchmarkRunner {
 					);
 				}
 
-				return await Promise.race([
+				if (this.saveTrace && !isWarmup) {
+					await context.tracing.start({
+						screenshots: true,
+						snapshots: true,
+					});
+				}
+
+				const result = await Promise.race([
 					this.runSingleBenchmark(page, url, isWarmup),
 					new Promise<BenchmarkDetails>((_, reject) =>
 						setTimeout(
@@ -225,12 +241,18 @@ export class BenchmarkRunner {
 						)
 					),
 				]);
+				if (this.saveTrace && !isWarmup && iterationNumber) {
+					await this.persistTrace(context, iterationNumber);
+				}
+				await context.close();
+				return result;
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
 				this.logger.debug(
 					`Iteration attempt ${attempt + 1} failed:`,
 					lastError.message
 				);
+				await context.close();
 
 				if (attempt < MAX_RETRIES) {
 					// Wait before retry
@@ -243,6 +265,57 @@ export class BenchmarkRunner {
 		throw new Error(
 			`Failed to complete benchmark after ${MAX_RETRIES + 1} attempts: ${lastError?.message}`
 		);
+	}
+
+	private async persistTrace(
+		context: BrowserContext,
+		iterationNumber: number
+	): Promise<void> {
+		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+		const traceZipPath = this.traceDir
+			? join(this.traceDir, `Trace-${timestamp}.zip`)
+			: join(
+					process.cwd(),
+					`trace-${this.config.name}-iteration-${iterationNumber}.zip`
+				);
+		const traceJsonPath = this.traceDir
+			? join(this.traceDir, `Trace-${timestamp}.json`)
+			: join(
+					process.cwd(),
+					`trace-${this.config.name}-iteration-${iterationNumber}.json`
+				);
+		await context.tracing.stop({ path: traceZipPath });
+
+		try {
+			const tempDir = this.traceDir || process.cwd();
+			await execFileAsync("unzip", [
+				"-o",
+				traceZipPath,
+				"-d",
+				tempDir,
+				"trace.trace",
+			]);
+
+			const traceFilePath = join(tempDir, "trace.trace");
+			const traceContent = readFileSync(traceFilePath, "utf-8");
+			writeFileSync(traceJsonPath, traceContent, "utf-8");
+			try {
+				unlinkSync(traceFilePath);
+			} catch {
+				// Ignore cleanup failures
+			}
+			try {
+				unlinkSync(traceZipPath);
+			} catch {
+				// Ignore cleanup failures
+			}
+			this.logger.info(`📊 Trace saved to: ${traceJsonPath}`);
+		} catch {
+			this.logger.warn(
+				`Failed to extract trace JSON, keeping ZIP file: ${traceZipPath}`
+			);
+			this.logger.info(`📊 Trace saved to: ${traceZipPath}`);
+		}
 	}
 
 	/**
@@ -313,76 +386,15 @@ export class BenchmarkRunner {
 					`Running iteration ${i + 1}/${this.config.iterations}${estimatedRemaining > 0 ? ` (est. ${Math.round(estimatedRemaining)}s remaining)` : ""}...`
 				);
 
-				const context = await browser.newContext();
-				const page = await context.newPage();
-
 				try {
-					if (this.saveTrace) {
-						this.logger.info(
-							`📊 Starting trace capture for iteration ${i + 1}...`
-						);
-						await context.tracing.start({
-							screenshots: true,
-							snapshots: true,
-						});
-					}
-
 					const result = await this.runSingleBenchmarkWithRetry(
-						page,
+						browser,
 						// Add a timestamp to the URL to avoid caching
 						`${serverUrl}?t=${Date.now()}`,
-						false
+						false,
+						i + 1
 					);
 					results.push(result);
-
-					// Save trace if enabled (must be done before closing context)
-					if (this.saveTrace) {
-						const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-						const traceZipPath = this.traceDir
-							? join(this.traceDir, `Trace-${timestamp}.zip`)
-							: join(
-									process.cwd(),
-									`trace-${this.config.name}-iteration-${i + 1}.zip`
-								);
-						const traceJsonPath = this.traceDir
-							? join(this.traceDir, `Trace-${timestamp}.json`)
-							: join(
-									process.cwd(),
-									`trace-${this.config.name}-iteration-${i + 1}.json`
-								);
-
-						// Playwright saves traces as ZIP files
-						await context.tracing.stop({ path: traceZipPath });
-
-						// Extract the trace.trace file from the ZIP and save as JSON
-						try {
-							// Extract trace.trace from the ZIP
-							const tempDir = this.traceDir || process.cwd();
-							await execAsync(
-								`unzip -o "${traceZipPath}" -d "${tempDir}" trace.trace 2>/dev/null`
-							);
-
-							// Read the extracted trace.trace file and write it as JSON
-							const traceFilePath = join(tempDir, "trace.trace");
-							const traceContent = readFileSync(traceFilePath, "utf-8");
-							writeFileSync(traceJsonPath, traceContent, "utf-8");
-							// Clean up the temporary trace.trace file
-							unlink(traceFilePath, () => {
-								// Ignore errors during cleanup
-							});
-							// Clean up the ZIP file
-							unlink(traceZipPath, () => {
-								// Ignore errors during cleanup
-							});
-							this.logger.info(`📊 Trace saved to: ${traceJsonPath}`);
-						} catch {
-							// If extraction failed, keep the ZIP file
-							this.logger.warn(
-								`Failed to extract trace JSON, keeping ZIP file: ${traceZipPath}`
-							);
-							this.logger.info(`📊 Trace saved to: ${traceZipPath}`);
-						}
-					}
 
 					const iterationDurationSeconds = Math.round(
 						(Date.now() - iterationStartTime) / MILLISECONDS_TO_SECONDS
@@ -398,7 +410,6 @@ export class BenchmarkRunner {
 					);
 					// Continue with remaining iterations instead of failing completely
 				} finally {
-					await context.close();
 					await this.cleanupBetweenIterations();
 				}
 			}

@@ -67,7 +67,7 @@ export const formatLogMessage = (
 		}
 		default: {
 			// Handle unexpected levels
-			const levelStr = logLevel as string;
+			const levelStr = String(logLevel);
 			return `[${levelStr.toUpperCase()}] ${messageStr}${formattedArgs}`;
 		}
 	}

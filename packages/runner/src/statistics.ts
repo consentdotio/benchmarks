@@ -94,8 +94,16 @@ export function calculateTrimmedMean(
 	}
 
 	const sorted = [...values].sort((a, b) => a - b);
-	const trimCount = Math.floor(
-		(values.length * trimPercent) / PERCENTAGE_CONVERSION
+	const normalizedTrimPercent = Math.max(
+		0,
+		Math.min(trimPercent, PERCENTAGE_CONVERSION / 2)
+	);
+	const requestedTrimCount = Math.floor(
+		(values.length * normalizedTrimPercent) / PERCENTAGE_CONVERSION
+	);
+	const trimCount = Math.max(
+		0,
+		Math.min(requestedTrimCount, Math.floor(values.length / 2))
 	);
 	const trimmed = sorted.slice(trimCount, values.length - trimCount);
 

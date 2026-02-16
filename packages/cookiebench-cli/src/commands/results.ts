@@ -30,6 +30,7 @@ import {
 	SCORE_THRESHOLD_POOR,
 	TRUNCATED_FILENAME_LENGTH,
 } from "../utils/constants";
+import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores } from "../utils/scoring";
 
@@ -214,15 +215,28 @@ export type BenchmarkOutput = {
 
 async function findResultsFiles(dir: string): Promise<string[]> {
 	const files: string[] = [];
-	const entries = await readdir(dir, { withFileTypes: true });
-
-	for (const entry of entries) {
-		const fullPath = join(dir, entry.name);
-		if (entry.isDirectory()) {
-			files.push(...(await findResultsFiles(fullPath)));
-		} else if (entry.name === "results.json") {
-			files.push(fullPath);
+	try {
+		const entries = await readdir(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			const fullPath = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				files.push(...(await findResultsFiles(fullPath)));
+			} else if (entry.name === "results.json") {
+				files.push(fullPath);
+			}
 		}
+	} catch (error) {
+		const errorCode =
+			typeof error === "object" &&
+			error !== null &&
+			"code" in error &&
+			typeof error.code === "string"
+				? error.code
+				: "";
+		if (errorCode === "ENOENT") {
+			return files;
+		}
+		throw error;
 	}
 
 	return files;
@@ -230,9 +244,10 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 
 async function loadConfigForApp(
 	logger: CliLogger,
-	appName: string
+	appName: string,
+	projectRoot: string
 ): Promise<Config> {
-	const configPath = join("benchmarks", appName, "config.json");
+	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
 		const configContent = await readFile(configPath, "utf-8");
@@ -898,7 +913,8 @@ export async function resultsCommand(
 		`${color.bgCyan(color.black(" results "))} ${color.dim("Compare benchmarks")}`
 	);
 
-	const resultsDir = "benchmarks";
+	const projectRoot = findProjectRoot();
+	const resultsDir = join(projectRoot, "benchmarks");
 	const results = await aggregateResults(logger, resultsDir);
 
 	if (Object.keys(results).length === 0) {
@@ -977,7 +993,7 @@ export async function resultsCommand(
 	// Load configs for each app
 	const appConfigs: Record<string, Config> = {};
 	for (const name of Object.keys(results)) {
-		appConfigs[name] = await loadConfigForApp(logger, name);
+		appConfigs[name] = await loadConfigForApp(logger, name, projectRoot);
 	}
 
 	// Calculate scores for each app
@@ -1017,8 +1033,17 @@ export async function resultsCommand(
 				timeToFirstByte:
 					appResults.reduce((a, b) => a + (b.timing.timeToFirstByte || 0), 0) /
 					appResults.length,
-				interactionToNextPaint:
-					appResults[0]?.timing.interactionToNextPaint || null,
+				interactionToNextPaint: (() => {
+					const validValues = appResults
+						.map((result) => result.timing.interactionToNextPaint)
+						.filter(
+							(inp): inp is number =>
+								inp !== null && inp !== undefined && Number.isFinite(inp)
+						);
+					return validValues.length > 0
+						? validValues.reduce((a, b) => a + b, 0) / validValues.length
+						: null;
+				})(),
 			},
 			{
 				totalSize:
@@ -1050,13 +1075,36 @@ export async function resultsCommand(
 				thirdPartyRequests:
 					appResults.reduce(
 						(a, b) =>
-							a + b.resources.scripts.filter((s) => s.isThirdParty).length,
+							a +
+							b.resources.scripts.filter((s) => s.isThirdParty).length +
+							b.resources.styles.filter((s) => s.isThirdParty).length +
+							b.resources.images.filter((s) => s.isThirdParty).length +
+							b.resources.fonts.filter((s) => s.isThirdParty).length +
+							b.resources.other.filter((s) => s.isThirdParty).length,
 						0
 					) / appResults.length,
 				thirdPartySize:
 					appResults.reduce((a, b) => a + b.size.thirdParty, 0) /
 					appResults.length,
-				thirdPartyDomains: 5,
+				thirdPartyDomains:
+					appResults.reduce((sum, appResult) => {
+						const thirdPartyHosts = new Set<string>();
+						const allThirdPartyResources = [
+							...appResult.resources.scripts.filter((r) => r.isThirdParty),
+							...appResult.resources.styles.filter((r) => r.isThirdParty),
+							...appResult.resources.images.filter((r) => r.isThirdParty),
+							...appResult.resources.fonts.filter((r) => r.isThirdParty),
+							...appResult.resources.other.filter((r) => r.isThirdParty),
+						];
+						for (const resource of allThirdPartyResources) {
+							try {
+								thirdPartyHosts.add(new URL(resource.name).hostname);
+							} catch {
+								// Skip invalid resource URLs
+							}
+						}
+						return sum + thirdPartyHosts.size;
+					}, 0) / appResults.length,
 			},
 			{
 				cookieBannerDetected: appResults.some(

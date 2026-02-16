@@ -10,6 +10,7 @@ export { ResourceTimingCollector } from "./resource-timing-collector";
 
 // Types
 export type {
+	BundleType,
 	BundleStrategy,
 	Config,
 	CookieBannerConfig,

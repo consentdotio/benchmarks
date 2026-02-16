@@ -19,7 +19,7 @@
   },
   "techStack": {
     "bundler": "unknown",
-    "bundleType": "iife",
+    "bundleType": "iffe",
     "frameworks": [],
     "languages": ["javascript"],
     "packageManager": "unknown",

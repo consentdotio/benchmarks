@@ -21,9 +21,11 @@ import color from "picocolors";
 import {
 	DEFAULT_DOM_SIZE,
 	DEFAULT_ITERATIONS,
+	findProjectRoot,
 	HALF_SECOND,
 	PERCENTAGE_DIVISOR,
 	readConfig,
+	resolveBenchmarkPath,
 	SEPARATOR_WIDTH,
 } from "../utils";
 import type { CliLogger } from "../utils/logger";
@@ -227,8 +229,11 @@ function calculatePerformanceMetrics(details: BenchmarkResult["details"]) {
 /**
  * Find all benchmark directories
  */
-async function findBenchmarkDirs(logger: CliLogger): Promise<string[]> {
-	const benchmarksDir = "benchmarks";
+async function findBenchmarkDirs(
+	logger: CliLogger,
+	projectRoot: string
+): Promise<string[]> {
+	const benchmarksDir = join(projectRoot, "benchmarks");
 	try {
 		const entries = await readdir(benchmarksDir, { withFileTypes: true });
 		const dirs = entries
@@ -396,9 +401,12 @@ export async function benchmarkCommand(
 	logger: CliLogger,
 	appPath?: string
 ): Promise<void> {
+	const projectRoot = findProjectRoot();
+
 	// If a specific app path is provided, run that benchmark directly
 	if (appPath) {
-		const success = await runSingleBenchmark(logger, appPath, true);
+		const resolvedAppPath = resolveBenchmarkPath(projectRoot, appPath);
+		const success = await runSingleBenchmark(logger, resolvedAppPath, true);
 		if (!success) {
 			throw new Error(`Benchmark failed for ${appPath}`);
 		}
@@ -412,7 +420,7 @@ export async function benchmarkCommand(
 	intro(`${color.bgMagenta(color.white(" benchmark "))}`);
 
 	// Find available benchmarks
-	const availableBenchmarks = await findBenchmarkDirs(logger);
+	const availableBenchmarks = await findBenchmarkDirs(logger, projectRoot);
 
 	if (availableBenchmarks.length === 0) {
 		logger.error("No benchmarks found in the benchmarks/ directory");
@@ -450,7 +458,7 @@ export async function benchmarkCommand(
 	// Load configs to get default iterations
 	const benchmarkConfigs = new Map<string, number>();
 	for (const benchmarkName of selectedBenchmarks) {
-		const benchmarkPath = join("benchmarks", benchmarkName);
+		const benchmarkPath = join(projectRoot, "benchmarks", benchmarkName);
 		const configPath = join(benchmarkPath, "config.json");
 		const config = readConfig(configPath);
 		if (config) {
@@ -523,7 +531,7 @@ export async function benchmarkCommand(
 
 	for (let i = 0; i < selectedBenchmarks.length; i += 1) {
 		const benchmarkName = selectedBenchmarks[i];
-		const benchmarkPath = join("benchmarks", benchmarkName);
+		const benchmarkPath = join(projectRoot, "benchmarks", benchmarkName);
 
 		logger.info(
 			`\n${color.bold(color.cyan(`[${i + 1}/${selectedBenchmarks.length}]`))} Running benchmark: ${color.bold(benchmarkName)}`

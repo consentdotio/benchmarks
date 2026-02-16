@@ -24,6 +24,7 @@ export type BenchmarkScores = {
 		weight: number;
 		details: Array<{
 			name: string;
+			value?: string | number;
 			score: number;
 			maxScore: number;
 			weight: number;

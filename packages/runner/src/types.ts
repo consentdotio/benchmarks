@@ -1,7 +1,9 @@
 import type { ChildProcess } from "node:child_process";
+import type { BundleType } from "@consentio/benchmark";
 
 // Re-export common types from benchmark package
 export type {
+	BundleType,
 	BundleStrategy,
 	Config,
 	CookieBannerConfig,
@@ -47,7 +49,7 @@ export type BenchmarkDetails = {
 		timeToInteractive: number;
 		cumulativeLayoutShift: number;
 		// Enhanced metrics from Perfume.js
-		timeToFirstByte: number;
+		timeToFirstByte: number | null;
 		firstInputDelay: number | null;
 		interactionToNextPaint: number | null;
 		navigationTiming: {
@@ -163,7 +165,7 @@ export type BenchmarkResult = {
 	baseline: boolean;
 	techStack: {
 		bundler: string;
-		bundleType: string | string[];
+		bundleType: BundleType | BundleType[];
 		frameworks: string[];
 		languages: string[];
 		packageManager: string;

@@ -13,7 +13,7 @@
   },
   "techStack": {
     "bundler": "unknown",
-    "bundleType": "iife",
+    "bundleType": "iffe",
     "frameworks": [],
     "languages": ["javascript"],
     "packageManager": "unknown",
@@ -30,7 +30,7 @@
   },
   "company": {
     "name": "Osano",
-    "website": "https://Osano.com",
+    "website": "https://www.osano.com",
     "avatar": "https://pbs.twimg.com/profile_images/1678452109229043712/Y6oQn0Sq_400x400.jpg"
   },
   "includes": {

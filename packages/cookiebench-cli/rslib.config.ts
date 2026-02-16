@@ -10,7 +10,7 @@ export default defineConfig({
 	lib: [
 		{
 			bundle: true,
-			dts: true,
+			dts: false,
 			format: "esm",
 		},
 	],

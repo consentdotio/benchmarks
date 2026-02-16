@@ -10,6 +10,8 @@ export type CookieBannerConfig = {
 	serviceName: string;
 };
 
+export type BundleType = "esm" | "cjs" | "iffe" | "bundled";
+
 export type Config = {
 	name: string;
 	url?: string;
@@ -30,7 +32,7 @@ export type Config = {
 	};
 	techStack: {
 		bundler: string;
-		bundleType: string | string[];
+		bundleType: BundleType | BundleType[];
 		frameworks: string[];
 		languages: string[];
 		packageManager: string;
@@ -122,7 +124,7 @@ export type NetworkMetrics = {
 export type BundleStrategy = {
 	isBundled: boolean;
 	isIIFE: boolean;
-	bundleType: string | string[] | undefined;
+	bundleType: BundleType | BundleType[] | undefined;
 };
 
 // Resource timing types

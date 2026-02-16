@@ -253,11 +253,10 @@ export class CookieBannerCollector {
 					}
 				};
 
-				// If DOM is already loaded, start immediately
-				if (document.readyState !== "loading") {
-					startDetection();
-				} else {
-					// Otherwise wait for DOMContentLoaded, but start immediately after
+				// Always start immediately to catch banners rendered very early.
+				startDetection();
+				if (document.readyState === "loading") {
+					// Run one more detection pass once DOM is fully parsed.
 					document.addEventListener("DOMContentLoaded", startDetection, {
 						once: true,
 					});

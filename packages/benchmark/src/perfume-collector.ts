@@ -239,7 +239,7 @@ export class PerfumeCollector {
 			};
 
 			const metrics: PerfumeMetrics = {
-				firstPaint: rawMetrics.FP?.value || 0,
+				firstPaint: rawMetrics.fp?.value || 0,
 				firstContentfulPaint: rawMetrics.FCP?.value || 0,
 				largestContentfulPaint: rawMetrics.LCP?.value || 0,
 				cumulativeLayoutShift: rawMetrics.CLS?.value || 0,

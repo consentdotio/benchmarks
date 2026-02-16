@@ -18,8 +18,11 @@
     "fmt": "biome format . --write",
     "lint": "biome lint ."
   },
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "dependencies": {
-    "@c15t/logger": "1.0.0",
+    "@c15t/logger": "^1.0.1",
     "@consentio/shared": "workspace:*",
     "@playwright/test": "^1.58.2",
     "perfume.js": "^9.4.0",

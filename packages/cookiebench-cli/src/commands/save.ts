@@ -9,6 +9,7 @@ import { config as loadDotenv } from "dotenv";
 import color from "picocolors";
 import type { BenchmarkScores } from "../types";
 import { isAdminUser } from "../utils/auth";
+import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores } from "../utils/scoring";
 import type { RawBenchmarkDetail } from "./results";
@@ -152,9 +153,10 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 
 async function loadConfigForApp(
 	logger: CliLogger,
-	appName: string
+	appName: string,
+	projectRoot: string
 ): Promise<Config | null> {
-	const configPath = join("benchmarks", appName, "config.json");
+	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
 		const configContent = await readFile(configPath, "utf-8");
@@ -167,7 +169,7 @@ async function loadConfigForApp(
 				languages: [],
 				frameworks: [],
 				bundler: "unknown",
-				bundleType: "unknown",
+				bundleType: "bundled",
 				packageManager: "unknown",
 				typescript: false,
 			},
@@ -213,7 +215,7 @@ function transformScoresToContract(
 			weight: category.weight,
 			details: category.details.map((detail) => ({
 				metric: detail.name,
-				value: detail.score,
+				value: detail.value ?? detail.score,
 				score: detail.score,
 				maxScore: detail.maxScore,
 				reason: detail.reason,
@@ -229,6 +231,8 @@ export async function saveCommand(
 	logger: CliLogger,
 	appName?: string
 ): Promise<void> {
+	const projectRoot = findProjectRoot();
+
 	// Double-check admin access (safeguard)
 	if (!isAdminUser()) {
 		logger.error("This command requires admin access");
@@ -267,7 +271,7 @@ export async function saveCommand(
 		logger.info(`Database: ${color.cyan("Local SQLite (benchmarks.db)")}`);
 	}
 
-	const resultsDir = "benchmarks";
+	const resultsDir = join(projectRoot, "benchmarks");
 	const resultsFiles = await findResultsFiles(resultsDir);
 
 	if (resultsFiles.length === 0) {
@@ -309,7 +313,7 @@ export async function saveCommand(
 			return;
 		}
 
-		await saveAppToDatabase(logger, appName, result);
+		await saveAppToDatabase(logger, appName, result, projectRoot);
 		logger.outro("Done!");
 		return;
 	}
@@ -364,7 +368,7 @@ export async function saveCommand(
 
 	for (const name of appsToSave) {
 		try {
-			await saveAppToDatabase(logger, name, allResults[name]);
+			await saveAppToDatabase(logger, name, allResults[name], projectRoot);
 			savedCount += 1;
 		} catch (error) {
 			if (error instanceof Error) {
@@ -393,10 +397,15 @@ export async function saveCommand(
 async function saveAppToDatabase(
 	logger: CliLogger,
 	appName: string,
-	result: BenchmarkOutput
+	result: BenchmarkOutput,
+	projectRoot: string
 ): Promise<void> {
-	const appConfig = await loadConfigForApp(logger, appName);
+	const appConfig = await loadConfigForApp(logger, appName, projectRoot);
 	const appResults = result.results;
+	if (appResults.length === 0) {
+		logger.warn(`Skipping ${appName}: no benchmark iterations found.`);
+		return;
+	}
 
 	// Calculate scores if not already in results
 	let scores = result.scores;
@@ -434,8 +443,17 @@ async function saveAppToDatabase(
 				timeToFirstByte:
 					appResults.reduce((a, b) => a + (b.timing.timeToFirstByte || 0), 0) /
 					appResults.length,
-				interactionToNextPaint:
-					appResults[0]?.timing.interactionToNextPaint || null,
+				interactionToNextPaint: (() => {
+					const validValues = appResults
+						.map((resultItem) => resultItem.timing.interactionToNextPaint)
+						.filter(
+							(inp): inp is number =>
+								inp !== null && inp !== undefined && Number.isFinite(inp)
+						);
+					return validValues.length > 0
+						? validValues.reduce((a, b) => a + b, 0) / validValues.length
+						: null;
+				})(),
 			},
 			{
 				totalSize:
@@ -467,13 +485,36 @@ async function saveAppToDatabase(
 				thirdPartyRequests:
 					appResults.reduce(
 						(a, b) =>
-							a + b.resources.scripts.filter((s) => s.isThirdParty).length,
+							a +
+							b.resources.scripts.filter((s) => s.isThirdParty).length +
+							b.resources.styles.filter((s) => s.isThirdParty).length +
+							b.resources.images.filter((s) => s.isThirdParty).length +
+							b.resources.fonts.filter((s) => s.isThirdParty).length +
+							b.resources.other.filter((s) => s.isThirdParty).length,
 						0
 					) / appResults.length,
 				thirdPartySize:
 					appResults.reduce((a, b) => a + b.size.thirdParty, 0) /
 					appResults.length,
-				thirdPartyDomains: 5,
+				thirdPartyDomains:
+					appResults.reduce((sum, appResult) => {
+						const thirdPartyHosts = new Set<string>();
+						const allThirdPartyResources = [
+							...appResult.resources.scripts.filter((r) => r.isThirdParty),
+							...appResult.resources.styles.filter((r) => r.isThirdParty),
+							...appResult.resources.images.filter((r) => r.isThirdParty),
+							...appResult.resources.fonts.filter((r) => r.isThirdParty),
+							...appResult.resources.other.filter((r) => r.isThirdParty),
+						];
+						for (const resource of allThirdPartyResources) {
+							try {
+								thirdPartyHosts.add(new URL(resource.name).hostname);
+							} catch {
+								// Ignore invalid URLs
+							}
+						}
+						return sum + thirdPartyHosts.size;
+					}, 0) / appResults.length,
 			},
 			{
 				cookieBannerDetected: appResults.some(

@@ -65,6 +65,7 @@ console.log(formatBytes(2097152)); // "2.00 MB"
 const config = readConfig<MyConfigType>('./my-config.json');
 
 // Use constants
+import { setTimeout } from "node:timers/promises"; // Promise-based setTimeout (Node.js 16+)
 await setTimeout(ONE_SECOND);
 
 // Convert sizes

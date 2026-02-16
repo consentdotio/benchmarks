@@ -2,14 +2,14 @@
   "name": "cookiebench",
   "private": true,
   "scripts": {
-    "benchmark": "pnpm exec cookiebench benchmark",
+    "benchmark": "pnpm turbo run build --filter=./packages/cookiebench-cli... && pnpm --filter ./packages/cookiebench-cli run start benchmark",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
-    "db": "pnpm exec cookiebench db",
+    "db": "pnpm turbo run build --filter=./packages/cookiebench-cli... && pnpm --filter ./packages/cookiebench-cli run start db",
     "dev": "turbo run dev --filter=benchmarks",
     "fmt": "turbo fmt",
     "lint": "turbo run lint",
-    "results": "pnpm exec cookiebench results"
+    "results": "pnpm turbo run build --filter=./packages/cookiebench-cli... && pnpm --filter ./packages/cookiebench-cli run start results"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.2",

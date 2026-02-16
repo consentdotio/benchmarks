@@ -10,7 +10,11 @@
       ".consent-banner",
       "[data-consent-banner]"
     ],
-    "serviceHosts": ["c15t.com", "consent.io"],
+    "serviceHosts": [
+      "c15t.com",
+      "consent.io",
+      "consent-io-europe-benchmarks.c15t.dev"
+    ],
     "waitForVisibility": true,
     "measureViewportCoverage": true,
     "expectedLayoutShift": false,
@@ -28,7 +32,7 @@
     "github": "github.com/c15t/c15t",
     "isOpenSource": true,
     "license": "GPL-3.0-only",
-    "npm": "@c15t/nextjs",
+    "npm": "@c15t/react@1.7.1",
     "website": "https://www.c15t.com"
   },
   "includes": {

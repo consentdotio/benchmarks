@@ -7,6 +7,7 @@ import { HALF_SECOND, PERCENTAGE_DIVISOR } from "@consentio/shared";
 import color from "picocolors";
 import type { BenchmarkScores } from "../types";
 import { DEFAULT_DOM_SIZE } from "../utils/constants";
+import { findProjectRoot } from "../utils/project-root";
 import type { CliLogger } from "../utils/logger";
 import { calculateScores, printScores } from "../utils/scoring";
 import type { RawBenchmarkDetail } from "./results";
@@ -44,9 +45,10 @@ async function findResultsFiles(dir: string): Promise<string[]> {
 
 async function loadConfigForApp(
 	logger: CliLogger,
-	appName: string
+	appName: string,
+	projectRoot: string
 ): Promise<Config | null> {
-	const configPath = join("benchmarks", appName, "config.json");
+	const configPath = join(projectRoot, "benchmarks", appName, "config.json");
 
 	try {
 		const configContent = await readFile(configPath, "utf-8");
@@ -97,7 +99,8 @@ export async function scoresCommand(logger: CliLogger, appName?: string) {
 
 	intro(`${color.bgCyan(color.black(" scores "))}`);
 
-	const resultsDir = "benchmarks";
+	const projectRoot = findProjectRoot();
+	const resultsDir = join(projectRoot, "benchmarks");
 	const resultsFiles = await findResultsFiles(resultsDir);
 
 	if (resultsFiles.length === 0) {
@@ -207,7 +210,14 @@ async function displayAppScores(
 	logger.debug("Calculating scores from raw benchmark data");
 
 	const appResults = result.results;
-	const config = await loadConfigForApp(logger, appName);
+	if (appResults.length === 0) {
+		logger.warn(
+			`No benchmark runs found for ${appName}, skipping score output.`
+		);
+		return;
+	}
+	const projectRoot = findProjectRoot();
+	const config = await loadConfigForApp(logger, appName, projectRoot);
 
 	if (!config) {
 		logger.warn(`Could not load config for ${appName}, using default values`);

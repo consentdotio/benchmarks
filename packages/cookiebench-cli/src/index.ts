@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { setTimeout } from "node:timers/promises";
 import { cancel, isCancel, select } from "@clack/prompts";
 import { HALF_SECOND } from "@consentio/shared";
@@ -28,7 +29,8 @@ async function main() {
 	await setTimeout(HALF_SECOND);
 
 	// Check for command line arguments
-	const args = process.argv.slice(2);
+	const rawArgs = process.argv.slice(2);
+	const args = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
 	const command = args[0];
 
 	// Show intro for interactive mode
@@ -41,7 +43,7 @@ async function main() {
 		// Direct command execution
 		switch (command) {
 			case "benchmark":
-				await benchmarkCommand(logger);
+				await benchmarkCommand(logger, args[1]);
 				break;
 			case "results":
 				await resultsCommand(logger, args[1]);
@@ -86,6 +88,11 @@ async function main() {
 				label: "Results",
 				hint: "View detailed benchmark results",
 			},
+			{
+				value: "scores",
+				label: "Scores",
+				hint: "View score-focused benchmark output",
+			},
 		];
 
 		// Add admin-only commands
@@ -118,6 +125,9 @@ async function main() {
 				break;
 			case "results":
 				await resultsCommand(logger);
+				break;
+			case "scores":
+				await scoresCommand(logger);
 				break;
 			case "save":
 				await saveCommand(logger);

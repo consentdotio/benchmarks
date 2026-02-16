@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
@@ -8,18 +8,20 @@ import color from "picocolors";
 import { isAdminUser } from "../utils/auth";
 import type { CliLogger } from "../utils/logger";
 
-const DB_PACKAGE_PATH = join(process.cwd(), "packages", "db");
-const DRIZZLE_CONFIG_PATH = join(DB_PACKAGE_PATH, "drizzle.config.ts");
+const DB_PACKAGE_RELATIVE_PATH = join("packages", "db");
 
-function ensureDbPackage(logger: CliLogger) {
-	if (!existsSync(DB_PACKAGE_PATH)) {
+function ensureDbPackage(logger: CliLogger, projectRoot: string) {
+	const dbPackagePath = join(projectRoot, DB_PACKAGE_RELATIVE_PATH);
+	const drizzleConfigPath = join(dbPackagePath, "drizzle.config.ts");
+
+	if (!existsSync(dbPackagePath)) {
 		logger.error(
 			"Database package not found. Make sure you are running this from the project root."
 		);
 		process.exit(1);
 	}
 
-	if (!existsSync(DRIZZLE_CONFIG_PATH)) {
+	if (!existsSync(drizzleConfigPath)) {
 		logger.error(
 			"Drizzle config not found. Make sure drizzle.config.ts exists in packages/db/"
 		);
@@ -27,12 +29,18 @@ function ensureDbPackage(logger: CliLogger) {
 	}
 }
 
-function runDrizzleCommand(logger: CliLogger, command: string): void {
+function runDrizzleCommand(
+	logger: CliLogger,
+	projectRoot: string,
+	command: string
+): void {
+	const dbPackagePath = join(projectRoot, DB_PACKAGE_RELATIVE_PATH);
+
 	try {
 		logger.step(`Running: ${color.cyan(`drizzle-kit ${command}`)}`);
-		execSync(`cd ${DB_PACKAGE_PATH} && pnpm drizzle-kit ${command}`, {
+		execFileSync("pnpm", ["drizzle-kit", command], {
+			cwd: dbPackagePath,
 			stdio: "inherit",
-			encoding: "utf-8",
 		});
 	} catch (error) {
 		logger.error(`Failed to run drizzle-kit ${command}`);
@@ -55,7 +63,8 @@ export async function dbCommand(logger: CliLogger, subcommand?: string) {
 
 	intro(`${color.bgBlue(color.white(" database "))} ${color.dim("v0.1.0")}`);
 
-	ensureDbPackage(logger);
+	const projectRoot = findProjectRoot();
+	ensureDbPackage(logger, projectRoot);
 
 	let selectedCommand = subcommand;
 
@@ -101,19 +110,19 @@ export async function dbCommand(logger: CliLogger, subcommand?: string) {
 
 	switch (selectedCommand) {
 		case "push":
-			await pushCommand(logger);
+			await pushCommand(logger, projectRoot);
 			break;
 		case "generate":
-			await generateCommand(logger);
+			await generateCommand(logger, projectRoot);
 			break;
 		case "migrate":
-			await migrateCommand(logger);
+			await migrateCommand(logger, projectRoot);
 			break;
 		case "studio":
-			await studioCommand(logger);
+			await studioCommand(logger, projectRoot);
 			break;
 		case "status":
-			await statusCommand(logger);
+			await statusCommand(logger, projectRoot);
 			break;
 		default:
 			logger.error(`Unknown subcommand: ${selectedCommand}`);
@@ -124,7 +133,7 @@ export async function dbCommand(logger: CliLogger, subcommand?: string) {
 	}
 }
 
-async function pushCommand(logger: CliLogger) {
+async function pushCommand(logger: CliLogger, projectRoot: string) {
 	logger.step("Pushing schema changes to database...");
 	logger.info("This will apply schema changes directly to your database.");
 	logger.warn("This is recommended for development only!");
@@ -139,16 +148,16 @@ async function pushCommand(logger: CliLogger) {
 		return;
 	}
 
-	runDrizzleCommand(logger, "push");
+	runDrizzleCommand(logger, projectRoot, "push");
 	logger.success("Schema pushed successfully!");
 	logger.outro("Database is now up to date with your schema.");
 }
 
-function generateCommand(logger: CliLogger) {
+function generateCommand(logger: CliLogger, projectRoot: string) {
 	logger.step("Generating migration files...");
 	logger.info("This will create SQL migration files based on schema changes.");
 
-	runDrizzleCommand(logger, "generate");
+	runDrizzleCommand(logger, projectRoot, "generate");
 	logger.success("Migration files generated!");
 	logger.info(
 		"Review the generated files in packages/db/drizzle/ before applying them."
@@ -156,7 +165,7 @@ function generateCommand(logger: CliLogger) {
 	logger.outro(`Run ${color.cyan("cli db migrate")} to apply the migrations.`);
 }
 
-async function migrateCommand(logger: CliLogger) {
+async function migrateCommand(logger: CliLogger, projectRoot: string) {
 	logger.step("Running migrations...");
 	logger.info("This will apply pending migration files to your database.");
 
@@ -171,7 +180,7 @@ async function migrateCommand(logger: CliLogger) {
 	}
 
 	try {
-		runDrizzleCommand(logger, "migrate");
+		runDrizzleCommand(logger, projectRoot, "migrate");
 		logger.success("Migrations completed successfully!");
 		logger.outro("Database is now up to date.");
 	} catch (error) {
@@ -183,7 +192,7 @@ async function migrateCommand(logger: CliLogger) {
 	}
 }
 
-function studioCommand(logger: CliLogger) {
+function studioCommand(logger: CliLogger, projectRoot: string) {
 	logger.step("Opening Drizzle Studio...");
 	logger.info(
 		"This will start a web interface to browse and edit your database."
@@ -191,7 +200,7 @@ function studioCommand(logger: CliLogger) {
 	logger.info("Press Ctrl+C to stop the studio when you're done.");
 
 	try {
-		runDrizzleCommand(logger, "studio");
+		runDrizzleCommand(logger, projectRoot, "studio");
 	} catch {
 		// Studio command might be interrupted by Ctrl+C, which is normal
 		logger.info("Studio closed.");
@@ -216,12 +225,10 @@ function findProjectRoot(): string {
 	return process.cwd();
 }
 
-async function statusCommand(logger: CliLogger) {
+async function statusCommand(logger: CliLogger, projectRoot: string) {
 	logger.step("Checking migration status...");
 
 	try {
-		// Check if database exists at project root
-		const projectRoot = findProjectRoot();
 		const dbPath = join(projectRoot, "benchmarks.db");
 		if (!existsSync(dbPath)) {
 			logger.warn("Database file does not exist yet.");
@@ -232,7 +239,11 @@ async function statusCommand(logger: CliLogger) {
 		}
 
 		// Check migrations folder
-		const migrationsPath = join(DB_PACKAGE_PATH, "drizzle");
+		const migrationsPath = join(
+			projectRoot,
+			DB_PACKAGE_RELATIVE_PATH,
+			"drizzle"
+		);
 		if (!existsSync(migrationsPath)) {
 			logger.warn("No migrations found.");
 			logger.info(

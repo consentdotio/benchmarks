@@ -4,6 +4,19 @@
 import { DidomiSDK, type IDidomiObject } from "@didomi/react";
 import { type ReactNode, useCallback, useState } from "react";
 
+const DEBUG_DIDOMI =
+	process.env.NEXT_PUBLIC_DEBUG_DIDOMI === "true" ||
+	process.env.DEBUG_DIDOMI === "true";
+const TOKEN_VISIBLE_CHARS = 4;
+
+function redactToken(token: string): string {
+	if (!token) {
+		return "****";
+	}
+	const last4 = token.slice(-TOKEN_VISIBLE_CHARS);
+	return `****${last4}`;
+}
+
 export default function RootLayout({
 	children,
 }: Readonly<{
@@ -13,18 +26,19 @@ export default function RootLayout({
 
 	const onDidomiReady = useCallback((didomi: IDidomiObject) => {
 		setDidomiObject(didomi);
-		console.log(
-			"Didomi Ready - Is consent required?:",
-			didomi.isConsentRequired()
-		);
-		console.log(
-			"Didomi Ready - Consent for vendor IAB 1:",
-			didomi.getUserConsentStatusForVendor(1)
-		);
-		console.log(
-			"Didomi Ready - Consent for vendor IAB 1 and cookies:",
-			didomi.getUserConsentStatus("cookies", 1)
-		);
+		if (!DEBUG_DIDOMI) {
+			return;
+		}
+
+		console.log("Didomi ready", {
+			consentRequired: didomi.isConsentRequired(),
+			vendor1Consent: didomi.getUserConsentStatusForVendor(1)
+				? "granted"
+				: "denied",
+			vendor1CookiesConsent: didomi.getUserConsentStatus("cookies", 1)
+				? "granted"
+				: "denied",
+		});
 	}, []);
 
 	const onConsentChanged = useCallback(
@@ -32,19 +46,20 @@ export default function RootLayout({
 			if (!didomiObject) {
 				return;
 			}
-			console.log("Didomi Consent Changed - cwtToken:", cwtToken);
-			console.log(
-				"Didomi Consent Changed - Is consent required?:",
-				didomiObject.isConsentRequired()
-			);
-			console.log(
-				"Didomi Consent Changed - Consent for vendor IAB 1:",
-				didomiObject.getUserConsentStatusForVendor(1)
-			);
-			console.log(
-				"Didomi Consent Changed - Consent for vendor IAB 1 and cookies:",
-				didomiObject.getUserConsentStatus("cookies", 1)
-			);
+			if (!DEBUG_DIDOMI) {
+				return;
+			}
+
+			console.log("Didomi consent changed", {
+				cwtToken: redactToken(cwtToken),
+				consentRequired: didomiObject.isConsentRequired(),
+				vendor1Consent: didomiObject.getUserConsentStatusForVendor(1)
+					? "granted"
+					: "denied",
+				vendor1CookiesConsent: didomiObject.getUserConsentStatus("cookies", 1)
+					? "granted"
+					: "denied",
+			});
 		},
 		[didomiObject]
 	);
@@ -58,8 +73,16 @@ export default function RootLayout({
 					gdprAppliesGlobally={true}
 					iabVersion={2}
 					onConsentChanged={onConsentChanged}
-					onNoticeHidden={() => console.log("Didomi Notice Hidden")}
-					onNoticeShown={() => console.log("Didomi Notice Shown")}
+					onNoticeHidden={() => {
+						if (DEBUG_DIDOMI) {
+							console.log("Didomi notice hidden");
+						}
+					}}
+					onNoticeShown={() => {
+						if (DEBUG_DIDOMI) {
+							console.log("Didomi notice shown");
+						}
+					}}
 					onReady={onDidomiReady}
 				/>
 				{children}

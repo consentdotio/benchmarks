@@ -285,5 +285,5 @@ If you have questions about our methodology or suggestions for improvement, plea
 
 ---
 
-**Last Updated**: 2025-10-31  
+**Last Updated**: 2026-02-16  
 **Version**: 2.0

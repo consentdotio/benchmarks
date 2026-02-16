@@ -15,13 +15,16 @@ export function bytesToKB(bytes: number): number {
  * @returns Formatted string (e.g., "1.50 KB", "2.00 MB")
  */
 export function formatBytes(bytes: number): string {
-	if (bytes === 0) {
+	if (!Number.isFinite(bytes) || bytes <= 0) {
 		return "0 bytes";
 	}
-	const k = KILOBYTE;
-	const sizes = ["bytes", "KB", "MB", "GB"];
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+	const safeBytes = Math.max(0, bytes);
+	const sizes = ["bytes", "KB", "MB", "GB", "TB", "PB"];
+	const rawIndex = Math.floor(Math.log(safeBytes) / Math.log(KILOBYTE));
+	const unitIndex = Math.max(0, Math.min(rawIndex, sizes.length - 1));
+	const normalizedValue = safeBytes / KILOBYTE ** unitIndex;
+	const safeValue = Number.isFinite(normalizedValue) ? normalizedValue : 0;
+	return `${Number.parseFloat(safeValue.toFixed(2))} ${sizes[unitIndex]}`;
 }
 
 /**

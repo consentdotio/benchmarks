@@ -3,21 +3,31 @@ import type { BundleStrategy, Config } from "./types";
 
 export function determineBundleStrategy(config: Config): BundleStrategy {
 	const bundleType = config.techStack?.bundleType;
+	const rawBundleType = bundleType as string | string[] | undefined;
+	const legacyIifeType = "iife";
 
 	const isIIFE =
-		bundleType === BUNDLE_TYPES.IIFE ||
-		(Array.isArray(bundleType) && bundleType.includes(BUNDLE_TYPES.IIFE));
+		rawBundleType === BUNDLE_TYPES.IIFE ||
+		rawBundleType === BUNDLE_TYPES.IFFE ||
+		rawBundleType === legacyIifeType ||
+		(Array.isArray(rawBundleType) &&
+			(rawBundleType.includes(BUNDLE_TYPES.IIFE) ||
+				rawBundleType.includes(BUNDLE_TYPES.IFFE) ||
+				rawBundleType.includes(legacyIifeType)));
 
 	const isModuleBundleType =
-		bundleType === BUNDLE_TYPES.ESM ||
-		bundleType === BUNDLE_TYPES.CJS ||
-		bundleType === BUNDLE_TYPES.BUNDLED;
+		rawBundleType === BUNDLE_TYPES.ESM ||
+		rawBundleType === BUNDLE_TYPES.CJS ||
+		rawBundleType === BUNDLE_TYPES.BUNDLED;
 
 	const isArrayWithModules =
-		Array.isArray(bundleType) &&
-		(bundleType.includes(BUNDLE_TYPES.ESM) ||
-			bundleType.includes(BUNDLE_TYPES.CJS) ||
-			bundleType.includes(BUNDLE_TYPES.BUNDLED));
+		Array.isArray(rawBundleType) &&
+		(rawBundleType.includes(BUNDLE_TYPES.ESM) ||
+			rawBundleType.includes(BUNDLE_TYPES.CJS) ||
+			rawBundleType.includes(BUNDLE_TYPES.BUNDLED) ||
+			rawBundleType.includes(BUNDLE_TYPES.IIFE) ||
+			rawBundleType.includes(BUNDLE_TYPES.IFFE) ||
+			rawBundleType.includes(legacyIifeType));
 
 	const isBundled = !isIIFE && (isModuleBundleType || isArrayWithModules);
 

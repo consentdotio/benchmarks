@@ -1193,12 +1193,12 @@ export function calculateScores(
 	const resourceData: ResourceData[] = [
 		{ size: bundleMetrics.jsSize, isThirdParty: false },
 		{ size: bundleMetrics.cssSize, isThirdParty: false },
-		...new Array(networkMetrics.thirdPartyRequests).fill({
+		...Array.from({ length: networkMetrics.thirdPartyRequests }, () => ({
 			size:
 				networkMetrics.thirdPartySize /
 				Math.max(networkMetrics.thirdPartyRequests, 1),
 			isThirdParty: true,
-		}),
+		})),
 	];
 
 	// Create benchmark data
@@ -1417,6 +1417,26 @@ export function printScores(scores: BenchmarkScores): void {
 		}
 	}
 
-	// Insights and recommendations are included in the scores object
-	// They can be accessed via scores.insights and scores.recommendations
+	// biome-ignore lint/suspicious/noConsole: CLI output table
+	console.log(overallTable.toString());
+	// biome-ignore lint/suspicious/noConsole: CLI output table
+	console.log(detailsTable.toString());
+
+	if (scores.insights.length > 0) {
+		// biome-ignore lint/suspicious/noConsole: CLI output section
+		console.log("\nInsights:");
+		for (const insight of scores.insights) {
+			// biome-ignore lint/suspicious/noConsole: CLI output list
+			console.log(`- ${insight}`);
+		}
+	}
+
+	if (scores.recommendations.length > 0) {
+		// biome-ignore lint/suspicious/noConsole: CLI output section
+		console.log("\nRecommendations:");
+		for (const recommendation of scores.recommendations) {
+			// biome-ignore lint/suspicious/noConsole: CLI output list
+			console.log(`- ${recommendation}`);
+		}
+	}
 }

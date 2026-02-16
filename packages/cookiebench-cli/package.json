@@ -15,6 +15,7 @@
     "dev": "rslib build --watch",
     "fmt": "biome format . --write",
     "lint": "biome lint .",
+    "prestart": "pnpm -w turbo run build --filter=./packages/cookiebench-cli...",
     "start": "node ./dist/index.mjs"
   },
   "dependencies": {

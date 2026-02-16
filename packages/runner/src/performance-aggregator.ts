@@ -172,7 +172,7 @@ export class PerformanceAggregator {
 				largestContentfulPaint: coreWebVitals.largestContentfulPaint || 0,
 				timeToInteractive: tti,
 				cumulativeLayoutShift: coreWebVitals.cumulativeLayoutShift || 0,
-				timeToFirstByte: perfumeMetrics?.timeToFirstByte ?? 0,
+				timeToFirstByte: perfumeMetrics?.timeToFirstByte ?? null,
 				firstInputDelay: perfumeMetrics?.firstInputDelay ?? null,
 				interactionToNextPaint: perfumeMetrics?.interactionToNextPaint ?? null,
 				navigationTiming: perfumeMetrics?.navigationTiming ?? {
@@ -254,7 +254,9 @@ export class PerformanceAggregator {
 		const lcpValues = results.map((r) => r.timing.largestContentfulPaint);
 		const ttiValues = results.map((r) => r.timing.timeToInteractive);
 		const tbtValues = results.map((r) => r.timing.mainThreadBlocking.total);
-		const ttfbValues = results.map((r) => r.timing.timeToFirstByte || 0);
+		const ttfbValues = results
+			.map((r) => r.timing.timeToFirstByte)
+			.filter((value): value is number => value !== null && value > 0);
 		const fidValues = results
 			.map((r) => r.timing.firstInputDelay || 0)
 			.filter((v) => v > 0);
@@ -305,7 +307,10 @@ export class PerformanceAggregator {
 			timeToInteractive: calculateTrimmedMean(ttiValues, TRIM_PERCENT),
 			totalBlockingTime: calculateTrimmedMean(tbtValues, TRIM_PERCENT),
 			speedIndex: 0, // Default value
-			timeToFirstByte: calculateTrimmedMean(ttfbValues, TRIM_PERCENT),
+			timeToFirstByte:
+				ttfbValues.length > 0
+					? calculateTrimmedMean(ttfbValues, TRIM_PERCENT)
+					: 0,
 			firstInputDelay:
 				fidValues.length > 0
 					? calculateTrimmedMean(fidValues, TRIM_PERCENT)
@@ -409,9 +414,11 @@ export class PerformanceAggregator {
 			tti: finalMetrics.timing.timeToInteractive,
 			tbt: finalMetrics.timing.mainThreadBlocking.total,
 			bannerDetected: finalMetrics.cookieBanner.detected,
-			bannerRenderTime:
+			bannerRenderTime: Math.max(
+				0,
 				finalMetrics.timing.cookieBanner.renderEnd -
-				finalMetrics.timing.cookieBanner.renderStart,
+					finalMetrics.timing.cookieBanner.renderStart
+			),
 			bannerLayoutShift: finalMetrics.timing.cookieBanner.layoutShift,
 			bannerNetworkImpact: finalMetrics.thirdParty.totalImpact,
 			bundleStrategy,

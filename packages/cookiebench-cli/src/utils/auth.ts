@@ -4,7 +4,7 @@
  */
 export function isAdminUser(): boolean {
 	// Check for admin flag in environment
-	const adminFlag = process.env.CONSENT_ADMIN;
+	const adminFlag = (process.env.CONSENT_ADMIN || "").trim().toLowerCase();
 
 	// Accept 'true', '1', 'yes' as valid values
 	return adminFlag === "true" || adminFlag === "1" || adminFlag === "yes";

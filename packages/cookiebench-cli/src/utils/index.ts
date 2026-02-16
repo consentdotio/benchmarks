@@ -17,6 +17,7 @@ export {
 // Re-export local constants
 
 export * from "./constants";
+export { findProjectRoot, resolveBenchmarkPath } from "./project-root";
 
 export function readConfig(configPath?: string): Config | null {
 	return readConfigShared<Config>(configPath);
