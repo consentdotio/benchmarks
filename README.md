@@ -19,11 +19,11 @@ For detailed information about how benchmarks are measured, see [METHODOLOGY.md]
 ### Additional Metrics
 - **Total Time**: Complete page load time
 - **Script Load Time**: Time taken to load and execute JavaScript
-- **Banner Render Time**: Technical render time (when element appears in DOM)
-- **Banner Visibility Time**: User-perceived visibility time (when opacity > 0.5, accounts for CSS animations)
+- **DOM presence time**: Technical render time (when element appears in DOM); collected every run
+- **User-visible time**: When banner is visible to users (opacity > 0.5); **used for scoring**; collected every run
 - **Banner Interactive Time**: Time until banner buttons become clickable
 
-See [METHODOLOGY.md](./METHODOLOGY.md) for detailed explanation of render time vs visibility time.
+Both DOM presence and user-visible timings are collected in every run and shown in results. Scoring uses **user-visible time** by default. See [METHODOLOGY.md](./METHODOLOGY.md) for details.
 
 ### Resource Size Metrics
 - **Total Size**: Combined size of all resources

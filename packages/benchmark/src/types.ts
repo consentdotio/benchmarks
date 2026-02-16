@@ -97,8 +97,14 @@ export type CookieBannerMetrics = {
 export type CookieBannerData = {
 	detected: boolean;
 	selector: string | null;
-	bannerRenderTime: number; // Technical: when banner is painted to screen
-	bannerVisibilityTime: number; // UX: when banner is actually visible to users (opacity > 0.5)
+	/** DOM presence time (ms): when banner is first painted to screen (technical render). */
+	bannerRenderTime: number;
+	/** User-visible time (ms): when banner is actually visible to users (opacity > 0.5). Used for scoring. */
+	bannerVisibilityTime: number;
+	/** Explicit alias for downstream; same as bannerRenderTime. */
+	domPresenceTime?: number;
+	/** Explicit alias for downstream; same as bannerVisibilityTime. */
+	userVisibleTime?: number;
 	bannerInteractiveTime: number;
 	bannerHydrationTime: number;
 	layoutShiftImpact: number;

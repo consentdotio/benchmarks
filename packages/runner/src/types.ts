@@ -77,6 +77,10 @@ export type BenchmarkDetails = {
 			selector: string | null;
 			serviceName: string;
 			visibilityTime: number | null;
+			/** DOM presence time (ms). Alias for renderStart; explicit for downstream consumers. */
+			domPresenceTime: number;
+			/** User-visible time (ms). Alias for visibilityTime; used for scoring. */
+			userVisibleTime: number;
 			viewportCoverage: number;
 		};
 		thirdParty: {
@@ -280,6 +284,8 @@ type EnhancedCookieBannerTiming = {
 	selector: string | null;
 	serviceName: string;
 	visibilityTime: number | null;
+	domPresenceTime: number;
+	userVisibleTime: number;
 	viewportCoverage: number;
 };
 

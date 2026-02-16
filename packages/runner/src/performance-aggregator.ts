@@ -72,8 +72,13 @@ export class PerformanceAggregator {
 		cookieBannerData: CookieBannerData | null,
 		config: Config
 	) {
+		const domPresenceTime = cookieBannerData?.bannerRenderTime || 0;
+		const userVisibleTime =
+			cookieBannerData?.bannerVisibilityTime ||
+			cookieBannerData?.bannerInteractiveTime ||
+			0;
 		return {
-			renderStart: cookieBannerData?.bannerRenderTime || 0,
+			renderStart: domPresenceTime,
 			renderEnd: cookieBannerData?.bannerInteractiveTime || 0,
 			interactionStart: cookieBannerData?.bannerInteractiveTime || 0,
 			interactionEnd: cookieBannerData?.bannerInteractiveTime || 0,
@@ -81,16 +86,9 @@ export class PerformanceAggregator {
 			detected: cookieBannerData?.detected ?? false,
 			selector: cookieBannerData?.selector ?? null,
 			serviceName: config.cookieBanner?.serviceName ?? "unknown",
-			/**
-			 * Primary visibility metric: Uses bannerVisibilityTime (opacity > 0.5, user-perceived)
-			 * which accounts for CSS transitions. Falls back to interactiveTime if visibilityTime
-			 * not available. This metric is used for scoring to ensure results reflect actual
-			 * user experience rather than just technical render time.
-			 */
-			visibilityTime:
-				cookieBannerData?.bannerVisibilityTime ||
-				cookieBannerData?.bannerInteractiveTime ||
-				0,
+			visibilityTime: userVisibleTime,
+			domPresenceTime,
+			userVisibleTime,
 			viewportCoverage: cookieBannerData?.viewportCoverage || 0,
 		};
 	}
@@ -204,6 +202,11 @@ export class PerformanceAggregator {
 				selector: cookieBannerData?.selector ?? null,
 				serviceName: config.cookieBanner?.serviceName ?? "unknown",
 				visibilityTime:
+					cookieBannerData?.bannerVisibilityTime ||
+					cookieBannerData?.bannerInteractiveTime ||
+					0,
+				domPresenceTime: cookieBannerData?.bannerRenderTime || 0,
+				userVisibleTime:
 					cookieBannerData?.bannerVisibilityTime ||
 					cookieBannerData?.bannerInteractiveTime ||
 					0,

@@ -8,23 +8,23 @@ CookieBench measures the performance impact of cookie consent solutions on web a
 
 ## Measurement Approach
 
-### Banner Render Time vs Visibility Time
+### Dual Banner Timing Modes (DOM Presence vs User-Visible)
 
-We track two distinct metrics for banner appearance:
+Every benchmark run collects **both** timing modes for the cookie banner:
 
-**Banner Render Time** (Technical Metric):
+**DOM presence time** (technical render):
 
 - Measures when the banner element first appears in the DOM
 - Recorded when the element has dimensions (`width > 0`, `height > 0`) and is not hidden
-- Represents technical implementation performance
-- This metric is tracked for reference but not used in primary scoring
+- Exposed in results as `domPresenceTime` (alias: `bannerRenderTime` / `renderStart`)
+- Tracked for reference and displayed alongside user-visible time; **not used for scoring**
 
-**Banner Visibility Time** (User-Perceived Metric):
+**User-visible time** (opacity-threshold visibility):
 
-- Measures when the banner becomes visible to users
+- Measures when the banner becomes visible to users (opacity > 0.5)
 - Uses opacity threshold of **0.5** to account for CSS animations and transitions
-- Represents actual user experience - when users can see and interact with the banner
-- This metric is used for scoring and primary comparisons
+- Exposed in results as `userVisibleTime` (alias: `bannerVisibilityTime` / `visibilityTime`)
+- **This metric is used for scoring and primary comparisons** by default
 
 **Why This Distinction Matters**:
 
@@ -85,12 +85,13 @@ Any future changes to network conditions will be clearly documented and versione
 
 ### Primary Metrics (Used for Scoring)
 
-**Banner Visibility Time**:
+**User-visible time** (used for scoring):
 
 - Time from `navigationStart` until banner opacity > 0.5
-- Primary metric for UX scoring
+- Primary metric for UX scoring; scoring is based on this value, not DOM presence time
 - Accounts for CSS animations
 - Measured in milliseconds
+- Both DOM presence and user-visible times are collected each run and shown in CLI results
 
 **Banner Interactive Time**:
 

@@ -736,36 +736,37 @@ function calculateUXScore(
 							: "Significant shifts",
 	});
 
-	// Banner render time (35 points)
-	const renderTime = Number.isFinite(benchmarkData.bannerRenderTime)
-		? benchmarkData.bannerRenderTime || 0
-		: metrics.bannerVisibilityTime || 0;
+	// Banner visible time (35 points) — scored from user-visible time only, not DOM presence
+	const bannerVisibleTimeMs =
+		Number.isFinite(benchmarkData.bannerRenderTime)
+			? benchmarkData.bannerRenderTime || 0
+			: metrics.bannerVisibilityTime || 0;
 	const renderScore =
-		renderTime <= 25
+		bannerVisibleTimeMs <= 25
 			? 35
-			: renderTime <= 50
+			: bannerVisibleTimeMs <= 50
 				? 25
-				: renderTime <= 100
+				: bannerVisibleTimeMs <= 100
 					? 15
-					: renderTime <= 200
+					: bannerVisibleTimeMs <= 200
 						? 10
 						: 5;
 	totalScore += renderScore;
 	details.push({
-		metric: "Banner Render Time",
-		value: formatTime(renderTime),
+		metric: "Banner visible time",
+		value: formatTime(bannerVisibleTimeMs),
 		score: renderScore,
 		maxScore: 35,
 		reason:
-			renderTime <= 25
-				? "Instant render"
-				: renderTime <= 50
-					? "Very fast render"
-					: renderTime <= 100
-						? "Fast render"
-						: renderTime <= 200
-							? "Moderate render"
-							: "Slow render",
+			bannerVisibleTimeMs <= 25
+				? "Instant visibility"
+				: bannerVisibleTimeMs <= 50
+					? "Very fast visibility"
+					: bannerVisibleTimeMs <= 100
+						? "Fast visibility"
+						: bannerVisibleTimeMs <= 200
+							? "Moderate visibility"
+							: "Slow visibility",
 	});
 
 	// Viewport coverage impact (25 points)
@@ -1031,9 +1032,11 @@ export function calculateScores(
 		thirdPartySize: number;
 		thirdPartyDomains: number;
 	},
+	/** Must use user-visible time (opacity > 0.5), not DOM presence time, for scoring. */
 	transparencyMetrics: {
 		cookieBannerDetected: boolean;
-		cookieBannerTiming: number | null;
+		/** User-visible time (ms). Do not pass DOM presence time here. */
+		cookieBannerVisibleTimeMs: number | null;
 		cookieBannerCoverage: number;
 	},
 	userExperienceMetrics: {
@@ -1168,7 +1171,7 @@ export function calculateScores(
 		tags: null,
 	};
 
-	// Create metrics data
+	// Create metrics data (scoring uses user-visible time only; cookieBannerVisibleTimeMs must be user-visible)
 	const metricsData: MetricsData = {
 		fcp: metrics.fcp,
 		lcp: metrics.lcp,
@@ -1177,7 +1180,7 @@ export function calculateScores(
 		tbt: metrics.tbt,
 		totalSize: bundleMetrics.totalSize,
 		thirdPartySize: networkMetrics.thirdPartySize,
-		bannerVisibilityTime: transparencyMetrics.cookieBannerTiming || 0,
+		bannerVisibilityTime: transparencyMetrics.cookieBannerVisibleTimeMs || 0,
 		viewportCoverage: transparencyMetrics.cookieBannerCoverage * 100,
 		resourceCount: networkMetrics.totalRequests,
 		scriptLoadTime: 0, // TODO: Calculate from timing data
@@ -1201,9 +1204,9 @@ export function calculateScores(
 		})),
 	];
 
-	// Create benchmark data
+	// Create benchmark data (bannerRenderTime slot holds user-visible time for scoring; do not use DOM presence)
 	const benchmarkData: BenchmarkData = {
-		bannerRenderTime: transparencyMetrics.cookieBannerTiming || 0,
+		bannerRenderTime: transparencyMetrics.cookieBannerVisibleTimeMs || 0,
 		bannerInteractionTime: userExperienceMetrics.mainThreadBlocking,
 		layoutShift: userExperienceMetrics.layoutShifts,
 	};

@@ -92,6 +92,10 @@ export type RawBenchmarkDetail = {
 			selector: string | null;
 			serviceName: string;
 			visibilityTime: number;
+			/** DOM presence time (ms). Present when reading runner output. */
+			domPresenceTime?: number;
+			/** User-visible time (ms). Present when reading runner output; used for scoring. */
+			userVisibleTime?: number;
 			viewportCoverage: number;
 		};
 		thirdParty: {
@@ -471,10 +475,16 @@ function printDetailedResults(
 		}
 	}
 
-	// Calculate averages
-	const avgBannerVisibility =
-		results.reduce((a, b) => a + b.timing.cookieBanner.visibilityTime, 0) /
-		results.length;
+	// Calculate averages (support both timing modes; scoring uses user-visible)
+	const getUserVisibleTimeMs = (r: RawBenchmarkDetail) =>
+		r.timing.cookieBanner.userVisibleTime ??
+		r.timing.cookieBanner.visibilityTime;
+	const getDomPresenceTimeMs = (r: RawBenchmarkDetail) =>
+		r.timing.cookieBanner.domPresenceTime ?? r.timing.cookieBanner.renderStart;
+	const avgBannerDomPresenceTimeMs =
+		results.reduce((a, b) => a + getDomPresenceTimeMs(b), 0) / results.length;
+	const avgBannerVisibleTimeMs =
+		results.reduce((a, b) => a + getUserVisibleTimeMs(b), 0) / results.length;
 	const avgViewportCoverage =
 		results.reduce((a, b) => a + b.timing.cookieBanner.viewportCoverage, 0) /
 		results.length;
@@ -524,18 +534,21 @@ function printDetailedResults(
 	const otherFiles =
 		results.reduce((a, b) => a + b.resources.other.length, 0) / results.length;
 
-	// Calculate deltas if baseline exists
+	// Calculate deltas if baseline exists (user-visible is used for scoring)
 	let bannerDelta = "";
 	if (baseline && appName !== "baseline") {
 		const baselineAvgBanner =
-			baseline.reduce((a, b) => a + b.timing.cookieBanner.visibilityTime, 0) /
+			baseline.reduce((a, b) => a + getUserVisibleTimeMs(b), 0) /
 			baseline.length;
-		const delta = avgBannerVisibility - baselineAvgBanner;
+		const delta = avgBannerVisibleTimeMs - baselineAvgBanner;
 		bannerDelta = ` ${delta > 0 ? "+" : ""}${formatTime(delta)}`;
 	}
 
-	// ━━━ Cookie Banner Impact ━━━
+	// ━━━ Cookie Banner Impact (dual timing modes) ━━━
 	console.log(`\n${color.bold("🍪 Cookie Banner Impact")}`);
+	console.log(
+		color.dim("  Dual timing: DOM presence (technical) | Banner visible (used for score)")
+	);
 	const bannerTable = new Table({
 		chars: { mid: "", "left-mid": "", "mid-mid": "", "right-mid": "" },
 		style: { "padding-left": 2, "padding-right": 2, border: ["grey"] },
@@ -543,13 +556,15 @@ function printDetailedResults(
 
 	bannerTable.push(
 		[
-			{ content: "Banner Visibility", colSpan: 1 },
+			{ content: "DOM presence", colSpan: 1 },
+			{ content: "Banner visible (scored)", colSpan: 1 },
 			{ content: "Viewport Coverage", colSpan: 1 },
 			{ content: "Network Impact", colSpan: 1 },
 			{ content: "Bundle Strategy", colSpan: 1 },
 		],
 		[
-			`${color.bold(formatTime(avgBannerVisibility))}\n${color.dim(bannerDelta || "baseline")}`,
+			`${color.bold(formatTime(avgBannerDomPresenceTimeMs))}\n${color.dim("Technical render")}`,
+			`${color.bold(formatTime(avgBannerVisibleTimeMs))}\n${color.dim(bannerDelta || "baseline")}`,
 			`${color.bold(`${avgViewportCoverage.toFixed(1)}%`)}\n${color.dim("Screen real estate")}`,
 			`${color.bold(formatBytes(avgNetworkImpact * KILOBYTE))}\n${color.dim(isBundled ? "Bundled (no network)" : "External requests")}`,
 			`${color.bold(isBundled ? "Bundled" : "External")}\n${color.dim(isBundled ? "Included in main bundle" : "Loaded from CDN")}`,
@@ -667,7 +682,7 @@ function printDetailedResults(
 
 	summaryTable.push(
 		["Loading Strategy", color.bold(isBundled ? "Bundled" : "External")],
-		["Render Performance", color.bold(formatTime(avgBannerVisibility))],
+		["Render Performance", color.bold(formatTime(avgBannerVisibleTimeMs))],
 		["Network Overhead", color.bold(formatBytes(avgNetworkImpact * KILOBYTE))],
 		["Main Thread Impact", color.bold(formatTime(avgTBT))],
 		["Layout Stability", color.bold(layoutStability)],
@@ -1110,9 +1125,12 @@ export async function resultsCommand(
 				cookieBannerDetected: appResults.some(
 					(r) => r.timing.cookieBanner.detected
 				),
-				cookieBannerTiming:
+				cookieBannerVisibleTimeMs:
 					appResults.reduce(
-						(a, b) => a + b.timing.cookieBanner.visibilityTime,
+						(a, b) =>
+							a +
+							(b.timing.cookieBanner.userVisibleTime ??
+								b.timing.cookieBanner.visibilityTime),
 						0
 					) / appResults.length,
 				cookieBannerCoverage:

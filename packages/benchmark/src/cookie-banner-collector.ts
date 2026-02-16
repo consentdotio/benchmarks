@@ -304,33 +304,27 @@ export class CookieBannerCollector {
 					metrics.clsObserver = undefined;
 				}
 
+				const domPresenceTime =
+					metrics.detected && metrics.bannerFirstSeen > 0
+						? metrics.bannerFirstSeen - metrics.pageLoadStart
+						: 0;
+				const userVisibleTime = (() => {
+					if (metrics.detected && metrics.bannerVisibleTime > 0) {
+						return metrics.bannerVisibleTime - metrics.pageLoadStart;
+					}
+					if (metrics.detected && metrics.bannerFirstSeen > 0) {
+						return metrics.bannerFirstSeen - metrics.pageLoadStart;
+					}
+					return 0;
+				})();
+
 				return {
 					detected: metrics.detected,
 					selector: metrics.selector,
-					/**
-					 * Technical render time: When banner element first appeared in DOM.
-					 * Measured from navigationStart. This is tracked for reference but
-					 * not used in primary scoring.
-					 */
-					bannerRenderTime:
-						metrics.detected && metrics.bannerFirstSeen > 0
-							? metrics.bannerFirstSeen - metrics.pageLoadStart
-							: 0,
-					/**
-					 * User-perceived visibility time: When banner becomes visible to users.
-					 * Uses opacity threshold (0.5) to account for CSS animations. This is the
-					 * primary metric used for scoring. Falls back to render time if visibility
-					 * time was not recorded (e.g., banner rendered with opacity already > 0.5).
-					 */
-					bannerVisibilityTime: (() => {
-						if (metrics.detected && metrics.bannerVisibleTime > 0) {
-							return metrics.bannerVisibleTime - metrics.pageLoadStart;
-						}
-						if (metrics.detected && metrics.bannerFirstSeen > 0) {
-							return metrics.bannerFirstSeen - metrics.pageLoadStart;
-						}
-						return 0; // Fallback to render time if visibility time not set
-					})(),
+					bannerRenderTime: domPresenceTime,
+					bannerVisibilityTime: userVisibleTime,
+					domPresenceTime,
+					userVisibleTime,
 					bannerInteractiveTime:
 						metrics.detected && metrics.bannerInteractive > 0
 							? metrics.bannerInteractive - metrics.pageLoadStart

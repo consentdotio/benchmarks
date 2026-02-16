@@ -334,9 +334,12 @@ async function displayAppScores(
 			cookieBannerDetected: appResults.some(
 				(r) => r.timing.cookieBanner.detected
 			),
-			cookieBannerTiming:
+			cookieBannerVisibleTimeMs:
 				appResults.reduce(
-					(a, b) => a + b.timing.cookieBanner.visibilityTime,
+					(a, b) =>
+						a +
+						(b.timing.cookieBanner.userVisibleTime ??
+							b.timing.cookieBanner.visibilityTime),
 					0
 				) / appResults.length,
 			cookieBannerCoverage:

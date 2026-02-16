@@ -133,10 +133,10 @@ function calculateNetworkMetrics(details: BenchmarkResult["details"]) {
 /**
  * Calculate cookie banner metrics from benchmark results.
  *
- * This function aggregates cookie banner metrics across all iterations and calculates
- * the average timing for scoring. It uses bannerVisibilityTime (user-perceived visibility
- * with opacity > 0.5) rather than bannerRenderTime (technical render time) to ensure
- * scores reflect actual user experience.
+ * Aggregates cookie banner metrics across all iterations and computes average
+ * user-visible time (ms) for scoring. Uses bannerVisibilityTime (user-perceived
+ * visibility with opacity > 0.5) rather than bannerRenderTime (technical render
+ * time) so scores reflect actual user experience.
  *
  * Scoring methodology:
  * - Requires consistent detection across ALL iterations for positive score
@@ -161,17 +161,18 @@ function calculateCookieBannerMetrics(
 		);
 	}
 
-	// Calculate timing
+	// Calculate user-visible time (ms) for scoring
 	const detectionSuccess = details.some((r) => r.cookieBanner.detected);
-	let cookieBannerTiming: number | null = null;
+	let cookieBannerVisibleTimeMs: number | null = null;
 
 	if (detectionSuccess) {
 		/**
-		 * Use bannerVisibilityTime (opacity-based, user-perceived) for scoring.
-		 * This ensures scores reflect actual user experience including CSS animations.
-		 * Not using bannerRenderTime (technical render time) for scoring.
+		 * Use user-visible time (opacity-based) for scoring, not DOM presence time.
+		 * Prefer userVisibleTime when present (runner output), else visibilityTime.
 		 */
-		const timingValues = details.map((r) => r.cookieBanner.visibilityTime);
+		const timingValues = details.map(
+			(r) => r.cookieBanner.userVisibleTime ?? r.cookieBanner.visibilityTime
+		);
 		const hasNullValues = timingValues.some((t) => t === null || t === 0);
 
 		if (hasNullValues) {
@@ -183,7 +184,7 @@ function calculateCookieBannerMetrics(
 				(t): t is number => t !== null && t > 0
 			);
 			if (validTimings.length === details.length && validTimings.length > 0) {
-				cookieBannerTiming = calculateAverage(validTimings);
+				cookieBannerVisibleTimeMs = calculateAverage(validTimings);
 			}
 		}
 	} else {
@@ -204,7 +205,7 @@ function calculateCookieBannerMetrics(
 
 	return {
 		cookieBannerDetected: allDetected,
-		cookieBannerTiming,
+		cookieBannerVisibleTimeMs,
 		cookieBannerCoverage,
 	};
 }

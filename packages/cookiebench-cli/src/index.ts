@@ -75,6 +75,7 @@ async function main() {
 				process.exit(1);
 			}
 		}
+		process.exit(0);
 	} else {
 		// Build options based on admin access
 		const options = [
