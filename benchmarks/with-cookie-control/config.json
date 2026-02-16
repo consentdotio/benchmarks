@@ -1,40 +1,40 @@
 {
-	"$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
-	"name": "with-cookie-control",
-	"id": "cookie-control",
-	"iterations": 20,
-	"cookieBanner": {
-		"selectors": [".ccc-module--slideout"],
-		"serviceHosts": ["civiccomputing.com"],
-		"waitForVisibility": true,
-		"measureViewportCoverage": true,
-		"expectedLayoutShift": true,
-		"serviceName": "Cookie Control"
-	},
-	"internationalization": {
-		"detection": "none",
-		"stringLoading": "none"
-	},
-	"techStack": {
-		"bundler": "unknown",
-		"bundleType": "iffe",
-		"frameworks": [],
-		"languages": ["javascript"],
-		"packageManager": "unknown",
-		"typescript": false
-	},
-	"source": {
-		"isOpenSource": false,
-		"license": "proprietary",
-		"website": "https://www.civicuk.com/cookie-control/"
-	},
-	"company": {
-		"name": "Cookie Control",
-		"website": "https://www.civicuk.com/cookie-control/",
-		"avatar": "https://www.civicuk.com/cookie-control/images/favicon.png"
-	},
-	"includes": {
-		"backend": ["proprietary"],
-		"components": ["javascript"]
-	}
+  "$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+  "name": "with-cookie-control",
+  "id": "cookie-control",
+  "iterations": 20,
+  "cookieBanner": {
+    "selectors": [".ccc-module--slideout"],
+    "serviceHosts": ["civiccomputing.com"],
+    "waitForVisibility": true,
+    "measureViewportCoverage": true,
+    "expectedLayoutShift": true,
+    "serviceName": "Cookie Control"
+  },
+  "internationalization": {
+    "detection": "none",
+    "stringLoading": "none"
+  },
+  "techStack": {
+    "bundler": "unknown",
+    "bundleType": "iffe",
+    "frameworks": [],
+    "languages": ["javascript"],
+    "packageManager": "unknown",
+    "typescript": false
+  },
+  "source": {
+    "isOpenSource": false,
+    "license": "proprietary",
+    "website": "https://www.civicuk.com/cookie-control/"
+  },
+  "company": {
+    "name": "Cookie Control",
+    "website": "https://www.civicuk.com/cookie-control/",
+    "avatar": "https://www.civicuk.com/cookie-control/images/favicon.png"
+  },
+  "includes": {
+    "backend": ["proprietary"],
+    "components": ["javascript"]
+  }
 }
