@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/@cookiebench/benchmark-schema/schema.json",
+  "name": "with-uniconsent",
+  "id": "uniconsent-banner",
+  "iterations": 20,
+  "cookieBanner": {
+    "selectors": ["#uniccmp .unic-bar"],
+    "serviceHosts": [
+      "cmp.uniconsent.com",
+      "cdn.uniconsent.com",
+      "api.uniconsent.com"
+    ],
+    "waitForVisibility": true,
+    "measureViewportCoverage": true,
+    "expectedLayoutShift": true,
+    "serviceName": "UniConsent"
+  },
+  "internationalization": {
+    "detection": "ip",
+    "stringLoading": "server"
+  },
+  "techStack": {
+    "bundler": "unknown",
+    "bundleType": "iffe",
+    "frameworks": [],
+    "languages": ["javascript"],
+    "packageManager": "unknown",
+    "typescript": false
+  },
+  "source": {
+    "isOpenSource": false,
+    "license": "proprietary",
+    "website": "https://www.uniconsent.com"
+  },
+  "company": {
+    "name": "UniConsent",
+    "website": "https://www.uniconsent.com"
+  },
+  "includes": {
+    "backend": "proprietary",
+    "components": ["javascript"]
+  }
+}

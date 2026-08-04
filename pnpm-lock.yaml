@@ -422,6 +422,40 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  benchmarks/with-uniconsent:
+    dependencies:
+      next:
+        specifier: 16.0.7
+        version: 16.0.7(@opentelemetry/api@1.9.0)(@playwright/test@1.57.0)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      react:
+        specifier: ^19.2.1
+        version: 19.2.1
+      react-dom:
+        specifier: ^19.2.1
+        version: 19.2.1(react@19.2.1)
+    devDependencies:
+      '@cookiebench/benchmark-schema':
+        specifier: workspace:*
+        version: link:../../packages/benchmark-schema
+      '@cookiebench/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@cookiebench/ts-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^24.10.1
+        version: 24.10.1
+      '@types/react':
+        specifier: ^19.2.7
+        version: 19.2.7
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.7)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   benchmarks/with-usercentrics:
     dependencies:
       next:
